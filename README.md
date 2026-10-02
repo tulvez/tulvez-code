@@ -7,6 +7,8 @@ Tulvez Code, VS Code için gizlilik odaklı ve BYOK (kendi anahtarını getir) m
 İlk sürümde Extension Host ile React tabanlı Webview arasındaki temel iletişim hazırdır:
 
 - Komut Paleti üzerinden `Tulvez Code: Paneli Aç` komutu
+- Ana kullanım yüzeyi olarak Activity Bar içindeki Tulvez Code sidebar alanı
+- İsteğe bağlı olarak editör yanında açılan ayrı Tulvez Code paneli
 - Koyu temalı, duyarlı Tulvez Code paneli
 - Çalışma alanı adının Webview'e aktarılması
 - Mesaj gönderme ve Extension Host'tan yanıt alma akışı

@@ -23,6 +23,24 @@
         "title": "Tulvez Code: Paneli Aç"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tulvez",
+          "title": "Tulvez Code",
+          "icon": "resources/tulvez.svg"
+        }
+      ]
+    },
+    "views": {
+      "tulvez": [
+        {
+          "type": "webview",
+          "id": "tulvez.sidebar",
+          "name": "Tulvez Code"
+        }
+      ]
+    },
     "configuration": {
       "title": "Tulvez Code",
       "properties": {

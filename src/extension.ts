@@ -5,41 +5,54 @@ import type {
 } from './services/messages';
 
 export function activate(context: vscode.ExtensionContext): void {
+  const createWebview = (webview: vscode.Webview): void => {
+    webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview'),
+      ],
+    };
+    webview.html = getWebviewHtml(webview, context.extensionUri);
+  };
+
+  const handleMessage = async (
+    webview: vscode.Webview,
+    message: WebviewToHostMessage,
+  ): Promise<void> => {
+    if (message.type === 'ready') {
+      const workspaceName = vscode.workspace.name ?? 'Çalışma alanı yok';
+      await webview.postMessage({ type: 'initialized', workspaceName });
+      return;
+    }
+
+    if (message.type === 'sendMessage') {
+      const text = message.text.trim();
+      if (text.length === 0) {
+        return;
+      }
+
+      await webview.postMessage({
+        type: 'assistantMessage',
+        text: 'Yapay zeka sağlayıcısı henüz yapılandırılmadı. Mesajınız alındı.',
+      });
+    }
+  };
+
+  const sidebarProvider = new TulvezSidebarProvider(context, createWebview, handleMessage);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('tulvez.sidebar', sidebarProvider),
+  );
+
   const openPanel = () => {
     const panel = vscode.window.createWebviewPanel(
       'tulvezPanel',
       'Tulvez Code',
       vscode.ViewColumn.Beside,
-      {
-        enableScripts: true,
-        localResourceRoots: [
-          vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview'),
-        ],
-      },
+      { enableScripts: true },
     );
-
-    panel.webview.html = getWebviewHtml(panel.webview, context.extensionUri);
-
+    createWebview(panel.webview);
     panel.webview.onDidReceiveMessage(
-      (message: WebviewToHostMessage) => {
-        if (message.type === 'ready') {
-          const workspaceName = vscode.workspace.name ?? 'No workspace';
-          void postMessage(panel, { type: 'initialized', workspaceName });
-          return;
-        }
-
-        if (message.type === 'sendMessage') {
-          const text = message.text.trim();
-          if (text.length === 0) {
-            return;
-          }
-
-          void postMessage(panel, {
-            type: 'assistantMessage',
-            text: 'The AI provider is not configured yet. Your message was received.',
-          });
-        }
-      },
+      (message: WebviewToHostMessage) => void handleMessage(panel.webview, message),
       undefined,
       context.subscriptions,
     );
@@ -56,11 +69,24 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {}
 
-async function postMessage(
-  panel: vscode.WebviewPanel,
-  message: HostToWebviewMessage,
-): Promise<void> {
-  await panel.webview.postMessage(message);
+class TulvezSidebarProvider implements vscode.WebviewViewProvider {
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly createWebview: (webview: vscode.Webview) => void,
+    private readonly handleMessage: (
+      webview: vscode.Webview,
+      message: WebviewToHostMessage,
+    ) => Promise<void>,
+  ) {}
+
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.createWebview(webviewView.webview);
+    webviewView.webview.onDidReceiveMessage(
+      (message: WebviewToHostMessage) => void this.handleMessage(webviewView.webview, message),
+      undefined,
+      this.context.subscriptions,
+    );
+  }
 }
 
 function getWebviewHtml(
