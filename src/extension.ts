@@ -5,7 +5,7 @@ import type {
 } from './services/messages';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const disposable = vscode.commands.registerCommand('tulvez.openPanel', () => {
+  const openPanel = () => {
     const panel = vscode.window.createWebviewPanel(
       'tulvezPanel',
       'Tulvez Code',
@@ -43,9 +43,15 @@ export function activate(context: vscode.ExtensionContext): void {
       undefined,
       context.subscriptions,
     );
-  });
+  };
+
+  const disposable = vscode.commands.registerCommand('tulvez.openPanel', openPanel);
 
   context.subscriptions.push(disposable);
+
+  if (context.extensionMode === vscode.ExtensionMode.Development) {
+    openPanel();
+  }
 }
 
 export function deactivate(): void {}

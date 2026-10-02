@@ -12,7 +12,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:tulvez.openPanel"
+    "onCommand:tulvez.openPanel",
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {

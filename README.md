@@ -20,7 +20,7 @@ npm run check
 npm run build
 ```
 
-VS Code içinde `F5` tuşuna basarak Extension Development Host'u başlatın. Ardından Komut Paleti'nden `Tulvez Code: Paneli Aç` komutunu çalıştırın.
+VS Code içinde `F5` tuşuna basarak Extension Development Host'u başlatın. Geliştirme modunda Tulvez Code paneli otomatik açılır. Açılmazsa Komut Paleti'nden `Tulvez Code: Paneli Aç` komutunu çalıştırın.
 
 > Not: `npm run build` yalnızca derleme yapar; paneli açmaz. Paneli görmek için VS Code'da `F5` tuşuna basıp yeni açılan Extension Development Host penceresinde Komut Paleti'nden `Tulvez Code: Paneli Aç` komutunu çalıştırın.
 
