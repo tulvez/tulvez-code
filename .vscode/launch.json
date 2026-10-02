@@ -2,17 +2,22 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Tulvez AI Extension",
+      "name": "Tulvez Code'u Çalıştır",
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}"
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--new-window",
+        "--disable-extensions",
+        "--skip-welcome"
       ],
       "outFiles": [
         "${workspaceFolder}/dist/**/*.js"
       ],
-      "preLaunchTask": "build"
+      "preLaunchTask": "build",
+      "internalConsoleOptions": "openOnSessionStart",
+      "autoAttachChildProcesses": true
     }
   ]
 }
