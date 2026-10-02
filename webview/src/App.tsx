@@ -14,7 +14,6 @@ import {
   ChevronDown,
   CirclePlus,
   Copy,
-  Paperclip,
   Send,
   Sparkles,
   SquarePen,
@@ -35,6 +34,7 @@ export function App(): JSX.Element {
   const [model, setModel] = useState('Model Seç...');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
   const nextMessageId = useRef(1);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -128,11 +128,13 @@ export function App(): JSX.Element {
       </section>
 
       <section className="composer-wrap">
-        <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
-          <div className="composer-top">
+        <form className={`composer ${isFocused ? 'is-focused' : ''}`} onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
+          <div className="composer-input-row">
             <Textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
@@ -143,36 +145,43 @@ export function App(): JSX.Element {
               aria-label="AI ile sohbet edin"
               rows={1}
             />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="skills-trigger" type="button">
-                  <Sparkles size={12} /> Beceriler <ChevronDown size={12} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Çalışma alanını analiz et</DropdownMenuItem>
-                <DropdownMenuItem>Git değişikliklerini incele</DropdownMenuItem>
-                <DropdownMenuItem>Commit mesajı oluştur</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
-          <div className="composer-bottom">
-            <Button className="add-button" variant="ghost" size="icon" type="button" aria-label="Dosya ekle"><CirclePlus size={19} strokeWidth={1.7} /></Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="model-trigger" type="button">
-                  <ChevronDown className="chevron" size={12} /> {model}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onSelect={() => setModel('Otomatik')}>Otomatik</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setModel('OpenAI')}>OpenAI</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setModel('Gemini')}>Gemini</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button className="send-button" type="submit" size="icon" aria-label="Gönder">
-              {input.trim() ? <Send size={15} /> : <Paperclip size={15} />}
-            </Button>
+          <div className="composer-toolbar">
+            <div className="composer-tools">
+              <Button className="composer-icon-button" variant="ghost" size="icon" type="button" aria-label="Dosya ekle">
+                <CirclePlus size={17} strokeWidth={1.8} />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="composer-select" type="button">
+                    <Sparkles size={13} /> Beceriler <ChevronDown size={11} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem>Çalışma alanını analiz et</DropdownMenuItem>
+                  <DropdownMenuItem>Git değişikliklerini incele</DropdownMenuItem>
+                  <DropdownMenuItem>Commit mesajı oluştur</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="composer-select model-select" type="button">
+                    {model} <ChevronDown size={11} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onSelect={() => setModel('Otomatik')}>Otomatik</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setModel('OpenAI')}>OpenAI</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setModel('Gemini')}>Gemini</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="composer-status">
+              <span className="shortcut-hint">Enter gönder</span>
+              <Button className="send-button" type="submit" size="icon" aria-label="Gönder" disabled={!input.trim()}>
+                <Send size={14} />
+              </Button>
+            </div>
           </div>
         </form>
       </section>
