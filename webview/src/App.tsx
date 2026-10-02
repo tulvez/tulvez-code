@@ -27,35 +27,75 @@ export function App(): JSX.Element {
   const sendMessage = () => {
     const text = input.trim();
     if (!text) return;
-    setMessages((current) => [...current, `You: ${text}`]);
+    setMessages((current) => [...current, `Sen: ${text}`]);
     vscode.postMessage({ type: 'sendMessage', text });
     setInput('');
+  };
+
+  const useSuggestion = (text: string) => {
+    setInput(text);
   };
 
   return (
     <main className="app-shell">
       <header className="header">
-        <div className="brand"><span className="brand-mark">T</span><span>Tulvez Code</span></div>
-        <div className="context">{workspaceName}</div>
-        <button className="icon-button" type="button" aria-label="Ayarlar">⚙</button>
+        <div className="header-title">
+          <span className="copilot-mark">✦</span>
+          <span>Copilot</span>
+        </div>
+        <button className="header-action" type="button" aria-label="Yeni sohbet">＋</button>
+        <button className="header-action" type="button" aria-label="Ayarlar">•••</button>
       </header>
       <section className="content">
-        <div className="welcome-card">
-          <p className="eyebrow">Geliştirici çalışma alanı</p>
-          <h1>Daha anlaşılır kod yazın.</h1>
-          <p className="muted">Tulvez Code, geliştirme akışınıza bağlanmaya hazır.</p>
+        <div className="chat-heading">
+          <h1>Size nasıl yardımcı olabilirim?</h1>
+          <p className="muted">{workspaceName}</p>
         </div>
-        <div className="analysis-grid">
-          <article className="card"><span className="card-label">Çalışma alanı</span><strong>Analize hazır</strong><span className="muted">Dosyalar ve bağlam yerel kalır.</span></article>
-          <article className="card"><span className="card-label">Git değişiklikleri</span><strong>İlk tarama bekleniyor</strong><span className="muted">Çalışma ağacınızı inceleyin.</span></article>
+        <div className="suggestions">
+          <button type="button" className="suggestion" onClick={() => useSuggestion('Bu dosyayı açıklar mısın?')}>
+            <span className="suggestion-icon">▤</span>
+            <span>Bu dosyayı açıkla</span>
+          </button>
+          <button type="button" className="suggestion" onClick={() => useSuggestion('Çalışma alanımı analiz eder misin?')}>
+            <span className="suggestion-icon">⌁</span>
+            <span>Çalışma alanımı analiz et</span>
+          </button>
+          <button type="button" className="suggestion" onClick={() => useSuggestion('Git değişikliklerimi incele')}>
+            <span className="suggestion-icon">⑂</span>
+            <span>Değişiklikleri incele</span>
+          </button>
+          <button type="button" className="suggestion" onClick={() => useSuggestion('Commit mesajı oluştur')}>
+            <span className="suggestion-icon">✓</span>
+            <span>Commit mesajı oluştur</span>
+          </button>
         </div>
         <div className="messages" aria-live="polite">
-          {messages.map((message, index) => <p key={`${message}-${index}`} className="message">{message}</p>)}
+          {messages.map((message, index) => (
+            <p key={`${message}-${index}`} className={`message ${message.startsWith('Sen:') ? 'user-message' : 'assistant-message'}`}>
+              {message}
+            </p>
+          ))}
         </div>
       </section>
       <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
-        <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Tulvez Code'a bir şey sorun..." aria-label="Tulvez Code mesajı" />
-        <button type="submit">Gönder</button>
+        <textarea
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              sendMessage();
+            }
+          }}
+          placeholder="Copilot'a sorun"
+          aria-label="Copilot mesajı"
+          rows={1}
+        />
+        <div className="composer-footer">
+          <button className="composer-tool" type="button" aria-label="Dosya ekle">＋</button>
+          <span className="composer-hint">⏎ gönder · ⇧⏎ yeni satır</span>
+          <button className="send-button" type="submit" aria-label="Gönder">↑</button>
+        </div>
       </form>
     </main>
   );
