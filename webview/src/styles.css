@@ -9,22 +9,32 @@
 body { margin: 0; min-width: 280px; }
 button, textarea { font: inherit; }
 button { cursor: pointer; }
+.ui-button { display: inline-flex; align-items: center; justify-content: center; border: 0; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.ui-button-default { background: #d6d6d6; color: #1d1d1d; }
+.ui-button-outline { border: 1px solid #383838; background: #202020; color: #d5d5d5; }
+.ui-button-outline:hover { border-color: #686868; background: #282828; }
+.ui-button-ghost { background: transparent; color: #a7a7a7; }
+.ui-button-ghost:hover { color: #fff; }
+.ui-button-default-size { min-height: 34px; padding: 0 14px; border-radius: 6px; }
+.ui-button-icon-size { width: 28px; height: 28px; padding: 0; border-radius: 5px; }
+.ui-card { border: 1px solid #333; border-radius: 7px; }
+.ui-card-content { padding: 11px 13px; }
+.ui-textarea { font: inherit; }
 .app-shell { min-height: 100vh; display: flex; flex-direction: column; background: #181818; }
 .header { display: flex; align-items: center; gap: 9px; min-height: 49px; padding: 0 14px; border-bottom: 1px solid #303030; }
 .header-title { display: flex; align-items: center; gap: 8px; flex: 1; font-size: 13px; font-weight: 600; }
 .copilot-mark { color: #d6d6d6; font-size: 19px; line-height: 1; }
-.header-action { border: 0; background: transparent; color: #a7a7a7; padding: 5px 7px; font-size: 16px; }
-.header-action:hover, .composer-tool:hover { color: #fff; }
+.header-action { font-size: 16px; }
 .content { flex: 1; width: min(760px, 100%); margin: 0 auto; padding: 34px 20px 130px; }
 .chat-heading { text-align: center; margin: 30px 0 31px; }
 h1 { margin: 0; color: #f0f0f0; font-size: clamp(21px, 5vw, 28px); font-weight: 600; letter-spacing: -.025em; }
 .muted { margin: 9px 0 0; color: #999; font-size: 12px; line-height: 1.5; }
 .suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 570px; margin: 0 auto; }
-.suggestion { display: flex; align-items: center; gap: 10px; min-height: 57px; padding: 11px 13px; border: 1px solid #383838; border-radius: 7px; background: #202020; color: #d5d5d5; text-align: left; font-size: 12px; transition: border-color .15s, background .15s; }
-.suggestion:hover { border-color: #686868; background: #282828; }
+.suggestion { display: flex; align-items: center; justify-content: flex-start; gap: 10px; min-height: 57px; padding: 11px 13px; text-align: left; font-size: 12px; }
 .suggestion-icon { display: grid; place-items: center; width: 21px; color: #b6b6b6; font-size: 17px; }
 .messages { display: grid; gap: 10px; max-width: 650px; margin: 25px auto 0; }
-.message { margin: 0; padding: 11px 13px; border-radius: 7px; color: #d9d9d9; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.message { margin: 0; color: #d9d9d9; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.message .ui-card-content { white-space: pre-wrap; }
 .user-message { justify-self: end; max-width: 85%; background: #2d2d2d; }
 .assistant-message { background: transparent; border: 1px solid #333; }
 .composer { position: fixed; right: 0; bottom: 0; left: 0; width: min(720px, calc(100% - 28px)); margin: 0 auto 14px; padding: 10px 11px 8px; border: 1px solid #484848; border-radius: 9px; background: #252525; box-shadow: 0 8px 28px #0005; }
@@ -32,9 +42,9 @@ h1 { margin: 0; color: #f0f0f0; font-size: clamp(21px, 5vw, 28px); font-weight: 
 .composer textarea { display: block; width: 100%; min-height: 25px; max-height: 110px; resize: vertical; border: 0; outline: 0; background: transparent; color: #ededed; font-size: 13px; line-height: 1.45; }
 .composer textarea::placeholder { color: #999; }
 .composer-footer { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
-.composer-tool { border: 0; background: transparent; color: #9d9d9d; padding: 0; font-size: 20px; line-height: 1; }
+.composer-tool { color: #9d9d9d; font-size: 20px; line-height: 1; }
 .composer-hint { flex: 1; color: #777; font-size: 10px; }
-.send-button { display: grid; place-items: center; width: 25px; height: 25px; border: 0; border-radius: 5px; background: #d6d6d6; color: #1d1d1d; font-size: 17px; font-weight: 700; line-height: 1; }
+.send-button { width: 25px; height: 25px; border-radius: 5px; font-size: 17px; font-weight: 700; line-height: 1; }
 .send-button:hover { background: #fff; }
 @media (max-width: 480px) {
   .content { padding: 25px 14px 130px; }

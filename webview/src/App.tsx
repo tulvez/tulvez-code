@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage } from './types';
+import { Button } from './components/ui/button';
+import { Card, CardContent } from './components/ui/card';
+import { Textarea } from './components/ui/textarea';
 import './styles.css';
 
 export function App(): JSX.Element {
@@ -43,8 +46,8 @@ export function App(): JSX.Element {
           <span className="copilot-mark">✦</span>
           <span>Copilot</span>
         </div>
-        <button className="header-action" type="button" aria-label="Yeni sohbet">＋</button>
-        <button className="header-action" type="button" aria-label="Ayarlar">•••</button>
+        <Button className="header-action" variant="ghost" size="icon" type="button" aria-label="Yeni sohbet">＋</Button>
+        <Button className="header-action" variant="ghost" size="icon" type="button" aria-label="Ayarlar">•••</Button>
       </header>
       <section className="content">
         <div className="chat-heading">
@@ -52,33 +55,35 @@ export function App(): JSX.Element {
           <p className="muted">{workspaceName}</p>
         </div>
         <div className="suggestions">
-          <button type="button" className="suggestion" onClick={() => useSuggestion('Bu dosyayı açıklar mısın?')}>
+          <Button variant="outline" className="suggestion" type="button" onClick={() => useSuggestion('Bu dosyayı açıklar mısın?')}>
             <span className="suggestion-icon">▤</span>
             <span>Bu dosyayı açıkla</span>
-          </button>
-          <button type="button" className="suggestion" onClick={() => useSuggestion('Çalışma alanımı analiz eder misin?')}>
+          </Button>
+          <Button variant="outline" className="suggestion" type="button" onClick={() => useSuggestion('Çalışma alanımı analiz eder misin?')}>
             <span className="suggestion-icon">⌁</span>
             <span>Çalışma alanımı analiz et</span>
-          </button>
-          <button type="button" className="suggestion" onClick={() => useSuggestion('Git değişikliklerimi incele')}>
+          </Button>
+          <Button variant="outline" className="suggestion" type="button" onClick={() => useSuggestion('Git değişikliklerimi incele')}>
             <span className="suggestion-icon">⑂</span>
             <span>Değişiklikleri incele</span>
-          </button>
-          <button type="button" className="suggestion" onClick={() => useSuggestion('Commit mesajı oluştur')}>
+          </Button>
+          <Button variant="outline" className="suggestion" type="button" onClick={() => useSuggestion('Commit mesajı oluştur')}>
             <span className="suggestion-icon">✓</span>
             <span>Commit mesajı oluştur</span>
-          </button>
+          </Button>
         </div>
         <div className="messages" aria-live="polite">
           {messages.map((message, index) => (
-            <p key={`${message}-${index}`} className={`message ${message.startsWith('Sen:') ? 'user-message' : 'assistant-message'}`}>
+            <Card key={`${message}-${index}`} className={`message ${message.startsWith('Sen:') ? 'user-message' : 'assistant-message'}`}>
+              <CardContent>
               {message}
-            </p>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </section>
       <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
-        <textarea
+        <Textarea
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={(event) => {
@@ -92,9 +97,9 @@ export function App(): JSX.Element {
           rows={1}
         />
         <div className="composer-footer">
-          <button className="composer-tool" type="button" aria-label="Dosya ekle">＋</button>
+          <Button className="composer-tool" variant="ghost" size="icon" type="button" aria-label="Dosya ekle">＋</Button>
           <span className="composer-hint">⏎ gönder · ⇧⏎ yeni satır</span>
-          <button className="send-button" type="submit" aria-label="Gönder">↑</button>
+          <Button className="send-button" type="submit" size="icon" aria-label="Gönder">↑</Button>
         </div>
       </form>
     </main>
