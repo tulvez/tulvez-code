@@ -9,7 +9,18 @@ import {
 import { Textarea } from './components/ui/textarea';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage } from './types';
-import { ChevronDown, CirclePlus, Paperclip, Send, Sparkles, SquarePen } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  CirclePlus,
+  Copy,
+  Paperclip,
+  Send,
+  Sparkles,
+  SquarePen,
+  ThumbsDown,
+  ThumbsUp,
+} from 'lucide-react';
 import './styles.css';
 
 interface ChatMessage {
@@ -23,6 +34,7 @@ export function App(): JSX.Element {
   const [input, setInput] = useState('');
   const [model, setModel] = useState('Model Seç...');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
   const nextMessageId = useRef(1);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -47,6 +59,12 @@ export function App(): JSX.Element {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  const copyMessage = async (message: ChatMessage) => {
+    await navigator.clipboard.writeText(message.text);
+    setCopiedId(message.id);
+    window.setTimeout(() => setCopiedId(null), 1500);
+  };
 
   const sendMessage = () => {
     const text = input.trim();
@@ -78,13 +96,31 @@ export function App(): JSX.Element {
           <div className="empty-state">
             <div className="empty-glyph"><Sparkles size={17} strokeWidth={1.6} /></div>
             <p>Nasıl yardımcı olabilirim?</p>
-            <span>Bir soru yazın veya bir beceri seçerek başlayın.</span>
+            <span>Çalışma alanınız hakkında soru sorun veya bir görev seçin.</span>
+            <div className="starter-actions">
+              <button type="button" onClick={() => setInput('Bu dosyayı açıklar mısın?')}>Dosyayı açıkla</button>
+              <button type="button" onClick={() => setInput('Git değişikliklerimi incele')}>Değişiklikleri incele</button>
+              <button type="button" onClick={() => setInput('Commit mesajı oluştur')}>Commit mesajı yaz</button>
+            </div>
           </div>
         ) : (
           <div className="message-list">
             {messages.map((message) => (
-              <div key={message.id} className={`chat-message ${message.role}`}>
-                {message.text}
+              <div key={message.id} className={`message-group ${message.role}`}>
+                {message.role === 'assistant' && <div className="assistant-avatar"><Sparkles size={12} /></div>}
+                <div className="message-body">
+                  <div className="message-meta">{message.role === 'assistant' ? 'Tulvez Code' : 'Sen'}</div>
+                  <div className="chat-message">{message.text}</div>
+                  {message.role === 'assistant' && (
+                    <div className="message-actions">
+                      <button type="button" onClick={() => void copyMessage(message)} aria-label="Mesajı kopyala">
+                        {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
+                      </button>
+                      <button type="button" aria-label="Beğen"><ThumbsUp size={12} /></button>
+                      <button type="button" aria-label="Beğenme"><ThumbsDown size={12} /></button>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -110,7 +146,7 @@ export function App(): JSX.Element {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="skills-trigger" type="button">
-                  <ChevronDown className="chevron" size={12} /> Skills
+                  <Sparkles size={12} /> Beceriler <ChevronDown size={12} />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
