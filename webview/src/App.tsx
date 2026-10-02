@@ -1,24 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu';
+import { Textarea } from './components/ui/textarea';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage } from './types';
-import { Button } from './components/ui/button';
-import { Card, CardContent } from './components/ui/card';
-import { Textarea } from './components/ui/textarea';
 import './styles.css';
 
+interface ChatMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 export function App(): JSX.Element {
-  const [workspaceName, setWorkspaceName] = useState('Bağlanıyor...');
+  const [workspaceName, setWorkspaceName] = useState('Çalışma alanı');
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<string[]>([]);
+  const [model, setModel] = useState('Model Seç...');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const nextMessageId = useRef(1);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<HostToWebviewMessage>) => {
       if (event.data.type === 'initialized') {
         setWorkspaceName(event.data.workspaceName);
-      }
-      else if (event.data.type === 'assistantMessage') {
+      } else if (event.data.type === 'assistantMessage') {
         const { text } = event.data;
-        setMessages((current) => [...current, text]);
+        setMessages((current) => [
+          ...current,
+          { id: nextMessageId.current++, role: 'assistant', text },
+        ]);
       }
     };
 
@@ -27,81 +43,97 @@ export function App(): JSX.Element {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
+
   const sendMessage = () => {
     const text = input.trim();
     if (!text) return;
-    setMessages((current) => [...current, `Sen: ${text}`]);
+
+    setMessages((current) => [
+      ...current,
+      { id: nextMessageId.current++, role: 'user', text },
+    ]);
     vscode.postMessage({ type: 'sendMessage', text });
     setInput('');
   };
 
-  const useSuggestion = (text: string) => {
-    setInput(text);
-  };
-
   return (
-    <main className="app-shell">
-      <header className="header">
-        <div className="header-title">
-          <span className="copilot-mark">✦</span>
-          <span>Copilot</span>
+    <main className="sidebar-shell">
+      <header className="sidebar-header">
+        <div className="sidebar-title">
+          <span className="tulvez-glyph">T</span>
+          <span>Tulvez Code</span>
         </div>
-        <Button className="header-action" variant="ghost" size="icon" type="button" aria-label="Yeni sohbet">＋</Button>
-        <Button className="header-action" variant="ghost" size="icon" type="button" aria-label="Ayarlar">•••</Button>
+        <span className="workspace-label" title={workspaceName}>● {workspaceName}</span>
       </header>
-      <section className="content">
-        <div className="chat-heading">
-          <h1>Size nasıl yardımcı olabilirim?</h1>
-          <p className="muted">{workspaceName}</p>
-        </div>
-        <div className="suggestions">
-          <Button variant="outline" className="suggestion" type="button" onClick={() => useSuggestion('Bu dosyayı açıklar mısın?')}>
-            <span className="suggestion-icon">▤</span>
-            <span>Bu dosyayı açıkla</span>
-          </Button>
-          <Button variant="outline" className="suggestion" type="button" onClick={() => useSuggestion('Çalışma alanımı analiz eder misin?')}>
-            <span className="suggestion-icon">⌁</span>
-            <span>Çalışma alanımı analiz et</span>
-          </Button>
-          <Button variant="outline" className="suggestion" type="button" onClick={() => useSuggestion('Git değişikliklerimi incele')}>
-            <span className="suggestion-icon">⑂</span>
-            <span>Değişiklikleri incele</span>
-          </Button>
-          <Button variant="outline" className="suggestion" type="button" onClick={() => useSuggestion('Commit mesajı oluştur')}>
-            <span className="suggestion-icon">✓</span>
-            <span>Commit mesajı oluştur</span>
-          </Button>
-        </div>
-        <div className="messages" aria-live="polite">
-          {messages.map((message, index) => (
-            <Card key={`${message}-${index}`} className={`message ${message.startsWith('Sen:') ? 'user-message' : 'assistant-message'}`}>
-              <CardContent>
-              {message}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+
+      <section ref={scrollRef} className="chat-scroll" aria-live="polite">
+        {messages.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-glyph">✦</div>
+            <p>Nasıl yardımcı olabilirim?</p>
+            <span>Bir soru sorun veya aşağıdaki alandan bir işlem başlatın.</span>
+          </div>
+        ) : (
+          <div className="message-list">
+            {messages.map((message) => (
+              <div key={message.id} className={`chat-message ${message.role}`}>
+                {message.text}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
-      <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
-        <Textarea
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              sendMessage();
-            }
-          }}
-          placeholder="Copilot'a sorun"
-          aria-label="Copilot mesajı"
-          rows={1}
-        />
-        <div className="composer-footer">
-          <Button className="composer-tool" variant="ghost" size="icon" type="button" aria-label="Dosya ekle">＋</Button>
-          <span className="composer-hint">⏎ gönder · ⇧⏎ yeni satır</span>
-          <Button className="send-button" type="submit" size="icon" aria-label="Gönder">↑</Button>
-        </div>
-      </form>
+
+      <section className="composer-wrap">
+        <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}>
+          <div className="composer-top">
+            <Textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder="AI ile sohbet edin"
+              aria-label="AI ile sohbet edin"
+              rows={1}
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="skills-trigger" type="button">
+                  <span className="chevron">▾</span> Skills
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>Çalışma alanını analiz et</DropdownMenuItem>
+                <DropdownMenuItem>Git değişikliklerini incele</DropdownMenuItem>
+                <DropdownMenuItem>Commit mesajı oluştur</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div className="composer-bottom">
+            <Button className="add-button" variant="ghost" size="icon" type="button" aria-label="Dosya ekle">＋</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="model-trigger" type="button">
+                  <span className="chevron">▾</span> {model}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onSelect={() => setModel('Otomatik')}>Otomatik</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setModel('OpenAI')}>OpenAI</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setModel('Gemini')}>Gemini</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button className="send-button" type="submit" size="icon" aria-label="Gönder">↑</Button>
+          </div>
+        </form>
+      </section>
     </main>
   );
 }
