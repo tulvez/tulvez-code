@@ -1,0 +1,7 @@
+.vscode/
+src/
+webview/src/
+webview/tsconfig.json
+vite.config.ts
+tsconfig.json
+README.md

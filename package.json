@@ -1,0 +1,62 @@
+{
+  "name": "tulvez-code",
+  "displayName": "Tulvez Code",
+  "description": "VS Code için odaklı yapay zeka kodlama yardımcısı.",
+  "version": "0.1.0",
+  "publisher": "tulvez",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:tulvez.openPanel"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tulvez.openPanel",
+        "title": "Tulvez Code: Paneli Aç"
+      }
+    ],
+    "configuration": {
+      "title": "Tulvez Code",
+      "properties": {
+        "tulvez.aiProvider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "gemini",
+            "anthropic"
+          ],
+          "default": "openai",
+          "description": "Sağlayıcılar eklendiğinde kullanılacak yapay zeka sağlayıcısı."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "npm run build:extension && npm run build:webview",
+    "build:extension": "esbuild src/extension.ts --bundle --platform=node --external:vscode --format=cjs --outfile=dist/extension.js",
+    "build:webview": "vite build",
+    "check": "tsc --noEmit && tsc -p webview/tsconfig.json --noEmit",
+    "package": "npm run build",
+    "watch:extension": "esbuild src/extension.ts --bundle --platform=node --external:vscode --format=cjs --outfile=dist/extension.js --watch",
+    "watch:webview": "vite build --watch"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/vscode": "^1.85.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "esbuild": "^0.24.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
