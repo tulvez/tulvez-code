@@ -41,3 +41,5 @@ Mevcut temel bileşenler:
 - `cn` yardımcı fonksiyonu
 
 Bu katman Copilot benzeri kullanım akışını sağlarken, Tulvez Code renkleri, ikonları, kartları ve özel analiz görünümleri üzerine eklenebilecek bir temel sunar.
+
+AI sohbeti için Copilot arayüzünü fork etmek yerine mevcut sidebar kabuğu korunmuştur. Copilot Chat, VS Code iç API'lerine ve kendi ürün altyapısına sıkı bağlı olduğu için bu projeye doğrudan taşınması sürdürülebilir değildir. İleride gerçek streaming/runtime ihtiyacı oluştuğunda `assistant-ui` bileşenleri ayrıca değerlendirilebilir; mevcut aşamada özel sidebar kabuğu daha hafif ve kontrol edilebilirdir.

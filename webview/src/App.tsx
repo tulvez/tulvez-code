@@ -9,6 +9,7 @@ import {
 import { Textarea } from './components/ui/textarea';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage } from './types';
+import { ChevronDown, CirclePlus, Paperclip, Send, Sparkles, SquarePen } from 'lucide-react';
 import './styles.css';
 
 interface ChatMessage {
@@ -66,15 +67,18 @@ export function App(): JSX.Element {
           <span className="tulvez-glyph">T</span>
           <span>Tulvez Code</span>
         </div>
-        <span className="workspace-label" title={workspaceName}>● {workspaceName}</span>
+        <span className="workspace-label" title={workspaceName}>{workspaceName}</span>
+        <Button className="new-chat-button" variant="ghost" size="icon" type="button" aria-label="Yeni sohbet">
+          <SquarePen size={15} strokeWidth={1.8} />
+        </Button>
       </header>
 
       <section ref={scrollRef} className="chat-scroll" aria-live="polite">
         {messages.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-glyph">✦</div>
+            <div className="empty-glyph"><Sparkles size={17} strokeWidth={1.6} /></div>
             <p>Nasıl yardımcı olabilirim?</p>
-            <span>Bir soru sorun veya aşağıdaki alandan bir işlem başlatın.</span>
+            <span>Bir soru yazın veya bir beceri seçerek başlayın.</span>
           </div>
         ) : (
           <div className="message-list">
@@ -106,7 +110,7 @@ export function App(): JSX.Element {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="skills-trigger" type="button">
-                  <span className="chevron">▾</span> Skills
+                  <ChevronDown className="chevron" size={12} /> Skills
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -117,11 +121,11 @@ export function App(): JSX.Element {
             </DropdownMenu>
           </div>
           <div className="composer-bottom">
-            <Button className="add-button" variant="ghost" size="icon" type="button" aria-label="Dosya ekle">＋</Button>
+            <Button className="add-button" variant="ghost" size="icon" type="button" aria-label="Dosya ekle"><CirclePlus size={19} strokeWidth={1.7} /></Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="model-trigger" type="button">
-                  <span className="chevron">▾</span> {model}
+                  <ChevronDown className="chevron" size={12} /> {model}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
@@ -130,7 +134,9 @@ export function App(): JSX.Element {
                 <DropdownMenuItem onSelect={() => setModel('Gemini')}>Gemini</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button className="send-button" type="submit" size="icon" aria-label="Gönder">↑</Button>
+            <Button className="send-button" type="submit" size="icon" aria-label="Gönder">
+              {input.trim() ? <Send size={15} /> : <Paperclip size={15} />}
+            </Button>
           </div>
         </form>
       </section>
