@@ -102,6 +102,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const signal = activeAbort.signal;
     await runAgent(settings, prompt, mode, history, {
       onChunk: (chunk) => void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage),
+      onReasoning: (chunk) => void webview.postMessage({ type: 'assistantReasoning', text: chunk } satisfies HostToWebviewMessage),
       onToolCall: (tool, summary) => void webview.postMessage({ type: 'toolCall', tool, summary } satisfies HostToWebviewMessage),
       onToolRequest: (id, tool, args) =>
         new Promise<boolean>((resolve) => {

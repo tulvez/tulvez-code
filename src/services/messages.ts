@@ -33,6 +33,7 @@ export type HostToWebviewMessage =
   | { type: 'initialized'; workspaceName: string; workspacePath?: string; logoUri: string }
   | { type: 'error'; message: string }
   | { type: 'assistantChunk'; text: string }
+  | { type: 'assistantReasoning'; text: string }
   | { type: 'assistantDone'; inputTokens: number; outputTokens: number; costUsd: number; contextWindow?: number; model?: string }
   | { type: 'commandResult'; output: string; exitCode: number }
   | { type: 'settingsData'; settings: TulvezSettings }

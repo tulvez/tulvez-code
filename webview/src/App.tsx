@@ -32,6 +32,7 @@ interface ChatMessage {
   contextWindow?: number;
   model?: string;
   stopped?: boolean;
+  reasoning?: string;
   toolName?: string;
 }
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
@@ -114,10 +115,10 @@ function UsageBadge({ inputTokens, outputTokens, costUsd, model }: { inputTokens
   );
 }
 
-function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, stopped, onAnimationEnd }: {
+function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, stopped, reasoning, onAnimationEnd }: {
   text: string; onCopy: () => void; onRunHint: () => void; copied: boolean; animate: boolean;
   inputTokens?: number; outputTokens?: number; costUsd?: number; model?: string; stopped?: boolean;
-  onAnimationEnd?: () => void;
+  reasoning?: string; onAnimationEnd?: () => void;
 }) {
   const { displayed, done } = useTyping(text, animate);
 
@@ -127,6 +128,12 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
 
   return (
     <>
+      {reasoning && reasoning.trim() && (
+        <details className="reasoning" open={!done}>
+          <summary>Düşünüş ({reasoning.length} karakter)</summary>
+          <div className="reasoning-body">{reasoning}</div>
+        </details>
+      )}
       <div className="turn-body">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
         {!done && !stopped && displayed.length === 0 && <span className="thinking-inline">Düşünüyor…</span>}
@@ -239,6 +246,17 @@ export function App(): JSX.Element {
         if (msg.settings.showModels && (msg.settings.aiProvider === 'ollama' || msg.settings.apiKey)) {
           vscode.postMessage({ type: 'listModels' });
         }
+      } else if (msg.type === 'assistantReasoning') {
+        setWaiting(false);
+        setMessages((prev) => {
+          const sid = streamingIdRef.current;
+          if (sid === null) {
+            const id = nextId.current++;
+            streamingIdRef.current = id;
+            return [...prev, { id, role: 'assistant', text: '', reasoning: msg.text, mode: modeRef.current, animated: true }];
+          }
+          return prev.map((m) => (m.id === sid ? { ...m, reasoning: (m.reasoning ?? '') + msg.text } : m));
+        });
       } else if (msg.type === 'modelsList') {
         setLiveModels(msg.models);
       } else if (msg.type === 'assistantChunk') {
@@ -686,6 +704,7 @@ onClick={() => {
                             costUsd={msg.costUsd}
                             model={msg.model}
                             stopped={msg.stopped}
+                            reasoning={msg.reasoning}
                             onAnimationEnd={() => animatedIdsRef.current.add(msg.id)}
                             onCopy={() => void copy(msg)}
                             onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}

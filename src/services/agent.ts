@@ -11,6 +11,7 @@ export interface AgentCallbacks {
   onToolRequest: (id: string, tool: string, args: string) => Promise<boolean>;
   onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number; model: string }) => void;
   onCancelled?: () => void;
+  onReasoning?: (text: string) => void;
   onError: (err: string) => void;
 }
 
@@ -186,6 +187,7 @@ async function runOpenAICompatible(
     }, { signal });
 
     let content = '';
+    let reasoning = '';
     let truncated = false;
     const partial = new Map<number, { id: string; name: string; args: string }>();
 
@@ -196,6 +198,12 @@ async function runOpenAICompatible(
       if (delta?.content) {
         content += delta.content;
         cb.onChunk(delta.content);
+      }
+      const think = (delta as { reasoning_content?: string; reasoning?: string } | undefined)?.reasoning_content
+        ?? (delta as { reasoning?: string } | undefined)?.reasoning;
+      if (think) {
+        reasoning += think;
+        cb.onReasoning?.(think);
       }
       if (delta?.tool_calls) {
         for (const tc of delta.tool_calls) {
@@ -214,7 +222,12 @@ async function runOpenAICompatible(
 
     if (partial.size === 0) {
       if (truncated) {
-        cb.onChunk('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmesi için "devam" yazabilirsin._');
+        const note = reasoning
+          ? '\n\n_⚠️ Model düşünme sırasında çıktı sınırına dayandı; cevap eksik kaldı. "devam" yazabilir ya da daha kısa bir istek yazabilirsin._'
+          : '\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. "devam" yazabilirsin._';
+        cb.onChunk(note);
+      } else if (!content.trim() && reasoning.trim()) {
+        cb.onChunk('_Model yalnızca düşünme üretti, metin çıktısı boş. Bu modelle daha kısa bir istek dene veya başka bir model seç._');
       }
       break;
     }

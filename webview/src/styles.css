@@ -183,6 +183,18 @@ img { -webkit-user-drag: none; user-select: none; }
 .run-hint { color: var(--tulvez-green) !important; opacity: 0.7; }
 .run-hint:hover { opacity: 1; background: var(--tulvez-green-dim) !important; }
 
+/* Reasoning block */
+.reasoning {
+  margin: 0 0 6px 26px; padding: 6px 10px;
+  border: 1px dashed var(--vscode-panel-border); border-radius: var(--radius);
+  background: rgba(255,255,255,0.02); font-size: 12px;
+}
+.reasoning summary { cursor: pointer; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.reasoning-body {
+  margin-top: 6px; color: var(--vscode-descriptionForeground);
+  white-space: pre-wrap; line-height: 1.5; font-size: 12px;
+}
+
 /* Thinking indicator */
 .thinking-inline {
   display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 20px;
