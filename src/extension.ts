@@ -245,6 +245,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     if (message.type === 'saveSettings') {
       await saveSettings(message.settings);
+      await webview.postMessage({ type: 'settingsData', settings: await readSettings() } satisfies HostToWebviewMessage);
       return;
     }
 

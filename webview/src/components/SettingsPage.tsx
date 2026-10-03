@@ -70,7 +70,10 @@ export function SettingsPage({ onBack }: Props) {
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'settingsData') setCfg(e.data.settings as TulvezSettings);
+      if (e.data?.type === 'settingsData') {
+        // Kendi kaydettiğimiz ayarın yankısı yazarken girdiğimiz değeri ezmesin
+        if (!saveTimer.current) setCfg(e.data.settings as TulvezSettings);
+      }
       if (e.data?.type === 'modelsList') {
         setModels(e.data.models as string[]);
         setModelsError((e.data.error as string) ?? '');
@@ -101,6 +104,7 @@ export function SettingsPage({ onBack }: Props) {
       const next = { ...prev, [key]: val };
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
+        saveTimer.current = null;
         vscode.postMessage({ type: 'saveSettings', settings: next });
       }, 600);
       return next;
