@@ -7,7 +7,7 @@ import { vscode } from './services/vscode';
 import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, FolderOpen, GitBranch, Hammer,
-  MessageSquare, Send, Settings, Sparkles, SquarePen,
+  MessageSquare, Send, Settings, Sparkles, Square, SquarePen,
   Terminal, ThumbsDown, ThumbsUp, Trash2, X, Zap,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -31,6 +31,7 @@ interface ChatMessage {
   costUsd?: number;
   contextWindow?: number;
   model?: string;
+  stopped?: boolean;
   toolName?: string;
 }
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
@@ -107,9 +108,10 @@ function UsageBadge({ inputTokens, outputTokens, costUsd, model }: { inputTokens
   );
 }
 
-function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, onAnimationEnd }: {
+function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, stopped, onAnimationEnd }: {
   text: string; onCopy: () => void; onRunHint: () => void; copied: boolean; animate: boolean;
-  inputTokens?: number; outputTokens?: number; costUsd?: number; model?: string; onAnimationEnd?: () => void;
+  inputTokens?: number; outputTokens?: number; costUsd?: number; model?: string; stopped?: boolean;
+  onAnimationEnd?: () => void;
 }) {
   const { displayed, done } = useTyping(text, animate);
 
@@ -121,8 +123,9 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
     <>
       <div className="turn-body">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
-        {!done && <span className="typing-cursor" />}
+        {!done && !stopped && <span className="thinking-inline">Düşünüyor…</span>}
       </div>
+      {stopped && <div className="stopped-label">Yanıt durduruldu</div>}
       {done && inputTokens !== undefined && outputTokens !== undefined && costUsd !== undefined && (
         <UsageBadge inputTokens={inputTokens} outputTokens={outputTokens} costUsd={costUsd} model={model} />
       )}
@@ -175,6 +178,7 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
   const [waiting, setWaiting] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     try {
       const raw = localStorage.getItem('tulvez.sessions');
@@ -243,6 +247,7 @@ export function App(): JSX.Element {
         }
       } else if (msg.type === 'assistantDone') {
         setWaiting(false);
+        setStreaming(false);
         const sid = streamingIdRef.current;
         if (sid !== null) {
           setMessages((prev) => prev.map((m) => m.id === sid
@@ -253,6 +258,7 @@ export function App(): JSX.Element {
         }
       } else if (msg.type === 'error') {
         setWaiting(false);
+        setStreaming(false);
         streamingIdRef.current = null;
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'assistant',
@@ -263,6 +269,14 @@ export function App(): JSX.Element {
           id: nextId.current++, role: 'command',
           text: msg.output || '(çıktı yok)', exitCode: msg.exitCode,
         }]);
+      } else if (msg.type === 'cancelled') {
+        setWaiting(false);
+        setStreaming(false);
+        const sid = streamingIdRef.current;
+        if (sid !== null) {
+          setMessages((prev) => prev.map((m) => (m.id === sid ? { ...m, stopped: true } : m)));
+          streamingIdRef.current = null;
+        }
       } else if (msg.type === 'toolCall') {
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'tool', text: msg.summary, toolName: msg.tool,
@@ -311,6 +325,7 @@ export function App(): JSX.Element {
       setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
       vscode.postMessage({ type: 'slash', name: slashMatch[1].toLowerCase() as 'commit' | 'review' | 'diff' | 'explain', mode });
       setWaiting(true);
+      setStreaming(true);
       setInput('');
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
       return;
@@ -334,6 +349,7 @@ export function App(): JSX.Element {
       .slice(-20);
     vscode.postMessage({ type: 'sendMessage', text, mode, history, model: model === 'Varsayılan' ? undefined : model });
     setWaiting(true);
+    setStreaming(true);
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
@@ -376,6 +392,7 @@ export function App(): JSX.Element {
     setMessages([]);
     setRunConfirm(null);
     setWaiting(false);
+    setStreaming(false);
   };
 
   const lastPromptRef = useRef<{ text: string; mode: AgentMode; model?: string } | null>(null);
@@ -644,6 +661,7 @@ export function App(): JSX.Element {
                             outputTokens={msg.outputTokens}
                             costUsd={msg.costUsd}
                             model={msg.model}
+                            stopped={msg.stopped}
                             onAnimationEnd={() => animatedIdsRef.current.add(msg.id)}
                             onCopy={() => void copy(msg)}
                             onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}
@@ -809,9 +827,15 @@ export function App(): JSX.Element {
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <button className={`send-btn send-btn-${mode}`} type="submit" title="Gönder" disabled={!input.trim()}>
-                      <Send size={13} strokeWidth={2} />
-                    </button>
+                    {streaming ? (
+                      <button className="send-btn stop-btn" type="button" title="Durdur" onClick={() => vscode.postMessage({ type: 'cancelStream' })}>
+                        <Square size={11} strokeWidth={2.5} />
+                      </button>
+                    ) : (
+                      <button className={`send-btn send-btn-${mode}`} type="submit" title="Gönder" disabled={!input.trim()}>
+                        <Send size={13} strokeWidth={2} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </form>

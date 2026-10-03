@@ -18,6 +18,7 @@ export type WebviewToHostMessage =
   | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain'; mode: 'ask' | 'plan' | 'build' }
   | { type: 'toolApproval'; id: string; approved: boolean }
   | { type: 'listModels' }
+  | { type: 'cancelStream' }
   | { type: 'expandSidebar' }
   | { type: 'runCommand'; command: string }
   | { type: 'getSettings' }
@@ -34,4 +35,5 @@ export type HostToWebviewMessage =
   | { type: 'toolRequest'; id: string; tool: string; args: string }
   | { type: 'toolCall'; tool: string; summary: string }
   | { type: 'modelsList'; models: string[]; error?: string }
-  | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean };
+  | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
+  | { type: 'cancelled' };

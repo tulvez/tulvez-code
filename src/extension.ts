@@ -73,6 +73,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const pendingToolApprovals = new Map<string, (approved: boolean) => void>();
 
+  let activeAbort: AbortController | null = null;
+
   const runAgentFor = async (
     webview: vscode.Webview,
     settings: TulvezSettings,
@@ -80,6 +82,9 @@ export function activate(context: vscode.ExtensionContext): void {
     mode: 'ask' | 'plan' | 'build',
     history: { role: 'user' | 'assistant'; text: string }[],
   ): Promise<void> => {
+    activeAbort?.abort();
+    activeAbort = new AbortController();
+    const signal = activeAbort.signal;
     await runAgent(settings, prompt, mode, history, {
       onChunk: (chunk) => void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage),
       onToolCall: (tool, summary) => void webview.postMessage({ type: 'toolCall', tool, summary } satisfies HostToWebviewMessage),
@@ -88,8 +93,16 @@ export function activate(context: vscode.ExtensionContext): void {
           pendingToolApprovals.set(id, resolve);
           void webview.postMessage({ type: 'toolRequest', id, tool, args } satisfies HostToWebviewMessage);
         }),
-      onDone: (usage) => void webview.postMessage({ type: 'assistantDone', inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, contextWindow: usage.contextWindow, model: usage.model } satisfies HostToWebviewMessage),
+      onDone: (usage) => {
+        activeAbort = null;
+        void webview.postMessage({ type: 'assistantDone', inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, contextWindow: usage.contextWindow, model: usage.model } satisfies HostToWebviewMessage);
+      },
+      onCancelled: () => {
+        activeAbort = null;
+        void webview.postMessage({ type: 'cancelled' } satisfies HostToWebviewMessage);
+      },
       onError: (err) => {
+        activeAbort = null;
         void webview.postMessage({ type: 'error', message: friendlyError(err) } satisfies HostToWebviewMessage);
         const lower = err.toLowerCase();
         if (lower.includes('429') || lower.includes('quota') || lower.includes('503')) {
@@ -114,6 +127,12 @@ export function activate(context: vscode.ExtensionContext): void {
     webview: vscode.Webview,
     message: WebviewToHostMessage,
   ): Promise<void> => {
+    if (message.type === 'cancelStream') {
+      activeAbort?.abort();
+      activeAbort = null;
+      return;
+    }
+
     if (message.type === 'toolApproval') {
       const resolve = pendingToolApprovals.get(message.id);
       if (resolve) {

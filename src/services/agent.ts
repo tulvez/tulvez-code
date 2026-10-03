@@ -10,7 +10,14 @@ export interface AgentCallbacks {
   onToolCall: (tool: string, summary: string) => void;
   onToolRequest: (id: string, tool: string, args: string) => Promise<boolean>;
   onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number; model: string }) => void;
+  onCancelled?: () => void;
   onError: (err: string) => void;
+}
+
+class CancelledError extends Error {
+  constructor() {
+    super('TulvezIsCancelled');
+  }
 }
 
 function contextWindow(model: string): number {
@@ -61,6 +68,7 @@ export async function runAgent(
   mode: AgentMode,
   history: ChatTurn[],
   callbacks: AgentCallbacks,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!SUPPORTED_TOOLS.includes(settings.aiProvider as (typeof SUPPORTED_TOOLS)[number])) {
     callbacks.onError('Bu sağlayıcı henüz araç desteklemiyor.');
@@ -84,9 +92,9 @@ export async function runAgent(
     chunkSeen = false;
     try {
       if (settings.aiProvider === 'anthropic') {
-        await runAnthropic(settings, systemPrompt, userMessage, history, cb, allowedTools);
+        await runAnthropic(settings, systemPrompt, userMessage, history, cb, allowedTools, signal);
       } else if (settings.aiProvider === 'gemini') {
-        await runGemini(settings, systemPrompt, userMessage, history, cb, allowedTools);
+        await runGemini(settings, systemPrompt, userMessage, history, cb, allowedTools, signal);
       } else {
         const baseURL =
           settings.aiProvider === 'groq' ? 'https://api.groq.com/openai/v1'
@@ -94,11 +102,19 @@ export async function runAgent(
           : settings.aiProvider === 'custom' ? (settings.baseUrl || '').replace(/\/$/, '')
           : settings.aiProvider === 'ollama' ? `${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`
           : undefined;
-        await runOpenAICompatible(settings, systemPrompt, userMessage, history, cb, baseURL, allowedTools);
+        await runOpenAICompatible(settings, systemPrompt, userMessage, history, cb, baseURL, allowedTools, signal);
       }
       return;
     } catch (err) {
+      if (err instanceof CancelledError) {
+        callbacks.onCancelled?.();
+        return;
+      }
       const message = err instanceof Error ? err.message : String(err);
+      if (/abort/i.test(message) || signal?.aborted) {
+        callbacks.onCancelled?.();
+        return;
+      }
       const retryable = isRetryableError(message);
       if (!retryable || attempt >= maxAttempts || chunkSeen) {
         callbacks.onError(message);
@@ -137,6 +153,7 @@ async function runOpenAICompatible(
   cb: AgentCallbacks,
   baseURL?: string,
   tools: typeof TOOL_DEFINITIONS = TOOL_DEFINITIONS,
+  signal?: AbortSignal,
 ): Promise<void> {
   const apiKey = settings.aiProvider === 'ollama' ? 'ollama' : settings.apiKey;
   const isOllama = settings.aiProvider === 'ollama';
@@ -159,13 +176,14 @@ async function runOpenAICompatible(
   let outputTokens = 0;
 
   for (let step = 0; step < 10; step++) {
+    if (signal?.aborted) throw new CancelledError();
     const stream = await client.chat.completions.create({
       model,
       stream: true,
       stream_options: { include_usage: true },
       messages,
       tools: openAIToolsFor(tools),
-    });
+    }, { signal });
 
     let content = '';
     const partial = new Map<number, { id: string; name: string; args: string }>();
@@ -225,6 +243,7 @@ async function runAnthropic(
   history: ChatTurn[],
   cb: AgentCallbacks,
   toolDefs: typeof TOOL_DEFINITIONS = TOOL_DEFINITIONS,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!settings.apiKey) { cb.onError('Anthropic API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
   const model = settings.model || 'claude-3-5-haiku-20241022';
@@ -242,7 +261,8 @@ async function runAnthropic(
   let outputTokens = 0;
 
   for (let step = 0; step < 10; step++) {
-    const stream = client.messages.stream({ model, max_tokens: 4096, system: systemPrompt, tools, messages });
+    if (signal?.aborted) throw new CancelledError();
+    const stream = client.messages.stream({ model, max_tokens: 4096, system: systemPrompt, tools, messages }, { signal });
     let streamedText = '';
     for await (const event of stream) {
       if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
@@ -283,6 +303,7 @@ async function runGemini(
   history: ChatTurn[],
   cb: AgentCallbacks,
   toolDefs: typeof TOOL_DEFINITIONS = TOOL_DEFINITIONS,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!settings.apiKey) { cb.onError('Gemini API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
   const model = settings.model || 'gemini-2.5-flash';
@@ -308,9 +329,11 @@ async function runGemini(
   let outputTokens = 0;
 
   for (let step = 0; step < 10; step++) {
+    if (signal?.aborted) throw new CancelledError();
     const result = await genModel.generateContentStream({ contents });
     const reader = result.stream[Symbol.asyncIterator]();
     while (true) {
+      if (signal?.aborted) throw new CancelledError();
       const next = await Promise.race([
         reader.next(),
         new Promise<{ done: boolean; value?: undefined }>((_, rej) =>
