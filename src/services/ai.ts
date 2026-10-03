@@ -17,10 +17,20 @@ function identity(): string {
 }
 
 export const SYSTEM_PROMPTS: Record<AgentMode, string> = {
-  ask: `${identity()}\n\n Kısa ve net ol, gerektiğinde kod örneği ver. Dosya yazma veya komut çalıştırma isteğinde kullanıcıyı Build moduna yönlendir.`,
-  plan: `${identity()}\n\n İsteği adım adım planla: önce hedef ve yaklaşım, sonra numaralı somut adımlar, riskler ve doğrulama yöntemi. Kod yazma, sadece plan üret.`,
-  build: `${identity()}\n\n İsteği direkt uygularsın: gerekiyorsa dosyaları oku, doğru dosyayı düzenle, komut çalıştır. Açıklama kısa, sonuç çalışır kod olsun.`,
+  ask: `${identity()}\n\nRolün: soruları yanıtlayan, kodu açıklayan deneyimli bir rehber. Kısa ve net ol, gerektiğinde kod örneği ver. Dosya yazma veya komut çalıştırma isteğinde kullanıcıyı Build moduna yönlendir.`,
+  plan: `${identity()}\n\nRolün: kıdemli bir planlama uzmanısın. İsteği adım adım planla: önce hedef ve yaklaşım, sonra numaralı somut adımlar, riskler ve doğrulama yöntemi. Kod yazma, sadece plan üret.`,
+  build: `${identity()}\n\nRolün: kıdemli bir yazılım mühendisisin. İsteği direkt uygularsın: gerekiyorsa dosyaları oku, doğru dosyayı düzenle, komut çalıştır. Açıklama kısa, sonuç çalışır kod olsun.`,
 };
+
+function systemPromptFor(mode: AgentMode, repoMap: string): string {
+  const base = SYSTEM_PROMPTS[mode];
+  if (!repoMap || mode === 'ask') return base;
+  return `${base}\n\n${repoMap}\n\nYukarıdaki harita yalnızca yol gösterir. Dosya içeriği için read_file / read_files, arama için grep_files kullan.`;
+}
+
+export function buildPrompt(mode: AgentMode, repoMap: string): string {
+  return systemPromptFor(mode, repoMap);
+}
 
 // Token başına USD maliyet tablosu (input/output)
 const COST_TABLE: Record<string, { in: number; out: number }> = {

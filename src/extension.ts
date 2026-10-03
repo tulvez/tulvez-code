@@ -5,7 +5,7 @@ import OpenAI from 'openai';
 // 3. parti SDK'ların Node deprecation uyarılarını susturur (VS Code terminalinde görünür gürültü)
 process.noDeprecation = true;
 import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from './services/messages';
-import { runAgent } from './services/agent';
+import { runAgent, invalidateRepoMap } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations } from './services/tools';
 import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 
@@ -384,7 +384,10 @@ export function activate(context: vscode.ExtensionContext): void {
     aiStatus.show();
   };
   context.subscriptions.push(aiStatus);
-  aiEditHooks.onEdit = updateAiStatus;
+  aiEditHooks.onEdit = () => {
+    invalidateRepoMap();
+    updateAiStatus();
+  };
 
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(() => { refreshAiDecorations(); updateAiStatus(); }),

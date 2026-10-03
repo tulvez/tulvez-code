@@ -2,8 +2,26 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI, type Part } from '@google/generative-ai';
 import type { TulvezSettings } from './messages';
-import { calcCost, SYSTEM_PROMPTS, type AgentMode, type ChatTurn } from './ai';
+import { calcCost, buildPrompt, type AgentMode, type ChatTurn } from './ai';
 import { TOOL_DEFINITIONS, executeTool } from './tools';
+import { buildRepoMap } from './repomap';
+
+let repoMapCache: { text: string; fileCount: number; builtAt: number } | null = null;
+
+export function invalidateRepoMap(): void {
+  repoMapCache = null;
+}
+
+async function repoMapFor(): Promise<string> {
+  if (repoMapCache && Date.now() - repoMapCache.builtAt < 60_000) return repoMapCache.text;
+  try {
+    const map = await buildRepoMap();
+    repoMapCache = { text: map.text, fileCount: map.fileCount, builtAt: Date.now() };
+    return map.text;
+  } catch {
+    return '';
+  }
+}
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -83,9 +101,10 @@ export async function runAgent(
     callbacks.onError('Bu sağlayıcı henüz araç desteklemiyor.');
     return;
   }
-  const systemPrompt = SYSTEM_PROMPTS[mode];
   // Selamlaşma ve kısa basit sorularda araç çağırma: model boşuna dosya listelemesin.
   const trivial = isTrivialRequest(userMessage);
+  const repoMap = trivial ? '' : await repoMapFor();
+  const systemPrompt = buildPrompt(mode, repoMap);
   // Ask modunda yalnızca salt-okunur araçlar çalışır; yazma/komut araçları kapalı.
   const allowedTools = TOOL_DEFINITIONS.filter((t) => (mode !== 'ask' || t.readOnly) && !trivial);
 
