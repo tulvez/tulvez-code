@@ -1,45 +1,59 @@
 # Tulvez Code
 
-Tulvez Code, VS Code için gizlilik odaklı ve BYOK (kendi anahtarını getir) mimarisine sahip yapay zeka kodlama yardımcısıdır.
+Tulvez Code, VS Code için gizlilik odaklı, BYOK (kendi anahtarını getir) mimarisine sahip yapay zeka kodlama asistanıdır.
 
-## İlk gösterim
+## Özellikler
 
-İlk sürümde Extension Host ile React tabanlı Webview arasındaki temel iletişim hazırdır:
+- **Ask / Plan / Build** modları: sadece soru cevaplama, plan üretme ve aktif kod yazma
+- **Çoklu sağlayıcı**: OpenAI, Anthropic, Google Gemini, Groq, Ollama (yerel)
+- **Araç döngüsü**: `read_file`, `write_file`, `edit_file`, `list_files`, `run_command` ile gerçek kod değişikliği ve terminal çalıştırma
+- **Onay mekanizması**: dosya yazma/düzenleme otomatik, `run_command` onay ister (Ayarlar üzerinden değiştirilebilir)
+- **Git kısayolları**: `/commit`, `/review`, `/diff`, `/explain`, `/run`
+- **Markdown render**, thinking animasyonu, token/maliyet/bağlam istatistikleri
+- **Kota bilgisi**: sağlayıcının model bazlı limit verileri ve sıfırlanma zamanı
+- **BYOK + SecretStorage**: API anahtarın yalnızca VS Code'un şifreli saklayıcısında durur; Tulvez sunucusuna gönderilmez
 
-- Komut Paleti üzerinden `Tulvez Code: Paneli Aç` komutu
-- Ana kullanım yüzeyi olarak Activity Bar içindeki Tulvez Code sidebar alanı
-- İsteğe bağlı olarak editör yanında açılan ayrı Tulvez Code paneli
-- shadcn/ui bileşen yaklaşımı ve Radix Slot tabanlı erişilebilir temel UI katmanı
-- Koyu temalı, duyarlı Tulvez Code paneli
-- Çalışma alanı adının Webview'e aktarılması
-- Mesaj gönderme ve Extension Host'tan yanıt alma akışı
-- Yapay zeka sağlayıcısı eklenene kadar yerel, güvenli yer tutucu yanıt
+## Kurulum
+
+Marketplace yayınından sonra:
+
+1. VS Code → Eklentiler → "Tulvez Code" ara → Yükle
+2. Sol kenardaki Tulvez Code ikonuna tıkla
+3. API anahtarını Ayarlar sekmesinden veya boş ekrandaki karttan ekle
+4. Sağlayıcı ve modeli seç; listede sadece hesabındaki gerçek modeller görünür
+
+## Kullanım
+
+- Sohbetten kod yazdırma: Build modu → "main.py oluştur, içine print yaz"
+- Git: `/commit` ile değişikliklerden commit mesajı, `/review` ile kod incelemesi, `/diff` ile özet
+- `/explain`: editörde seçili kodu açıklar
 
 ## Geliştirme
 
 ```bash
 npm install
-npm run check
-npm run build
+npm run check   # tip kontrolü
+npm run build   # extension + webview bundle
+npm run watch:extension  # veya watch:webview
 ```
 
-VS Code içinde `F5` tuşuna basarak Extension Development Host'u başlatın. Geliştirme modunda Tulvez Code paneli otomatik açılır. Açılmazsa Komut Paleti'nden `Tulvez Code: Paneli Aç` komutunu çalıştırın.
+VS Code içinde `F5` ile Extension Development Host açılır.
 
-> Not: `npm run build` yalnızca derleme yapar; paneli açmaz. Paneli görmek için VS Code'da `F5` tuşuna basıp yeni açılan Extension Development Host penceresinde Komut Paleti'nden `Tulvez Code: Paneli Aç` komutunu çalıştırın.
+## Paketleme / yayınlama
 
-Yapay zeka sağlayıcıları, Git servisleri, SecretStorage yapılandırması ve analiz komutları sonraki aşamalarda eklenecektir.
+```bash
+npx @vscode/vsce package          # VSIX üret
+npx @vscode/vsce publish -p $VSCE_PAT   # Marketplace'e gönder
+```
 
-## UI mimarisi
+`v*` etiketi (tag) atınca GitHub Actions otomatik derleyip Marketplace'e yayınlar. Detaylar `.github/workflows/publish.yml` dosyasında. `VSCE_PAT` adlı bir repository secret'ı gereklidir (Marketplace bir Azure DevOps Personal Access Token ister).
 
-Webview arayüzü, shadcn/ui yaklaşımındaki proje-içi bileşenlerle kurulmaktadır. Bu yaklaşımda bileşen kodu doğrudan projede tutulur ve Tulvez Code tasarımına göre değiştirilebilir.
+## Gizlilik
 
-Mevcut temel bileşenler:
+- API anahtarları VS Code `SecretStorage`'da saklanır.
+- Kod, istek sırasında seçilen sağlayıcının API'sine gider; Tulvez'ın kendi sunucusu yoktur.
+- `sendCodeContext` kapalıysa aktif dosya içeriği otomatik eklenmez.
 
-- `Button`: Radix Slot ile `asChild` desteği
-- `Card` ve `CardContent`
-- `Textarea`
-- `cn` yardımcı fonksiyonu
+## Lisans
 
-Bu katman Copilot benzeri kullanım akışını sağlarken, Tulvez Code renkleri, ikonları, kartları ve özel analiz görünümleri üzerine eklenebilecek bir temel sunar.
-
-AI sohbeti için Copilot arayüzünü fork etmek yerine mevcut sidebar kabuğu korunmuştur. Copilot Chat, VS Code iç API'lerine ve kendi ürün altyapısına sıkı bağlı olduğu için bu projeye doğrudan taşınması sürdürülebilir değildir. İleride gerçek streaming/runtime ihtiyacı oluştuğunda `assistant-ui` bileşenleri ayrıca değerlendirilebilir; mevcut aşamada özel sidebar kabuğu daha hafif ve kontrol edilebilirdir.
+MIT — [LICENSE](LICENSE)

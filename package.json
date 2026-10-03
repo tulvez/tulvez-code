@@ -4,6 +4,24 @@
   "description": "VS Code için odaklı yapay zeka kodlama yardımcısı.",
   "version": "0.1.0",
   "publisher": "tulvez",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tulvez/tulvez-code.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tulvez/tulvez-code/issues"
+  },
+  "homepage": "https://github.com/tulvez/tulvez-code#readme",
+  "keywords": [
+    "ai",
+    "copilot",
+    "openai",
+    "anthropic",
+    "gemini",
+    "code assistant",
+    "chat",
+    "code review"
+  ],
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
