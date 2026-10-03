@@ -1,7 +1,8 @@
 ﻿:root {
   color-scheme: dark;
-  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-family: 'Courier New', 'Consolas', 'Menlo', monospace;
   font-size: var(--vscode-font-size, 13px);
+  font-weight: 600;
   --tulvez-green: #4ade80;
   --tulvez-green-dim: #4ade8022;
   --tulvez-green-border: #4ade8055;
@@ -10,7 +11,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #root { width: 100%; height: 100%; overflow: hidden; }
 button, textarea, input { font: inherit; }
-button { cursor: pointer; border: none; background: none; }
+img { -webkit-user-drag: none; user-select: none; }
 
 /* Shell */
 .shell {
@@ -136,19 +137,17 @@ button { cursor: pointer; border: none; background: none; }
 }
 
 .empty-logo {
-  width: 20px;
-  height: 20px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
+  margin-bottom: 12px;
 }
 
 .empty-icon {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--tulvez-green-border);
-  background: var(--tulvez-green-dim);
+  width: 48px;
+  height: 48px;
   color: var(--tulvez-green);
   margin-bottom: 12px;
 }
@@ -342,15 +341,17 @@ button { cursor: pointer; border: none; background: none; }
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 8px;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 4px 6px;
+  padding: 10px 8px;
   font-family: 'Courier New', monospace;
-  font-size: 9px;
-  line-height: 1.4;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
   color: var(--tulvez-green);
-  opacity: 0.07;
-  letter-spacing: 1px;
+  opacity: 0.09;
+  letter-spacing: 2px;
   pointer-events: none;
   user-select: none;
   overflow: hidden;
@@ -503,12 +504,8 @@ button { cursor: pointer; border: none; background: none; }
 }
 .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.hint {
-  font-size: 10px;
-  color: var(--vscode-descriptionForeground);
-  opacity: 0.5;
-  user-select: none;
-}
+.run-hint { color: var(--tulvez-green) !important; opacity: 0.7; }
+.run-hint:hover { opacity: 1; background: var(--tulvez-green-dim) !important; }
 
 /* Dropdown */
 .dropdown-content {

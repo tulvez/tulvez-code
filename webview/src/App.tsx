@@ -49,15 +49,21 @@ const SKILLS = [
 
 const MODELS = ['Otomatik', 'GPT-4o', 'Gemini 1.5', 'Claude 3.5'];
 
-const BINARY_ROWS = Array.from({ length: 18 }, (_, r) =>
-  Array.from({ length: 28 }, (_, c) => ((r * 31 + c * 17) % 3 === 0 ? '1' : '0')).join(' '),
-);
+// Rastgele binary arka plan — seed'li LCG ile her render'da aynı ama gerçekten dağınık
+function lcg(seed: number): () => number {
+  let s = seed;
+  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+}
+const rand = lcg(0xdeadbeef);
+const BINARY_CHARS = Array.from({ length: 420 }, () => (rand() > 0.5 ? '1' : '0'));
 
 function TooNarrow(): JSX.Element {
   return (
     <div className="too-narrow">
       <div className="too-narrow-binary" aria-hidden="true">
-        {BINARY_ROWS.map((row, i) => <div key={i}>{row}</div>)}
+        {BINARY_CHARS.map((ch, i) => (
+          <span key={i} style={{ opacity: 0.4 + rand() * 0.6 }}>{ch}</span>
+        ))}
       </div>
       <div className="too-narrow-content">
         <span className="too-narrow-icon"><Sparkles size={16} strokeWidth={1.6} /></span>
@@ -191,7 +197,7 @@ export function App(): JSX.Element {
                   }
                 </div>
                 <p className="empty-title">Tulvez Code</p>
-                <p className="empty-subtitle">Kodunuz hakkında soru sorun veya aşağıdaki işlemlerden birini seçin.</p>
+                <p className="empty-subtitle">Kodunuz hakkında soru sorun veya bir işlem seçin.</p>
                 <div className="quick-actions">
                   {QUICK_ACTIONS.map((a) => (
                     <button
@@ -238,6 +244,14 @@ export function App(): JSX.Element {
                           </button>
                           <button className="turn-action-btn" type="button" title="Beğen"><ThumbsUp size={12} /></button>
                           <button className="turn-action-btn" type="button" title="Beğenme"><ThumbsDown size={12} /></button>
+                          <button
+                            className="turn-action-btn run-hint"
+                            type="button"
+                            title="Komut çalıştır"
+                            onClick={() => { setInput('/run '); textareaRef.current?.focus(); }}
+                          >
+                            <Terminal size={12} />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -253,7 +267,7 @@ export function App(): JSX.Element {
                 ref={textareaRef}
                 className="composer-input"
                 value={input}
-                placeholder="Tulvez Code ile inşa edin... (/run <komut>)"
+                placeholder="Tulvez Code ile inşa edin..."
                 rows={1}
                 onChange={(e) => { setInput(e.target.value); autoResize(); }}
                 onKeyDown={(e) => {
