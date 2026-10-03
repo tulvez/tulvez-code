@@ -1,6 +1,7 @@
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
 import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from './services/messages';
+import { streamAI } from './services/ai';
 
 export function activate(context: vscode.ExtensionContext): void {
   const createWebview = (webview: vscode.Webview): void => {
@@ -35,7 +36,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const apiKey = await context.secrets.get('tulvez.apiKey') ?? '';
     return {
       aiProvider: cfg.get('aiProvider') ?? 'openai',
+      model: cfg.get('model') ?? '',
       apiKey,
+      ollamaUrl: cfg.get('ollamaUrl') ?? 'http://localhost:11434',
       autoApproveCommands: cfg.get('autoApproveCommands') ?? false,
       allowShellCommands: cfg.get('allowShellCommands') ?? false,
       telemetry: cfg.get('telemetry') ?? false,
@@ -46,6 +49,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const saveSettings = async (settings: TulvezSettings): Promise<void> => {
     const cfg = vscode.workspace.getConfiguration('tulvez');
     await cfg.update('aiProvider', settings.aiProvider, vscode.ConfigurationTarget.Global);
+    await cfg.update('model', settings.model, vscode.ConfigurationTarget.Global);
+    await cfg.update('ollamaUrl', settings.ollamaUrl, vscode.ConfigurationTarget.Global);
     await cfg.update('autoApproveCommands', settings.autoApproveCommands, vscode.ConfigurationTarget.Global);
     await cfg.update('allowShellCommands', settings.allowShellCommands, vscode.ConfigurationTarget.Global);
     await cfg.update('telemetry', settings.telemetry, vscode.ConfigurationTarget.Global);
@@ -90,8 +95,8 @@ export function activate(context: vscode.ExtensionContext): void {
     if (message.type === 'createWorkspace') {
       const name = message.name.trim();
       if (!name) return;
-      const parentUri = vscode.workspace.workspaceFolders?.[0]?.uri
-        ?? vscode.Uri.file(require('os').homedir());
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const parentUri = vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(require('os').homedir());
       const newUri = vscode.Uri.joinPath(parentUri, name);
       await vscode.workspace.fs.createDirectory(newUri);
       await vscode.commands.executeCommand('vscode.openFolder', newUri, { forceNewWindow: false });
@@ -99,7 +104,6 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     if (message.type === 'runCommand') {
-      // İzin kontrolü webview onay kartında yapılıyor; burada direkt çalıştır
       const result = await runShellCommand(message.command);
       await webview.postMessage({
         type: 'commandResult',
@@ -112,10 +116,25 @@ export function activate(context: vscode.ExtensionContext): void {
     if (message.type === 'sendMessage') {
       const text = message.text.trim();
       if (!text) return;
-      await webview.postMessage({
-        type: 'assistantMessage',
-        text: `"${text}" — Yapay zeka sağlayıcısı henüz bağlanmadı. Ayarlar'dan API anahtarı ekleyin.`,
-      } satisfies HostToWebviewMessage);
+
+      const settings = await readSettings();
+
+      await streamAI(settings, text, message.mode, {
+        onChunk: (chunk) => {
+          void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage);
+        },
+        onDone: (usage) => {
+          void webview.postMessage({
+            type: 'assistantDone',
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            costUsd: usage.costUsd,
+          } satisfies HostToWebviewMessage);
+        },
+        onError: (err) => {
+          void webview.postMessage({ type: 'error', message: err } satisfies HostToWebviewMessage);
+        },
+      });
     }
   };
 

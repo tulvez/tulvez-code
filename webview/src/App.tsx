@@ -16,14 +16,25 @@ const MIN_WIDTH = 220;
 
 type AgentMode = 'ask' | 'plan' | 'build';
 type Page = 'chat' | 'settings' | 'history';
-interface ChatMessage { id: number; role: 'user' | 'assistant' | 'command'; text: string; exitCode?: number; mode?: AgentMode; animated?: boolean; }
+
+interface ChatMessage {
+  id: number;
+  role: 'user' | 'assistant' | 'command';
+  text: string;
+  exitCode?: number;
+  mode?: AgentMode;
+  animated?: boolean;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+}
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
 interface RunConfirm { command: string; }
 
-const MODES: { id: AgentMode; label: string; sublabel: string; icon: React.ReactNode; hint: string; color: string; placeholder: string }[] = [
-  { id: 'ask',   label: 'Ask',   sublabel: 'Tulvez Code\'a sorun',    icon: <MessageSquare size={12} />, hint: 'Soru sor, açıkla',  color: 'var(--mode-ask)',   placeholder: "Tulvez Code'a sorun..." },
-  { id: 'plan',  label: 'Plan',  sublabel: 'Tulvez Code ile planla',   icon: <Sparkles size={12} />,      hint: 'Adım adım planla', color: 'var(--mode-plan)',  placeholder: 'Tulvez Code ile planlayın...' },
-  { id: 'build', label: 'Build', sublabel: 'Tulvez Code ile inşa et', icon: <Hammer size={12} />,        hint: 'Kod yaz, uygula',  color: 'var(--mode-build)', placeholder: 'Tulvez Code ile inşa edin...' },
+const MODES: { id: AgentMode; label: string; sublabel: string; icon: React.ReactNode; color: string; placeholder: string }[] = [
+  { id: 'ask',   label: 'Ask',   sublabel: "Tulvez Code'a sorun",    icon: <MessageSquare size={12} />, color: 'var(--mode-ask)',   placeholder: "Tulvez Code'a sorun..." },
+  { id: 'plan',  label: 'Plan',  sublabel: 'Tulvez Code ile planla',  icon: <Sparkles size={12} />,      color: 'var(--mode-plan)',  placeholder: 'Tulvez Code ile planlayın...' },
+  { id: 'build', label: 'Build', sublabel: 'Tulvez Code ile inşa et', icon: <Hammer size={12} />,        color: 'var(--mode-build)', placeholder: 'Tulvez Code ile inşa edin...' },
 ];
 
 const SLASH_COMMANDS = [
@@ -35,10 +46,10 @@ const SLASH_COMMANDS = [
 ];
 
 const QUICK_ACTIONS = [
-  { icon: <MessageSquare size={13} />, label: 'Dosyayı açıkla',              prompt: 'Bu dosyayı açıklar mısın?' },
-  { icon: <GitBranch size={13} />,     label: 'Git değişikliklerini incele',  prompt: 'Git değişikliklerimi incele' },
-  { icon: <Terminal size={13} />,      label: 'Komut çalıştır',               prompt: '/run git status' },
-  { icon: <Sparkles size={13} />,      label: 'Commit mesajı oluştur',        prompt: 'Commit mesajı oluştur' },
+  { icon: <MessageSquare size={13} />, label: 'Dosyayı açıkla',             prompt: 'Bu dosyayı açıklar mısın?' },
+  { icon: <GitBranch size={13} />,     label: 'Git değişikliklerini incele', prompt: 'Git değişikliklerimi incele' },
+  { icon: <Terminal size={13} />,      label: 'Komut çalıştır',              prompt: '/run git status' },
+  { icon: <Sparkles size={13} />,      label: 'Commit mesajı oluştur',       prompt: 'Commit mesajı oluştur' },
 ];
 
 const SKILLS = [
@@ -48,7 +59,7 @@ const SKILLS = [
   { label: 'Kod incelemesi yap',          prompt: 'Kodumu incele ve geri bildirim ver' },
 ];
 
-const MODELS = ['Otomatik', 'GPT-4o', 'Gemini 1.5', 'Claude 3.5'];
+const MODELS = ['Otomatik', 'GPT-4o', 'GPT-4o-mini', 'Claude 3.5 Sonnet', 'Gemini 1.5 Flash', 'Llama 3 (Ollama)'];
 
 function TooNarrow() {
   return (
@@ -61,7 +72,6 @@ function TooNarrow() {
 }
 
 function useTyping(full: string, active: boolean, speed = 8) {
-  // active sadece ilk render'da okunur, sonra değişmez
   const initialActive = useRef(active).current;
   const [displayed, setDisplayed] = useState(initialActive ? '' : full);
   const [done, setDone] = useState(!initialActive);
@@ -80,13 +90,26 @@ function useTyping(full: string, active: boolean, speed = 8) {
     window.setTimeout(tick, speed);
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // boş dep array — sadece mount'ta bir kez çalışır
+  }, []); // sadece mount'ta bir kez
 
   return { displayed, done };
 }
 
-function AssistantBubble({ text, onCopy, onRunHint, copied, mode, animate }: {
-  text: string; onCopy: () => void; onRunHint: () => void; copied: boolean; mode: AgentMode; animate: boolean;
+function UsageBadge({ inputTokens, outputTokens, costUsd }: { inputTokens: number; outputTokens: number; costUsd: number }) {
+  const total = inputTokens + outputTokens;
+  const costStr = costUsd === 0 ? 'ücretsiz' : costUsd < 0.001 ? `$${(costUsd * 1000).toFixed(3)}m` : `$${costUsd.toFixed(4)}`;
+  return (
+    <div className="usage-badge">
+      <span>{total.toLocaleString()} token</span>
+      <span className="usage-sep">·</span>
+      <span>{costStr}</span>
+    </div>
+  );
+}
+
+function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd }: {
+  text: string; onCopy: () => void; onRunHint: () => void; copied: boolean; animate: boolean;
+  inputTokens?: number; outputTokens?: number; costUsd?: number;
 }) {
   const { displayed, done } = useTyping(text, animate);
   return (
@@ -95,6 +118,9 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, mode, animate }: {
         {displayed}
         {!done && <span className="typing-cursor" />}
       </div>
+      {done && inputTokens !== undefined && outputTokens !== undefined && costUsd !== undefined && (
+        <UsageBadge inputTokens={inputTokens} outputTokens={outputTokens} costUsd={costUsd} />
+      )}
       <div className="turn-actions">
         <button className="turn-action-btn" type="button" title="Kopyala" onClick={onCopy}>
           {copied ? <Check size={12} /> : <Copy size={12} />}
@@ -122,12 +148,17 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+
   const sessionIdRef = useRef(1);
   const pendingRun = useRef<string | null>(null);
   const nextId = useRef(1);
+  const streamingIdRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  // mode'u closure'da güncel tutmak için
+  const modeRef = useRef<AgentMode>(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   useEffect(() => {
     const handler = (event: MessageEvent<HostToWebviewMessage>) => {
@@ -135,8 +166,30 @@ export function App(): JSX.Element {
       if (msg.type === 'initialized') {
         setWorkspaceName(msg.workspaceName);
         setLogoUri(msg.logoUri);
-      } else if (msg.type === 'assistantMessage') {
-        setMessages((prev) => [...prev, { id: nextId.current++, role: 'assistant', text: msg.text, mode, animated: true }]);
+      } else if (msg.type === 'assistantChunk') {
+        if (streamingIdRef.current === null) {
+          const id = nextId.current++;
+          streamingIdRef.current = id;
+          setMessages((prev) => [...prev, { id, role: 'assistant', text: msg.text, mode: modeRef.current, animated: true }]);
+        } else {
+          const sid = streamingIdRef.current;
+          setMessages((prev) => prev.map((m) => m.id === sid ? { ...m, text: m.text + msg.text } : m));
+        }
+      } else if (msg.type === 'assistantDone') {
+        const sid = streamingIdRef.current;
+        if (sid !== null) {
+          setMessages((prev) => prev.map((m) => m.id === sid
+            ? { ...m, inputTokens: msg.inputTokens, outputTokens: msg.outputTokens, costUsd: msg.costUsd }
+            : m,
+          ));
+          streamingIdRef.current = null;
+        }
+      } else if (msg.type === 'error') {
+        streamingIdRef.current = null;
+        setMessages((prev) => [...prev, {
+          id: nextId.current++, role: 'assistant',
+          text: `❌ ${msg.message}`, mode: modeRef.current, animated: false,
+        }]);
       } else if (msg.type === 'commandResult') {
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'command',
@@ -190,7 +243,7 @@ export function App(): JSX.Element {
     }
 
     setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
-    vscode.postMessage({ type: 'sendMessage', text });
+    vscode.postMessage({ type: 'sendMessage', text, mode });
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
@@ -199,8 +252,8 @@ export function App(): JSX.Element {
     if (!runConfirm) return;
     if (autoApprove) {
       vscode.postMessage({ type: 'saveSettings', settings: {
-        aiProvider: 'openai', apiKey: '', autoApproveCommands: true,
-        allowShellCommands: true, telemetry: false, sendCodeContext: false,
+        aiProvider: 'openai', model: '', apiKey: '', ollamaUrl: '',
+        autoApproveCommands: true, allowShellCommands: true, telemetry: false, sendCodeContext: false,
       }});
     }
     vscode.postMessage({ type: 'runCommand', command: runConfirm.command });
@@ -270,7 +323,6 @@ export function App(): JSX.Element {
           </div>
         ) : (
           <>
-            {/* Header */}
             <header className="header">
               <div className="header-brand">
                 {logoUri ? <img src={logoUri} className="brand-logo" alt="Tulvez" /> : <span className="brand-icon">T</span>}
@@ -290,7 +342,6 @@ export function App(): JSX.Element {
               </div>
             </header>
 
-            {/* Chat */}
             <div ref={scrollRef} className="chat-area">
               {messages.length === 0 ? (
                 <div className="empty-state">
@@ -324,15 +375,19 @@ export function App(): JSX.Element {
                       <div key={msg.id} className={`message-turn ${msg.role}`}>
                         {msg.role === 'assistant' && (
                           <div className="turn-header">
-                            <span className={`turn-avatar assistant mode-avatar-${msg.mode ?? 'ask'}`}><Sparkles size={10} strokeWidth={2} /></span>
+                            <span className={`turn-avatar assistant mode-avatar-${msg.mode ?? 'build'}`}>
+                              <Sparkles size={10} strokeWidth={2} />
+                            </span>
                           </div>
                         )}
                         {msg.role === 'assistant' ? (
                           <AssistantBubble
                             text={msg.text}
-                            mode={msg.mode ?? 'ask'}
                             animate={msg.animated ?? false}
                             copied={copiedId === msg.id}
+                            inputTokens={msg.inputTokens}
+                            outputTokens={msg.outputTokens}
+                            costUsd={msg.costUsd}
                             onCopy={() => void copy(msg)}
                             onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}
                           />
@@ -346,7 +401,6 @@ export function App(): JSX.Element {
               )}
             </div>
 
-            {/* Run confirm bar */}
             {runConfirm && (
               <div className="run-confirm-bar">
                 <div className="run-confirm-bar-top">
@@ -368,7 +422,6 @@ export function App(): JSX.Element {
               </div>
             )}
 
-            {/* Slash command menu */}
             {slashOpen && (
               <div className="slash-menu">
                 {SLASH_COMMANDS.map((s) => (
@@ -381,7 +434,6 @@ export function App(): JSX.Element {
               </div>
             )}
 
-            {/* Composer */}
             <div className="composer-wrap">
               <div className="mode-bar">
                 <DropdownMenu>
@@ -395,11 +447,9 @@ export function App(): JSX.Element {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="dropdown-content">
                     {MODES.map((m) => (
-                      <DropdownMenuItem key={m.id} className={`dropdown-item mode-item-${m.id} ${mode === m.id ? 'mode-item-active' : ''}`}
-                        onSelect={() => {
-                          setMode(m.id);
-                          window.setTimeout(() => textareaRef.current?.focus(), 50);
-                        }}>
+                      <DropdownMenuItem key={m.id}
+                        className={`dropdown-item mode-item-${m.id} ${mode === m.id ? 'mode-item-active' : ''}`}
+                        onSelect={() => { setMode(m.id); window.setTimeout(() => textareaRef.current?.focus(), 50); }}>
                         {m.icon}
                         <div className="mode-item-labels">
                           <span>{m.label}</span>

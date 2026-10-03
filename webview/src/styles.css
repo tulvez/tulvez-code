@@ -479,6 +479,15 @@ img { -webkit-user-drag: none; user-select: none; }
 .history-item-title { font-size: 12px; font-weight: 700; color: var(--vscode-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .history-item-meta { font-size: 10px; color: var(--vscode-descriptionForeground); }
 
+/* Usage badge */
+.usage-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 20px; margin: 4px 0 2px 24px;
+  font-size: 10px; color: var(--vscode-descriptionForeground);
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+}
+.usage-sep { opacity: 0.4; }
+
 /* Privacy note */
 .privacy-note {
   display: flex; gap: 8px; padding: 10px 12px; border-radius: 8px;

@@ -6,15 +6,20 @@ import { Check, ChevronLeft, Eye, EyeOff, FolderOpen, Lock, Shield, Terminal, Za
 interface Props { onBack: () => void; }
 
 const DEFAULT: TulvezSettings = {
-  aiProvider: 'openai', apiKey: '',
+  aiProvider: 'openai', model: 'gpt-4o-mini', apiKey: '', ollamaUrl: 'http://localhost:11434',
   autoApproveCommands: false, allowShellCommands: false,
   telemetry: false, sendCodeContext: false,
 };
 
 const PROVIDERS = [
-  { id: 'openai' as const,    label: 'OpenAI',        hint: 'GPT-4o · GPT-4 Turbo',     color: '#10a37f' },
-  { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 1.5 Pro · Flash',    color: '#4285f4' },
-  { id: 'anthropic' as const, label: 'Anthropic',     hint: 'Claude 3.5 Sonnet · Haiku', color: '#d97706' },
+  { id: 'openai' as const,    label: 'OpenAI',        hint: 'GPT-4o · GPT-4o-mini · o1',    color: '#10a37f',
+    models: ['gpt-4o', 'gpt-4o-mini', 'o1-mini', 'o1'] },
+  { id: 'anthropic' as const, label: 'Anthropic',     hint: 'Claude 3.5 Sonnet · Haiku',    color: '#d97706',
+    models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'] },
+  { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 1.5 Pro · Flash · 2.0', color: '#4285f4',
+    models: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'] },
+  { id: 'ollama' as const,    label: 'Ollama',        hint: 'Yerel · Ücretsiz · Gizli',     color: '#a78bfa',
+    models: ['llama3', 'llama3.1', 'codellama', 'mistral', 'deepseek-coder'] },
 ];
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -82,7 +87,7 @@ export function SettingsPage({ onBack }: Props) {
             <button key={p.id} type="button"
               className={`provider-card ${cfg.aiProvider === p.id ? 'active' : ''}`}
               style={{ '--p-color': p.color } as React.CSSProperties}
-              onClick={() => set('aiProvider', p.id)}>
+              onClick={() => { set('aiProvider', p.id); set('model', p.models[0]); }}>
               <span className="provider-dot" />
               <div>
                 <div className="provider-name">{p.label}</div>
@@ -93,9 +98,46 @@ export function SettingsPage({ onBack }: Props) {
           ))}
         </div>
 
-        {/* API Anahtarı */}
-        <SectionTitle icon={<Lock size={12} />} label="API Anahtarı (BYOK)" />
-        <div className="s-hint">Anahtarınız VS Code SecretStorage'da şifreli saklanır.</div>
+        {/* Model seçimi */}
+        {(() => {
+          const p = PROVIDERS.find((p) => p.id === cfg.aiProvider);
+          if (!p) return null;
+          return (
+            <>
+              <SectionTitle icon={<Zap size={12} />} label="Model" />
+              <div className="provider-grid">
+                {p.models.map((m) => (
+                  <button key={m} type="button"
+                    className={`provider-card ${cfg.model === m ? 'active' : ''}`}
+                    style={{ '--p-color': p.color } as React.CSSProperties}
+                    onClick={() => set('model', m)}>
+                    <span className="provider-dot" />
+                    <div className="provider-name">{m}</div>
+                    {cfg.model === m && <Check size={12} className="provider-check" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          );
+        })()}
+
+        {/* Ollama URL */}
+        {cfg.aiProvider === 'ollama' && (
+          <>
+            <SectionTitle icon={<Terminal size={12} />} label="Ollama Sunucu" />
+            <div className="s-hint">Ollama'nın çalıştığı adres. Varsayılan: http://localhost:11434</div>
+            <input className="ws-input" type="text"
+              value={cfg.ollamaUrl}
+              placeholder="http://localhost:11434"
+              onChange={(e) => set('ollamaUrl', e.target.value)} />
+          </>
+        )}
+
+        {/* API Anahtarı — Ollama'da gerekmez */}
+        {cfg.aiProvider !== 'ollama' && (
+          <>
+            <SectionTitle icon={<Lock size={12} />} label="API Anahtarı (BYOK)" />
+            <div className="s-hint">Anahtarınız VS Code SecretStorage'da şifreli saklanır.</div>
         <div className="api-key-wrap">
           <input className="api-key-input"
             type={showKey ? 'text' : 'password'}
@@ -108,10 +150,12 @@ export function SettingsPage({ onBack }: Props) {
             {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
           </button>
         </div>
-        {cfg.apiKey && (
-          <div className="api-key-status">
-            <span className="api-key-dot" />Anahtar girildi — otomatik kaydedildi
-          </div>
+            {cfg.apiKey && (
+              <div className="api-key-status">
+                <span className="api-key-dot" />Anahtar girildi — otomatik kaydedildi
+              </div>
+            )}
+          </>
         )}
 
         {/* Komutlar */}

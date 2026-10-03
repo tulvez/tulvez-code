@@ -1,6 +1,8 @@
 export interface TulvezSettings {
-  aiProvider: 'openai' | 'gemini' | 'anthropic';
+  aiProvider: 'openai' | 'gemini' | 'anthropic' | 'ollama';
+  model: string;
   apiKey: string;
+  ollamaUrl: string;
   autoApproveCommands: boolean;
   allowShellCommands: boolean;
   telemetry: boolean;
@@ -9,7 +11,7 @@ export interface TulvezSettings {
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
-  | { type: 'sendMessage'; text: string }
+  | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build' }
   | { type: 'expandSidebar' }
   | { type: 'runCommand'; command: string }
   | { type: 'getSettings' }
@@ -19,6 +21,7 @@ export type WebviewToHostMessage =
 export type HostToWebviewMessage =
   | { type: 'initialized'; workspaceName: string; logoUri: string }
   | { type: 'error'; message: string }
-  | { type: 'assistantMessage'; text: string }
+  | { type: 'assistantChunk'; text: string }
+  | { type: 'assistantDone'; inputTokens: number; outputTokens: number; costUsd: number }
   | { type: 'commandResult'; output: string; exitCode: number }
   | { type: 'settingsData'; settings: TulvezSettings };
