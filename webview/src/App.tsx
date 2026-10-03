@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 
-const MIN_WIDTH = 200;
+const MIN_WIDTH = 280;
 
 interface ChatMessage {
   id: number;

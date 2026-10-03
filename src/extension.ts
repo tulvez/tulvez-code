@@ -44,7 +44,11 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     if (message.type === 'expandSidebar') {
-      await vscode.commands.executeCommand('workbench.action.resizeSideBarToFitContent');
+      // Sidebar'ı genişletmek için mevcut VS Code API'si yok;
+      // workbench.action.increaseViewSize ile adım adım büyütüyoruz
+      for (let i = 0; i < 8; i++) {
+        await vscode.commands.executeCommand('workbench.action.increaseViewSize');
+      }
       return;
     }
 
