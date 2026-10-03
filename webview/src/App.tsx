@@ -20,10 +20,10 @@ interface ChatMessage { id: number; role: 'user' | 'assistant' | 'command'; text
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
 interface RunConfirm { command: string; }
 
-const MODES: { id: AgentMode; label: string; icon: React.ReactNode; hint: string; color: string; placeholder: string }[] = [
-  { id: 'ask',   label: 'Ask',   icon: <MessageSquare size={12} />, hint: 'Soru sor, açıkla',  color: 'var(--mode-ask)',   placeholder: "Tulvez Code'a sorun..." },
-  { id: 'plan',  label: 'Plan',  icon: <Sparkles size={12} />,      hint: 'Adım adım planla', color: 'var(--mode-plan)',  placeholder: 'Ne planlayalım?' },
-  { id: 'build', label: 'Build', icon: <Hammer size={12} />,        hint: 'Kod yaz, uygula',  color: 'var(--mode-build)', placeholder: 'Ne inşa edelim?' },
+const MODES: { id: AgentMode; label: string; sublabel: string; icon: React.ReactNode; hint: string; color: string; placeholder: string }[] = [
+  { id: 'ask',   label: 'Ask',   sublabel: 'Tulvez Code\'a sorun',    icon: <MessageSquare size={12} />, hint: 'Soru sor, açıkla',  color: 'var(--mode-ask)',   placeholder: "Tulvez Code'a sorun..." },
+  { id: 'plan',  label: 'Plan',  sublabel: 'Tulvez Code ile planla',   icon: <Sparkles size={12} />,      hint: 'Adım adım planla', color: 'var(--mode-plan)',  placeholder: 'Tulvez Code ile planlayın...' },
+  { id: 'build', label: 'Build', sublabel: 'Tulvez Code ile inşa et', icon: <Hammer size={12} />,        hint: 'Kod yaz, uygula',  color: 'var(--mode-build)', placeholder: 'Tulvez Code ile inşa edin...' },
 ];
 
 const SLASH_COMMANDS = [
@@ -61,14 +61,13 @@ function TooNarrow() {
 }
 
 function useTyping(full: string, active: boolean, speed = 8) {
-  const [displayed, setDisplayed] = useState(active ? '' : full);
-  const [done, setDone] = useState(!active);
-  const activeRef = useRef(active);
+  // active sadece ilk render'da okunur, sonra değişmez
+  const initialActive = useRef(active).current;
+  const [displayed, setDisplayed] = useState(initialActive ? '' : full);
+  const [done, setDone] = useState(!initialActive);
+
   useEffect(() => {
-    if (!activeRef.current) return; // sadece ilk mount'ta animate=true ise çalış
-    setDisplayed('');
-    setDone(false);
-    if (!full) return;
+    if (!initialActive) return;
     let i = 0;
     let cancelled = false;
     const tick = () => {
@@ -81,7 +80,8 @@ function useTyping(full: string, active: boolean, speed = 8) {
     window.setTimeout(tick, speed);
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // sadece mount'ta — text değişmez, sayfa değişince component unmount/remount olur
+  }, []); // boş dep array — sadece mount'ta bir kez çalışır
+
   return { displayed, done };
 }
 
@@ -114,7 +114,7 @@ export function App(): JSX.Element {
   const [logoUri, setLogoUri] = useState('');
   const [input, setInput] = useState('');
   const [model, setModel] = useState('Otomatik');
-  const [mode, setMode] = useState<AgentMode>('ask');
+  const [mode, setMode] = useState<AgentMode>('build');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [width, setWidth] = useState(window.innerWidth);
@@ -400,8 +400,11 @@ export function App(): JSX.Element {
                           setMode(m.id);
                           window.setTimeout(() => textareaRef.current?.focus(), 50);
                         }}>
-                        {m.icon}<span>{m.label}</span>
-                        <span className="mode-item-hint">{m.hint}</span>
+                        {m.icon}
+                        <div className="mode-item-labels">
+                          <span>{m.label}</span>
+                          <span className="mode-item-hint">{m.sublabel}</span>
+                        </div>
                         {mode === m.id && <Check size={11} style={{ marginLeft: 'auto' }} />}
                       </DropdownMenuItem>
                     ))}

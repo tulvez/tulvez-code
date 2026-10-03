@@ -247,7 +247,8 @@ img { -webkit-user-drag: none; user-select: none; }
 .mode-item-plan  { color: var(--mode-plan) !important; }
 .mode-item-build { color: var(--mode-build) !important; }
 .mode-item-active { font-weight: 800; }
-.mode-item-hint { font-size: 10px; color: var(--vscode-descriptionForeground); margin-left: 6px; font-weight: 400; }
+.mode-item-labels { display: flex; flex-direction: column; gap: 1px; }
+.mode-item-hint { font-size: 10px; color: var(--vscode-descriptionForeground); font-weight: 400; }
 
 /* Composer */
 .composer-wrap {
