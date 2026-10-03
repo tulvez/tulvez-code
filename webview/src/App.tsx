@@ -1,47 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from './components/ui/dropdown-menu';
 import { SettingsPage } from './components/SettingsPage';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage } from './types';
 import {
-  Check,
-  ChevronDown,
-  CirclePlus,
-  Copy,
-  GitBranch,
-  MessageSquare,
-  Send,
-  Settings,
-  Sparkles,
-  SquarePen,
-  Terminal,
-  ThumbsDown,
-  ThumbsUp,
-  X,
+  Check, ChevronDown, CirclePlus, Copy, GitBranch, Hammer,
+  MessageSquare, Send, Settings, Sparkles, SquarePen,
+  Terminal, ThumbsDown, ThumbsUp, X, Zap,
 } from 'lucide-react';
 import './styles.css';
 
-const MIN_WIDTH = 280;
+const MIN_WIDTH = 220;
 
-interface ChatMessage {
-  id: number;
-  role: 'user' | 'assistant' | 'command';
-  text: string;
-  exitCode?: number;
-}
+type AgentMode = 'ask' | 'plan' | 'build';
+interface ChatMessage { id: number; role: 'user' | 'assistant' | 'command'; text: string; exitCode?: number; }
+interface RunConfirm { command: string; }
 
-interface RunConfirm { command: string }
+const MODES: { id: AgentMode; label: string; icon: React.ReactNode; hint: string }[] = [
+  { id: 'ask',   label: 'Ask',   icon: <MessageSquare size={11} />, hint: 'Soru sor, açıkla' },
+  { id: 'plan',  label: 'Plan',  icon: <Sparkles size={11} />,      hint: 'Adım adım planla' },
+  { id: 'build', label: 'Build', icon: <Hammer size={11} />,        hint: 'Kod yaz, uygula' },
+];
+
+const SLASH_COMMANDS = [
+  { cmd: '/run',    hint: 'Terminal komutu çalıştır' },
+  { cmd: '/review', hint: 'Kod incelemesi yap' },
+  { cmd: '/commit', hint: 'Commit mesajı oluştur' },
+  { cmd: '/diff',   hint: 'Git değişikliklerini göster' },
+  { cmd: '/explain',hint: 'Seçili kodu açıkla' },
+];
 
 const QUICK_ACTIONS = [
-  { icon: <MessageSquare size={13} />, label: 'Dosyayı açıkla', prompt: 'Bu dosyayı açıklar mısın?' },
-  { icon: <GitBranch size={13} />, label: 'Git değişikliklerini incele', prompt: 'Git değişikliklerimi incele' },
-  { icon: <Terminal size={13} />, label: 'Komut çalıştır', prompt: '/run git status' },
-  { icon: <Sparkles size={13} />, label: 'Commit mesajı oluştur', prompt: 'Commit mesajı oluştur' },
+  { icon: <MessageSquare size={13} />, label: 'Dosyayı açıkla',           prompt: 'Bu dosyayı açıklar mısın?' },
+  { icon: <GitBranch size={13} />,     label: 'Git değişikliklerini incele', prompt: 'Git değişikliklerimi incele' },
+  { icon: <Terminal size={13} />,      label: 'Komut çalıştır',            prompt: '/run git status' },
+  { icon: <Sparkles size={13} />,      label: 'Commit mesajı oluştur',     prompt: 'Commit mesajı oluştur' },
 ];
 
 const SKILLS = [
@@ -56,42 +51,42 @@ const MODELS = ['Otomatik', 'GPT-4o', 'Gemini 1.5', 'Claude 3.5'];
 function TooNarrow() {
   return (
     <div className="too-narrow">
-      <div className="too-narrow-content">
-        <span className="too-narrow-icon"><Sparkles size={14} strokeWidth={1.6} /></span>
-        <p className="too-narrow-title">Bileşenler sığmıyor</p>
-        <p className="too-narrow-sub">Alanı genişletin</p>
-      </div>
+      <span className="too-narrow-icon"><Zap size={12} /></span>
+      <p className="too-narrow-title">Sığmıyor</p>
+      <p className="too-narrow-sub">Genişletin</p>
     </div>
   );
 }
 
-/** Karakter karakter yazan typing efekti */
-function useTyping(full: string, speed = 18) {
+function useTyping(full: string, speed = 8) {
   const [displayed, setDisplayed] = useState('');
+  const [done, setDone] = useState(false);
   useEffect(() => {
     setDisplayed('');
+    setDone(false);
     if (!full) return;
     let i = 0;
     const tick = () => {
-      i++;
+      i += 3; // 3 karakter birden — daha hızlı
       setDisplayed(full.slice(0, i));
       if (i < full.length) window.setTimeout(tick, speed);
+      else { setDisplayed(full); setDone(true); }
     };
     window.setTimeout(tick, speed);
   }, [full, speed]);
-  return displayed;
+  return { displayed, done };
 }
 
 function AssistantBubble({ text, onCopy, onRunHint, copied }: {
-  text: string;
-  onCopy: () => void;
-  onRunHint: () => void;
-  copied: boolean;
+  text: string; onCopy: () => void; onRunHint: () => void; copied: boolean;
 }) {
-  const displayed = useTyping(text);
+  const { displayed, done } = useTyping(text);
   return (
     <>
-      <div className="turn-body">{displayed}<span className="typing-cursor" /></div>
+      <div className="turn-body">
+        {displayed}
+        {!done && <span className="typing-cursor" />}
+      </div>
       <div className="turn-actions">
         <button className="turn-action-btn" type="button" title="Kopyala" onClick={onCopy}>
           {copied ? <Check size={12} /> : <Copy size={12} />}
@@ -111,11 +106,14 @@ export function App(): JSX.Element {
   const [logoUri, setLogoUri] = useState('');
   const [input, setInput] = useState('');
   const [model, setModel] = useState('Otomatik');
+  const [mode, setMode] = useState<AgentMode>('ask');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [width, setWidth] = useState(window.innerWidth);
   const [runConfirm, setRunConfirm] = useState<RunConfirm | null>(null);
   const [page, setPage] = useState<'chat' | 'settings'>('chat');
+  const [slashOpen, setSlashOpen] = useState(false);
+  const pendingRun = useRef<string | null>(null);
   const nextId = useRef(1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -144,16 +142,14 @@ export function App(): JSX.Element {
   useEffect(() => {
     const el = shellRef.current;
     if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      setWidth(entries[0]?.contentRect.width ?? window.innerWidth);
-    });
+    const ro = new ResizeObserver((entries) => setWidth(entries[0]?.contentRect.width ?? window.innerWidth));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, runConfirm]);
 
   const autoResize = () => {
     const el = textareaRef.current;
@@ -162,17 +158,27 @@ export function App(): JSX.Element {
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   };
 
+  const handleInputChange = (val: string) => {
+    setInput(val);
+    setSlashOpen(val === '/');
+    if (val !== '/' && slashOpen) setSlashOpen(false);
+  };
+
   const send = () => {
     const text = input.trim();
     if (!text) return;
+    setSlashOpen(false);
+
     const runMatch = /^\/run\s+(.+)$/i.exec(text);
     if (runMatch) {
       setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
+      pendingRun.current = runMatch[1];
       setRunConfirm({ command: runMatch[1] });
       setInput('');
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
       return;
     }
+
     setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
     vscode.postMessage({ type: 'sendMessage', text });
     setInput('');
@@ -188,6 +194,7 @@ export function App(): JSX.Element {
       }});
     }
     vscode.postMessage({ type: 'runCommand', command: runConfirm.command });
+    pendingRun.current = null;
     setRunConfirm(null);
   };
 
@@ -197,6 +204,8 @@ export function App(): JSX.Element {
     window.setTimeout(() => setCopiedId(null), 1500);
   };
 
+  const modeClass = `composer mode-${mode}`;
+
   return (
     <div className="shell" ref={shellRef}>
       <div className="shell-content">
@@ -204,17 +213,13 @@ export function App(): JSX.Element {
           <SettingsPage onBack={() => setPage('chat')} />
         ) : (
           <>
+            {/* Header */}
             <header className="header">
               <div className="header-brand">
-                {logoUri
-                  ? <img src={logoUri} className="brand-logo" alt="Tulvez" />
-                  : <span className="brand-icon">T</span>
-                }
+                {logoUri ? <img src={logoUri} className="brand-logo" alt="Tulvez" /> : <span className="brand-icon">T</span>}
                 <span className="brand-name">Tulvez Code</span>
               </div>
-              {workspaceName && (
-                <span className="header-workspace" title={workspaceName}>{workspaceName}</span>
-              )}
+              {workspaceName && <span className="header-workspace" title={workspaceName}>{workspaceName}</span>}
               <div className="header-actions">
                 <button className="icon-btn" type="button" title="Yeni sohbet" onClick={() => { setMessages([]); setRunConfirm(null); }}>
                   <SquarePen size={15} strokeWidth={1.8} />
@@ -225,14 +230,12 @@ export function App(): JSX.Element {
               </div>
             </header>
 
+            {/* Chat */}
             <div ref={scrollRef} className="chat-area">
               {messages.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">
-                    {logoUri
-                      ? <img src={logoUri} className="empty-logo" alt="Tulvez" />
-                      : <Sparkles size={24} strokeWidth={1.6} />
-                    }
+                    {logoUri ? <img src={logoUri} className="empty-logo" alt="Tulvez" /> : <Sparkles size={24} strokeWidth={1.6} />}
                   </div>
                   <p className="empty-title">Tulvez Code</p>
                   <p className="empty-subtitle">Kodunuz hakkında soru sorun veya bir işlem seçin.</p>
@@ -248,17 +251,15 @@ export function App(): JSX.Element {
               ) : (
                 <div className="message-list">
                   {messages.map((msg) => {
-                    if (msg.role === 'command') {
-                      return (
-                        <div key={msg.id} className="message-turn command">
-                          <div className="command-header">
-                            <Terminal size={11} /><span>terminal</span>
-                            {msg.exitCode !== 0 && <span className="command-exit-err">exit {msg.exitCode}</span>}
-                          </div>
-                          <pre className="command-output">{msg.text}</pre>
+                    if (msg.role === 'command') return (
+                      <div key={msg.id} className="message-turn command">
+                        <div className="command-header">
+                          <Terminal size={11} /><span>terminal</span>
+                          {(msg.exitCode ?? 0) !== 0 && <span className="command-exit-err">exit {msg.exitCode}</span>}
                         </div>
-                      );
-                    }
+                        <pre className="command-output">{msg.text}</pre>
+                      </div>
+                    );
                     return (
                       <div key={msg.id} className={`message-turn ${msg.role}`}>
                         {msg.role === 'assistant' && (
@@ -267,12 +268,9 @@ export function App(): JSX.Element {
                           </div>
                         )}
                         {msg.role === 'assistant' ? (
-                          <AssistantBubble
-                            text={msg.text}
-                            copied={copiedId === msg.id}
+                          <AssistantBubble text={msg.text} copied={copiedId === msg.id}
                             onCopy={() => void copy(msg)}
-                            onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}
-                          />
+                            onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }} />
                         ) : (
                           <div className="turn-body">{msg.text}</div>
                         )}
@@ -283,15 +281,12 @@ export function App(): JSX.Element {
               )}
             </div>
 
-            {/* Onay kartı — input üstünde */}
+            {/* Run confirm bar */}
             {runConfirm && (
               <div className="run-confirm-bar">
                 <div className="run-confirm-bar-top">
-                  <Terminal size={11} />
-                  <span>Komut çalıştırma izni</span>
-                  <button className="run-confirm-close" type="button" onClick={() => setRunConfirm(null)}>
-                    <X size={11} />
-                  </button>
+                  <Terminal size={11} /><span>Komut çalıştırma izni</span>
+                  <button className="run-confirm-close" type="button" onClick={() => setRunConfirm(null)}><X size={11} /></button>
                 </div>
                 <code className="run-confirm-cmd">{runConfirm.command}</code>
                 <div className="run-confirm-actions">
@@ -308,16 +303,42 @@ export function App(): JSX.Element {
               </div>
             )}
 
+            {/* Slash command menu */}
+            {slashOpen && (
+              <div className="slash-menu">
+                {SLASH_COMMANDS.map((s) => (
+                  <button key={s.cmd} type="button" className="slash-item"
+                    onClick={() => { setInput(s.cmd + ' '); setSlashOpen(false); textareaRef.current?.focus(); }}>
+                    <span className="slash-cmd">{s.cmd}</span>
+                    <span className="slash-hint">{s.hint}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Composer */}
             <div className="composer-wrap">
-              <form className="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
+              {/* Mod seçici */}
+              <div className="mode-bar">
+                {MODES.map((m) => (
+                  <button key={m.id} type="button"
+                    className={`mode-btn mode-btn-${m.id} ${mode === m.id ? 'active' : ''}`}
+                    title={m.hint}
+                    onClick={() => setMode(m.id)}>
+                    {m.icon}{m.label}
+                  </button>
+                ))}
+              </div>
+              <form className={modeClass} onSubmit={(e) => { e.preventDefault(); send(); }}>
                 <textarea
                   ref={textareaRef}
                   className="composer-input"
                   value={input}
-                  placeholder="Tulvez Code ile inşa edin..."
+                  placeholder={mode === 'build' ? 'Ne inşa edelim?' : mode === 'plan' ? 'Ne planlayalım?' : 'Tulvez Code ile inşa edin...'}
                   rows={1}
-                  onChange={(e) => { setInput(e.target.value); autoResize(); }}
+                  onChange={(e) => { handleInputChange(e.target.value); autoResize(); }}
                   onKeyDown={(e) => {
+                    if (e.key === 'Escape') setSlashOpen(false);
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
                   }}
                 />
@@ -328,9 +349,7 @@ export function App(): JSX.Element {
                     </button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button className="composer-btn" type="button">
-                          {model}<ChevronDown size={10} />
-                        </button>
+                        <button className="composer-btn" type="button">{model}<ChevronDown size={10} /></button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="dropdown-content">
                         {MODELS.map((m) => (
@@ -355,7 +374,7 @@ export function App(): JSX.Element {
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <button className="send-btn" type="submit" title="Gönder" disabled={!input.trim()}>
+                    <button className={`send-btn send-btn-${mode}`} type="submit" title="Gönder" disabled={!input.trim()}>
                       <Send size={13} strokeWidth={2} />
                     </button>
                   </div>
