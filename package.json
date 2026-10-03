@@ -131,7 +131,8 @@
     "check": "tsc --noEmit && tsc -p webview/tsconfig.json --noEmit",
     "package": "npm run build",
     "watch:extension": "esbuild src/extension.ts --bundle --platform=node --external:vscode --format=cjs --outfile=dist/extension.js --watch",
-    "watch:webview": "vite build --watch"
+    "watch:webview": "vite build --watch",
+    "dev": "npm run build && \"%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\bin\\code.cmd\" --extensionDevelopmentPath=\"%CD%\" --new-window --skip-welcome"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",

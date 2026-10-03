@@ -7,7 +7,7 @@
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": [
-        "--extensionDevelopmentPath=\"${workspaceFolder}\"",
+        "--extensionDevelopmentPath=${workspaceFolder}",
         "--new-window",
         "--skip-welcome"
       ],
@@ -22,7 +22,7 @@
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": [
-        "--extensionDevelopmentPath=\"${workspaceFolder}\"",
+        "--extensionDevelopmentPath=${workspaceFolder}",
         "--new-window",
         "--skip-welcome"
       ],
