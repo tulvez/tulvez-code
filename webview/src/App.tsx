@@ -62,7 +62,7 @@ function TooNarrow(): JSX.Element {
       <div className="too-narrow-content">
         <span className="too-narrow-icon"><Sparkles size={16} strokeWidth={1.6} /></span>
         <p className="too-narrow-title">Bileşenler boyuta sığmıyor</p>
-        <p className="too-narrow-sub">Tulvez Code alanını genişletmeyi deneyin</p>
+        <p className="too-narrow-sub">Sidebar kenarını sürükleyerek genişletin</p>
         <button
           className="too-narrow-btn"
           type="button"

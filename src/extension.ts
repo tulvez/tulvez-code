@@ -44,11 +44,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     if (message.type === 'expandSidebar') {
-      // Sidebar'ı genişletmek için mevcut VS Code API'si yok;
-      // workbench.action.increaseViewSize ile adım adım büyütüyoruz
-      for (let i = 0; i < 8; i++) {
-        await vscode.commands.executeCommand('workbench.action.increaseViewSize');
-      }
+      vscode.window.showInformationMessage(
+        'Tulvez Code panelini genişletmek için sidebar kenarını sürükleyin veya View > Appearance > Primary Side Bar Width ayarını kullanın.',
+      );
       return;
     }
 
