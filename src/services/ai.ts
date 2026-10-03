@@ -148,7 +148,7 @@ async function streamGemini(
 ): Promise<void> {
   if (!apiKey) { cb.onError('Gemini API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
   const genAI = new GoogleGenerativeAI(apiKey);
-  const genModel = genAI.getGenerativeModel({ model, systemInstruction: system });
+  const genModel = genAI.getGenerativeModel({ model, systemInstruction: system, generationConfig: { maxOutputTokens: 8192 } });
   const chat = genModel.startChat({
     history: history.map((t) => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] })),
   });

@@ -147,8 +147,9 @@ img { -webkit-user-drag: none; user-select: none; }
 .message-turn.user .turn-body {
   max-width: 82%; padding: 8px 12px;
   border-radius: 12px 12px 3px 12px;
-  background: var(--vscode-button-secondaryBackground, rgba(255,255,255,0.06));
-  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--vscode-foreground);
   font-size: 13px; line-height: 1.55;
   white-space: pre-wrap; word-break: break-word;
 }
@@ -262,6 +263,14 @@ img { -webkit-user-drag: none; user-select: none; }
 .mode-item-labels { display: flex; flex-direction: column; gap: 1px; }
 .mode-item-hint { font-size: 11px; color: var(--vscode-descriptionForeground); font-weight: 400; }
 
+/* Stats bar */
+.stats-bar {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 4px 12px; border-top: 1px solid var(--vscode-panel-border);
+  font-size: 11px; color: var(--vscode-descriptionForeground);
+}
+.stats-sep { opacity: 0.4; }
+
 /* Composer */
 .composer-wrap {
   flex-shrink: 0; padding: 8px 10px 10px;
@@ -269,8 +278,8 @@ img { -webkit-user-drag: none; user-select: none; }
   background: var(--vscode-sideBar-background);
 }
 .composer {
-  border: 1px solid var(--vscode-input-border, rgba(255,255,255,0.12)); border-radius: 8px;
-  background: var(--vscode-input-background); transition: border-color 0.15s, box-shadow 0.15s;
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+  background: rgba(255,255,255,0.05); transition: border-color 0.15s, box-shadow 0.15s;
 }
 .composer.mode-ask:focus-within    { border-color: var(--mode-ask);   box-shadow: 0 0 0 1px var(--mode-ask-border); }
 .composer.mode-plan:focus-within   { border-color: var(--mode-plan);  box-shadow: 0 0 0 1px var(--mode-plan-border); }

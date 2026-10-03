@@ -27,6 +27,7 @@ interface ChatMessage {
   inputTokens?: number;
   outputTokens?: number;
   costUsd?: number;
+  contextWindow?: number;
   toolName?: string;
 }
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
@@ -59,8 +60,6 @@ const SKILLS = [
   { label: 'Commit mesajı oluştur',       prompt: 'Commit mesajı oluştur' },
   { label: 'Kod incelemesi yap',          prompt: 'Kodumu incele ve geri bildirim ver' },
 ];
-
-const MODELS = ['Otomatik', 'GPT-4o', 'GPT-4o-mini', 'Claude 3.5 Sonnet', 'Gemini 2.5 Flash', 'Llama 3 (Ollama)'];
 
 function TooNarrow() {
   return (
@@ -140,7 +139,7 @@ export function App(): JSX.Element {
   const [workspaceName, setWorkspaceName] = useState('');
   const [logoUri, setLogoUri] = useState('');
   const [input, setInput] = useState('');
-  const [model, setModel] = useState('Otomatik');
+  const [model, setModel] = useState('Varsayılan');
   const [mode, setMode] = useState<AgentMode>('build');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -155,6 +154,7 @@ export function App(): JSX.Element {
   const [settings, setSettings] = useState<TulvezSettings | null>(null);
   const [setupProvider, setSetupProvider] = useState<TulvezSettings['aiProvider']>('gemini');
   const [setupKey, setSetupKey] = useState('');
+  const [liveModels, setLiveModels] = useState<string[]>([]);
 
   const sessionIdRef = useRef(1);
   const pendingRun = useRef<string | null>(null);
@@ -177,6 +177,11 @@ export function App(): JSX.Element {
         setProvider(msg.settings.aiProvider);
         setHasApiKey(msg.settings.aiProvider === 'ollama' || !!msg.settings.apiKey);
         setSettings(msg.settings);
+        if (msg.settings.aiProvider === 'ollama' || msg.settings.apiKey) {
+          vscode.postMessage({ type: 'listModels' });
+        }
+      } else if (msg.type === 'modelsList') {
+        setLiveModels(msg.models);
       } else if (msg.type === 'assistantChunk') {
         if (streamingIdRef.current === null) {
           const id = nextId.current++;
@@ -190,7 +195,7 @@ export function App(): JSX.Element {
         const sid = streamingIdRef.current;
         if (sid !== null) {
           setMessages((prev) => prev.map((m) => m.id === sid
-            ? { ...m, inputTokens: msg.inputTokens, outputTokens: msg.outputTokens, costUsd: msg.costUsd }
+            ? { ...m, inputTokens: msg.inputTokens, outputTokens: msg.outputTokens, costUsd: msg.costUsd, contextWindow: msg.contextWindow }
             : m,
           ));
           streamingIdRef.current = null;
@@ -273,7 +278,7 @@ export function App(): JSX.Element {
       .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim() && !m.text.startsWith('❌'))
       .map((m) => ({ role: m.role as 'user' | 'assistant', text: m.text }))
       .slice(-20);
-    vscode.postMessage({ type: 'sendMessage', text, mode, history });
+    vscode.postMessage({ type: 'sendMessage', text, mode, history, model: model === 'Varsayılan' ? undefined : model });
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
@@ -325,6 +330,13 @@ export function App(): JSX.Element {
 
   const modeClass = `composer mode-${mode}`;
   const currentMode = MODES.find((m) => m.id === mode)!;
+
+  const totalCost = messages.reduce((a, m) => a + (m.costUsd ?? 0), 0);
+  const totalTokens = messages.reduce((a, m) => a + (m.inputTokens ?? 0) + (m.outputTokens ?? 0), 0);
+  const lastUsage = [...messages].reverse().find((m) => m.inputTokens !== undefined && m.contextWindow);
+  const ctxPct = lastUsage?.contextWindow
+    ? Math.min(100, Math.round(((lastUsage.inputTokens ?? 0) / lastUsage.contextWindow) * 100))
+    : 0;
 
   return (
     <div className="shell" ref={shellRef}>
@@ -527,6 +539,20 @@ export function App(): JSX.Element {
               </div>
             )}
 
+            {messages.length > 0 && (
+              <div className="stats-bar">
+                <span>{totalTokens.toLocaleString('tr-TR')} token</span>
+                <span className="stats-sep">·</span>
+                <span>{totalCost === 0 ? 'ücretsiz' : totalCost < 0.001 ? `$${(totalCost * 1000).toFixed(3)}m` : `$${totalCost.toFixed(4)}`}</span>
+                {lastUsage && (
+                  <>
+                    <span className="stats-sep">·</span>
+                    <span>Bağlam %{ctxPct}</span>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="composer-wrap">
               <div className="mode-bar">
                 <DropdownMenu>
@@ -576,11 +602,11 @@ export function App(): JSX.Element {
                       <DropdownMenuTrigger asChild>
                         <button className="composer-btn" type="button">{model}<ChevronDown size={10} /></button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="dropdown-content">
-                        {MODELS.map((m) => (
-                          <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => setModel(m)}>{m}</DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
+                        <DropdownMenuContent align="start" className="dropdown-content">
+                          {['Varsayılan', ...liveModels].map((m) => (
+                            <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => setModel(m)}>{m}</DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                   <div className="composer-right">

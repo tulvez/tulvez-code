@@ -9,8 +9,20 @@ export interface AgentCallbacks {
   onChunk: (text: string) => void;
   onToolCall: (tool: string, summary: string) => void;
   onToolRequest: (id: string, tool: string, args: string) => Promise<boolean>;
-  onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number }) => void;
+  onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number }) => void;
   onError: (err: string) => void;
+}
+
+function contextWindow(model: string): number {
+  if (model.includes('gemini')) return 1048576;
+  if (model.includes('claude')) return 200000;
+  if (model.includes('o1')) return 200000;
+  if (model.includes('gpt-4o')) return 128000;
+  if (model.includes('gpt-4')) return 8192;
+  if (model.includes('llama')) return 128000;
+  if (model.includes('mixtral')) return 32768;
+  if (model.includes('gemma')) return 8192;
+  return 128000;
 }
 
 const SUPPORTED_TOOLS = ['openai', 'groq', 'anthropic', 'gemini', 'ollama'] as const;
@@ -153,7 +165,7 @@ async function runOpenAICompatible(
     }
   }
 
-  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens) });
+  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model) });
 }
 
 async function runAnthropic(
@@ -210,7 +222,7 @@ async function runAnthropic(
     messages.push({ role: 'user', content: results });
   }
 
-  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens) });
+  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model) });
 }
 
 async function runGemini(
@@ -226,6 +238,7 @@ async function runGemini(
   const genModel = genAI.getGenerativeModel({
     model,
     systemInstruction: systemPrompt,
+    generationConfig: { maxOutputTokens: 8192 },
     tools: [{
       functionDeclarations: TOOL_DEFINITIONS.map((t) => ({
         name: t.name,
@@ -269,5 +282,5 @@ async function runGemini(
     next = parts;
   }
 
-  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens) });
+  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model) });
 }

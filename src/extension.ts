@@ -80,7 +80,7 @@ export function activate(context: vscode.ExtensionContext): void {
           pendingToolApprovals.set(id, resolve);
           void webview.postMessage({ type: 'toolRequest', id, tool, args } satisfies HostToWebviewMessage);
         }),
-      onDone: (usage) => void webview.postMessage({ type: 'assistantDone', inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd } satisfies HostToWebviewMessage),
+      onDone: (usage) => void webview.postMessage({ type: 'assistantDone', inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, contextWindow: usage.contextWindow } satisfies HostToWebviewMessage),
       onError: (err) => void webview.postMessage({ type: 'error', message: err } satisfies HostToWebviewMessage),
     });
   };
@@ -241,7 +241,8 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       }
 
-      await runAgentFor(webview, settings, userText, message.mode, message.history ?? []);
+      const effective = { ...settings, model: message.model?.trim() ? message.model : settings.model };
+      await runAgentFor(webview, effective, userText, message.mode, message.history ?? []);
     }
   };
 
