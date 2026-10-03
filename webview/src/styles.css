@@ -1,8 +1,8 @@
 ﻿:root {
   color-scheme: dark;
-  font-family: 'Courier New', 'Consolas', 'Menlo', monospace;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: var(--vscode-font-size, 13px);
-  font-weight: 600;
+  font-weight: 500;
   --tulvez-green: #4ade80;
   --tulvez-green-dim: #4ade8022;
   --tulvez-green-border: #4ade8055;
@@ -23,27 +23,6 @@ img { -webkit-user-drag: none; user-select: none; }
   background: var(--vscode-sideBar-background);
   color: var(--vscode-foreground);
   overflow: hidden;
-}
-
-.shell-binary {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 3px 5px;
-  padding: 8px;
-  font-family: 'Courier New', monospace;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--tulvez-green);
-  opacity: 0.045;
-  letter-spacing: 1px;
-  pointer-events: none;
-  user-select: none;
-  overflow: hidden;
-  z-index: 0;
 }
 
 .shell-content {
@@ -322,7 +301,62 @@ img { -webkit-user-drag: none; user-select: none; }
   color: var(--vscode-foreground);
 }
 
-/* -- Command output ------------------------------------ */
+.run-confirm-card {
+  margin: 8px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--tulvez-green-border);
+  border-radius: 6px;
+  background: var(--tulvez-green-dim);
+}
+
+.run-confirm-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--tulvez-green);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.run-confirm-cmd {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.25);
+  color: var(--vscode-foreground);
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  word-break: break-all;
+  margin-bottom: 10px;
+}
+
+.run-confirm-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.run-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+.run-confirm-btn:hover { opacity: 0.85; }
+.run-confirm-btn.approve {
+  background: var(--tulvez-green);
+  color: #0a1a0f;
+}
+.run-confirm-btn.deny {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--vscode-foreground);
+}
 .message-turn.command {
   padding: 6px 14px;
 }
@@ -359,7 +393,6 @@ img { -webkit-user-drag: none; user-select: none; }
 
 
 .too-narrow {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -368,6 +401,8 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 
 .too-narrow-binary { display: none; }
+
+.too-narrow-btn { display: none; }
 
 .too-narrow-content {
   position: relative;
