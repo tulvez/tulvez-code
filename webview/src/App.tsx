@@ -5,6 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './components/ui/dropdown-menu';
+import { SettingsPage } from './components/SettingsPage';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage } from './types';
 import {
@@ -15,6 +16,7 @@ import {
   GitBranch,
   MessageSquare,
   Send,
+  Settings,
   Sparkles,
   SquarePen,
   Terminal,
@@ -33,9 +35,7 @@ interface ChatMessage {
   exitCode?: number;
 }
 
-interface RunConfirm {
-  command: string;
-}
+interface RunConfirm { command: string }
 
 const QUICK_ACTIONS = [
   { icon: <MessageSquare size={13} />, label: 'Dosyayı açıkla', prompt: 'Bu dosyayı açıklar mısın?' },
@@ -45,23 +45,64 @@ const QUICK_ACTIONS = [
 ];
 
 const SKILLS = [
-  'Çalışma alanını analiz et',
-  'Git değişikliklerini incele',
-  'Commit mesajı oluştur',
-  'Kod incelemesi yap',
+  { label: 'Çalışma alanını analiz et', prompt: 'Çalışma alanımı analiz et' },
+  { label: 'Git değişikliklerini incele', prompt: 'Git değişikliklerimi incele' },
+  { label: 'Commit mesajı oluştur', prompt: 'Commit mesajı oluştur' },
+  { label: 'Kod incelemesi yap', prompt: 'Kodumu incele ve geri bildirim ver' },
 ];
 
 const MODELS = ['Otomatik', 'GPT-4o', 'Gemini 1.5', 'Claude 3.5'];
 
-function TooNarrow(): JSX.Element {
+function TooNarrow() {
   return (
     <div className="too-narrow">
       <div className="too-narrow-content">
-        <span className="too-narrow-icon"><Sparkles size={16} strokeWidth={1.6} /></span>
-        <p className="too-narrow-title">Bileşenler boyuta sığmıyor</p>
+        <span className="too-narrow-icon"><Sparkles size={14} strokeWidth={1.6} /></span>
+        <p className="too-narrow-title">Bileşenler sığmıyor</p>
         <p className="too-narrow-sub">Alanı genişletin</p>
       </div>
     </div>
+  );
+}
+
+/** Karakter karakter yazan typing efekti */
+function useTyping(full: string, speed = 18) {
+  const [displayed, setDisplayed] = useState('');
+  useEffect(() => {
+    setDisplayed('');
+    if (!full) return;
+    let i = 0;
+    const tick = () => {
+      i++;
+      setDisplayed(full.slice(0, i));
+      if (i < full.length) window.setTimeout(tick, speed);
+    };
+    window.setTimeout(tick, speed);
+  }, [full, speed]);
+  return displayed;
+}
+
+function AssistantBubble({ text, onCopy, onRunHint, copied }: {
+  text: string;
+  onCopy: () => void;
+  onRunHint: () => void;
+  copied: boolean;
+}) {
+  const displayed = useTyping(text);
+  return (
+    <>
+      <div className="turn-body">{displayed}<span className="typing-cursor" /></div>
+      <div className="turn-actions">
+        <button className="turn-action-btn" type="button" title="Kopyala" onClick={onCopy}>
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+        </button>
+        <button className="turn-action-btn" type="button" title="Beğen"><ThumbsUp size={12} /></button>
+        <button className="turn-action-btn" type="button" title="Beğenme"><ThumbsDown size={12} /></button>
+        <button className="turn-action-btn run-hint" type="button" title="Komut çalıştır" onClick={onRunHint}>
+          <Terminal size={12} />
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -74,6 +115,7 @@ export function App(): JSX.Element {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [width, setWidth] = useState(window.innerWidth);
   const [runConfirm, setRunConfirm] = useState<RunConfirm | null>(null);
+  const [page, setPage] = useState<'chat' | 'settings'>('chat');
   const nextId = useRef(1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -89,10 +131,8 @@ export function App(): JSX.Element {
         setMessages((prev) => [...prev, { id: nextId.current++, role: 'assistant', text: msg.text }]);
       } else if (msg.type === 'commandResult') {
         setMessages((prev) => [...prev, {
-          id: nextId.current++,
-          role: 'command',
-          text: msg.output || '(çıktı yok)',
-          exitCode: msg.exitCode,
+          id: nextId.current++, role: 'command',
+          text: msg.output || '(çıktı yok)', exitCode: msg.exitCode,
         }]);
       }
     };
@@ -125,25 +165,28 @@ export function App(): JSX.Element {
   const send = () => {
     const text = input.trim();
     if (!text) return;
-
     const runMatch = /^\/run\s+(.+)$/i.exec(text);
     if (runMatch) {
-      // Önce webview içi onay dialog'u göster
-      setRunConfirm({ command: runMatch[1] });
       setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
+      setRunConfirm({ command: runMatch[1] });
       setInput('');
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
       return;
     }
-
     setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
     vscode.postMessage({ type: 'sendMessage', text });
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
-  const approveRun = () => {
+  const approveRun = (autoApprove = false) => {
     if (!runConfirm) return;
+    if (autoApprove) {
+      vscode.postMessage({ type: 'saveSettings', settings: {
+        aiProvider: 'openai', apiKey: '', autoApproveCommands: true,
+        allowShellCommands: true, telemetry: false, sendCodeContext: false,
+      }});
+    }
     vscode.postMessage({ type: 'runCommand', command: runConfirm.command });
     setRunConfirm(null);
   };
@@ -157,8 +200,8 @@ export function App(): JSX.Element {
   return (
     <div className="shell" ref={shellRef}>
       <div className="shell-content">
-        {width < MIN_WIDTH ? (
-          <TooNarrow />
+        {width < MIN_WIDTH ? <TooNarrow /> : page === 'settings' ? (
+          <SettingsPage onBack={() => setPage('chat')} />
         ) : (
           <>
             <header className="header">
@@ -173,8 +216,11 @@ export function App(): JSX.Element {
                 <span className="header-workspace" title={workspaceName}>{workspaceName}</span>
               )}
               <div className="header-actions">
-                <button className="icon-btn" type="button" title="Yeni sohbet" onClick={() => setMessages([])}>
-                  <SquarePen size={14} strokeWidth={1.8} />
+                <button className="icon-btn" type="button" title="Yeni sohbet" onClick={() => { setMessages([]); setRunConfirm(null); }}>
+                  <SquarePen size={15} strokeWidth={1.8} />
+                </button>
+                <button className="icon-btn" type="button" title="Ayarlar" onClick={() => setPage('settings')}>
+                  <Settings size={15} strokeWidth={1.8} />
                 </button>
               </div>
             </header>
@@ -192,46 +238,21 @@ export function App(): JSX.Element {
                   <p className="empty-subtitle">Kodunuz hakkında soru sorun veya bir işlem seçin.</p>
                   <div className="quick-actions">
                     {QUICK_ACTIONS.map((a) => (
-                      <button
-                        key={a.label}
-                        type="button"
-                        className="quick-action-btn"
-                        onClick={() => { setInput(a.prompt); textareaRef.current?.focus(); }}
-                      >
-                        {a.icon}
-                        {a.label}
+                      <button key={a.label} type="button" className="quick-action-btn"
+                        onClick={() => { setInput(a.prompt); textareaRef.current?.focus(); }}>
+                        {a.icon}{a.label}
                       </button>
                     ))}
                   </div>
                 </div>
               ) : (
                 <div className="message-list">
-                  {/* Komut onay kartı */}
-                  {runConfirm && (
-                    <div className="run-confirm-card">
-                      <div className="run-confirm-header">
-                        <Terminal size={12} />
-                        <span>Komut çalıştırma izni</span>
-                      </div>
-                      <code className="run-confirm-cmd">{runConfirm.command}</code>
-                      <div className="run-confirm-actions">
-                        <button className="run-confirm-btn approve" type="button" onClick={approveRun}>
-                          <Check size={12} /> Onayla
-                        </button>
-                        <button className="run-confirm-btn deny" type="button" onClick={() => setRunConfirm(null)}>
-                          <X size={12} /> İptal
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
                   {messages.map((msg) => {
                     if (msg.role === 'command') {
                       return (
                         <div key={msg.id} className="message-turn command">
                           <div className="command-header">
-                            <Terminal size={11} />
-                            <span>terminal</span>
+                            <Terminal size={11} /><span>terminal</span>
                             {msg.exitCode !== 0 && <span className="command-exit-err">exit {msg.exitCode}</span>}
                           </div>
                           <pre className="command-output">{msg.text}</pre>
@@ -242,28 +263,18 @@ export function App(): JSX.Element {
                       <div key={msg.id} className={`message-turn ${msg.role}`}>
                         {msg.role === 'assistant' && (
                           <div className="turn-header">
-                            <span className="turn-avatar assistant">
-                              <Sparkles size={10} strokeWidth={2} />
-                            </span>
+                            <span className="turn-avatar assistant"><Sparkles size={10} strokeWidth={2} /></span>
                           </div>
                         )}
-                        <div className="turn-body">{msg.text}</div>
-                        {msg.role === 'assistant' && (
-                          <div className="turn-actions">
-                            <button className="turn-action-btn" type="button" title="Kopyala" onClick={() => void copy(msg)}>
-                              {copiedId === msg.id ? <Check size={12} /> : <Copy size={12} />}
-                            </button>
-                            <button className="turn-action-btn" type="button" title="Beğen"><ThumbsUp size={12} /></button>
-                            <button className="turn-action-btn" type="button" title="Beğenme"><ThumbsDown size={12} /></button>
-                            <button
-                              className="turn-action-btn run-hint"
-                              type="button"
-                              title="Komut çalıştır"
-                              onClick={() => { setInput('/run '); textareaRef.current?.focus(); }}
-                            >
-                              <Terminal size={12} />
-                            </button>
-                          </div>
+                        {msg.role === 'assistant' ? (
+                          <AssistantBubble
+                            text={msg.text}
+                            copied={copiedId === msg.id}
+                            onCopy={() => void copy(msg)}
+                            onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}
+                          />
+                        ) : (
+                          <div className="turn-body">{msg.text}</div>
                         )}
                       </div>
                     );
@@ -271,6 +282,31 @@ export function App(): JSX.Element {
                 </div>
               )}
             </div>
+
+            {/* Onay kartı — input üstünde */}
+            {runConfirm && (
+              <div className="run-confirm-bar">
+                <div className="run-confirm-bar-top">
+                  <Terminal size={11} />
+                  <span>Komut çalıştırma izni</span>
+                  <button className="run-confirm-close" type="button" onClick={() => setRunConfirm(null)}>
+                    <X size={11} />
+                  </button>
+                </div>
+                <code className="run-confirm-cmd">{runConfirm.command}</code>
+                <div className="run-confirm-actions">
+                  <button className="rcb rcb-approve" type="button" onClick={() => approveRun(false)}>
+                    <Check size={11} /> Onayla
+                  </button>
+                  <button className="rcb rcb-always" type="button" onClick={() => approveRun(true)}>
+                    Sürekli onayla
+                  </button>
+                  <button className="rcb rcb-deny" type="button" onClick={() => setRunConfirm(null)}>
+                    İptal
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="composer-wrap">
               <form className="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
@@ -312,7 +348,10 @@ export function App(): JSX.Element {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="dropdown-content">
                         {SKILLS.map((s) => (
-                          <DropdownMenuItem key={s} className="dropdown-item" onSelect={() => setInput(s)}>{s}</DropdownMenuItem>
+                          <DropdownMenuItem key={s.label} className="dropdown-item"
+                            onSelect={() => { setInput(s.prompt); window.setTimeout(() => textareaRef.current?.focus(), 50); }}>
+                            {s.label}
+                          </DropdownMenuItem>
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>

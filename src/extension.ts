@@ -1,6 +1,6 @@
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
-import type { HostToWebviewMessage, WebviewToHostMessage } from './services/messages';
+import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from './services/messages';
 
 export function activate(context: vscode.ExtensionContext): void {
   const createWebview = (webview: vscode.Webview): void => {
@@ -30,6 +30,33 @@ export function activate(context: vscode.ExtensionContext): void {
       });
     });
 
+  const readSettings = async (): Promise<TulvezSettings> => {
+    const cfg = vscode.workspace.getConfiguration('tulvez');
+    const apiKey = await context.secrets.get('tulvez.apiKey') ?? '';
+    return {
+      aiProvider: cfg.get('aiProvider') ?? 'openai',
+      apiKey,
+      autoApproveCommands: cfg.get('autoApproveCommands') ?? false,
+      allowShellCommands: cfg.get('allowShellCommands') ?? false,
+      telemetry: cfg.get('telemetry') ?? false,
+      sendCodeContext: cfg.get('sendCodeContext') ?? false,
+    };
+  };
+
+  const saveSettings = async (settings: TulvezSettings): Promise<void> => {
+    const cfg = vscode.workspace.getConfiguration('tulvez');
+    await cfg.update('aiProvider', settings.aiProvider, vscode.ConfigurationTarget.Global);
+    await cfg.update('autoApproveCommands', settings.autoApproveCommands, vscode.ConfigurationTarget.Global);
+    await cfg.update('allowShellCommands', settings.allowShellCommands, vscode.ConfigurationTarget.Global);
+    await cfg.update('telemetry', settings.telemetry, vscode.ConfigurationTarget.Global);
+    await cfg.update('sendCodeContext', settings.sendCodeContext, vscode.ConfigurationTarget.Global);
+    if (settings.apiKey) {
+      await context.secrets.store('tulvez.apiKey', settings.apiKey);
+    } else {
+      await context.secrets.delete('tulvez.apiKey');
+    }
+  };
+
   const handleMessage = async (
     webview: vscode.Webview,
     message: WebviewToHostMessage,
@@ -45,43 +72,24 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     if (message.type === 'expandSidebar') {
-      vscode.window.showInformationMessage(
-        'Tulvez Code panelini genişletmek için sidebar kenarını sürükleyin veya View > Appearance > Primary Side Bar Width ayarını kullanın.',
-      );
+      vscode.window.showInformationMessage('Sidebar kenarını sürükleyerek genişletin.');
+      return;
+    }
+
+    if (message.type === 'getSettings') {
+      const settings = await readSettings();
+      await webview.postMessage({ type: 'settingsData', settings } satisfies HostToWebviewMessage);
+      return;
+    }
+
+    if (message.type === 'saveSettings') {
+      await saveSettings(message.settings);
+      vscode.window.showInformationMessage('Tulvez Code: Ayarlar kaydedildi.');
       return;
     }
 
     if (message.type === 'runCommand') {
-      const cfg = vscode.workspace.getConfiguration('tulvez');
-      const allowed: boolean = cfg.get('allowShellCommands') ?? false;
-
-      if (!allowed) {
-        vscode.window.showWarningMessage(
-          'Tulvez Code: Komut çalıştırma izni kapalı. Ayarlardan "tulvez.allowShellCommands" seçeneğini etkinleştirin.',
-        );
-        return;
-      }
-
-      const autoApprove: boolean = cfg.get('autoApproveCommands') ?? false;
-      let approved = autoApprove;
-
-      if (!approved) {
-        const answer = await vscode.window.showWarningMessage(
-          `Tulvez Code şu komutu çalıştırmak istiyor:\n\`${message.command}\``,
-          { modal: true },
-          'Çalıştır',
-          'Her Zaman Onayla',
-        );
-        if (answer === 'Her Zaman Onayla') {
-          await cfg.update('autoApproveCommands', true, vscode.ConfigurationTarget.Workspace);
-          approved = true;
-        } else {
-          approved = answer === 'Çalıştır';
-        }
-      }
-
-      if (!approved) return;
-
+      // İzin kontrolü webview onay kartında yapılıyor; burada direkt çalıştır
       const result = await runShellCommand(message.command);
       await webview.postMessage({
         type: 'commandResult',
@@ -96,7 +104,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!text) return;
       await webview.postMessage({
         type: 'assistantMessage',
-        text: `"${text}" mesajınız alındı. Yapı zeka sağlayıcısı henüz bağlanmadı — API anahtarı yapılandırıldığında gerçek yanıt gelecek.`,
+        text: `"${text}" — Yapay zeka sağlayıcısı henüz bağlanmadı. Ayarlar'dan API anahtarı ekleyin.`,
       } satisfies HostToWebviewMessage);
     }
   };
@@ -108,26 +116,18 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const openPanel = () => {
     const panel = vscode.window.createWebviewPanel(
-      'tulvezPanel',
-      'Tulvez Code',
-      vscode.ViewColumn.Beside,
-      { enableScripts: true },
+      'tulvezPanel', 'Tulvez Code', vscode.ViewColumn.Beside, { enableScripts: true },
     );
     createWebview(panel.webview);
     panel.webview.onDidReceiveMessage(
       (msg: WebviewToHostMessage) => void handleMessage(panel.webview, msg),
-      undefined,
-      context.subscriptions,
+      undefined, context.subscriptions,
     );
   };
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand('tulvez.openPanel', openPanel),
-  );
+  context.subscriptions.push(vscode.commands.registerCommand('tulvez.openPanel', openPanel));
 
-  if (context.extensionMode === vscode.ExtensionMode.Development) {
-    openPanel();
-  }
+  if (context.extensionMode === vscode.ExtensionMode.Development) openPanel();
 }
 
 export function deactivate(): void {}
@@ -143,8 +143,7 @@ class TulvezSidebarProvider implements vscode.WebviewViewProvider {
     this.createWebview(webviewView.webview);
     webviewView.webview.onDidReceiveMessage(
       (msg: WebviewToHostMessage) => void this.handleMessage(webviewView.webview, msg),
-      undefined,
-      this.context.subscriptions,
+      undefined, this.context.subscriptions,
     );
   }
 }
@@ -154,7 +153,6 @@ function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): stri
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'assets', 'index.js'));
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'assets', 'index.css'));
   const nonce = getNonce();
-
   return `<!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -173,7 +171,7 @@ function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): stri
 
 function getNonce(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let value = '';
-  for (let i = 0; i < 32; i++) value += chars.charAt(Math.floor(Math.random() * chars.length));
-  return value;
+  let v = '';
+  for (let i = 0; i < 32; i++) v += chars.charAt(Math.floor(Math.random() * chars.length));
+  return v;
 }

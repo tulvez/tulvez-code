@@ -58,7 +58,17 @@
         "tulvez.autoApproveCommands": {
           "type": "boolean",
           "default": false,
-          "description": "Komutları onay sormadan otomatik çalıştır. Yalnızca güvendiğiniz çalışma alanlarında etkinleştirin."
+          "description": "Komutları onay sormadan otomatik çalıştır."
+        },
+        "tulvez.telemetry": {
+          "type": "boolean",
+          "default": false,
+          "description": "Anonim kullanım verisi gönder (henüz aktif değil)."
+        },
+        "tulvez.sendCodeContext": {
+          "type": "boolean",
+          "default": false,
+          "description": "AI isteklerine kod bağlamı ekle."
         }
       }
     }
