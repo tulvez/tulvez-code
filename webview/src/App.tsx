@@ -18,10 +18,10 @@ type AgentMode = 'ask' | 'plan' | 'build';
 interface ChatMessage { id: number; role: 'user' | 'assistant' | 'command'; text: string; exitCode?: number; }
 interface RunConfirm { command: string; }
 
-const MODES: { id: AgentMode; label: string; icon: React.ReactNode; hint: string }[] = [
-  { id: 'ask',   label: 'Ask',   icon: <MessageSquare size={11} />, hint: 'Soru sor, açıkla' },
-  { id: 'plan',  label: 'Plan',  icon: <Sparkles size={11} />,      hint: 'Adım adım planla' },
-  { id: 'build', label: 'Build', icon: <Hammer size={11} />,        hint: 'Kod yaz, uygula' },
+const MODES: { id: AgentMode; label: string; icon: React.ReactNode; hint: string; color: string }[] = [
+  { id: 'ask',   label: 'Ask',   icon: <MessageSquare size={12} />, hint: 'Soru sor, açıkla',  color: 'var(--mode-ask)' },
+  { id: 'plan',  label: 'Plan',  icon: <Sparkles size={12} />,      hint: 'Adım adım planla', color: 'var(--mode-plan)' },
+  { id: 'build', label: 'Build', icon: <Hammer size={12} />,        hint: 'Kod yaz, uygula',  color: 'var(--mode-build)' },
 ];
 
 const SLASH_COMMANDS = [
@@ -205,6 +205,7 @@ export function App(): JSX.Element {
   };
 
   const modeClass = `composer mode-${mode}`;
+  const currentMode = MODES.find((m) => m.id === mode)!;
 
   return (
     <div className="shell" ref={shellRef}>
@@ -318,16 +319,31 @@ export function App(): JSX.Element {
 
             {/* Composer */}
             <div className="composer-wrap">
-              {/* Mod seçici */}
+              {/* Mod seçici dropdown */}
               <div className="mode-bar">
-                {MODES.map((m) => (
-                  <button key={m.id} type="button"
-                    className={`mode-btn mode-btn-${m.id} ${mode === m.id ? 'active' : ''}`}
-                    title={m.hint}
-                    onClick={() => setMode(m.id)}>
-                    {m.icon}{m.label}
-                  </button>
-                ))}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="mode-trigger" type="button"
+                      style={{ '--m-color': currentMode.color } as React.CSSProperties}>
+                      {currentMode.icon}
+                      <span>{currentMode.label}</span>
+                      <ChevronDown size={10} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="dropdown-content">
+                    {MODES.map((m) => (
+                      <DropdownMenuItem key={m.id} className={`dropdown-item mode-item-${m.id} ${mode === m.id ? 'mode-item-active' : ''}`}
+                        onSelect={() => {
+                          setMode(m.id);
+                          window.setTimeout(() => textareaRef.current?.focus(), 50);
+                        }}>
+                        {m.icon}<span>{m.label}</span>
+                        <span className="mode-item-hint">{m.hint}</span>
+                        {mode === m.id && <Check size={11} style={{ marginLeft: 'auto' }} />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <form className={modeClass} onSubmit={(e) => { e.preventDefault(); send(); }}>
                 <textarea
