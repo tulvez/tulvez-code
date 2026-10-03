@@ -46,13 +46,19 @@
       "properties": {
         "tulvez.aiProvider": {
           "type": "string",
-          "enum": [
-            "openai",
-            "gemini",
-            "anthropic"
-          ],
+          "enum": ["openai", "gemini", "anthropic"],
           "default": "openai",
-          "description": "Sağlayıcılar eklendiğinde kullanılacak yapay zeka sağlayıcısı."
+          "description": "Kullanılacak yapay zeka sağlayıcısı."
+        },
+        "tulvez.allowShellCommands": {
+          "type": "boolean",
+          "default": false,
+          "description": "Tulvez Code'un terminal komutları çalıştırmasına izin ver."
+        },
+        "tulvez.autoApproveCommands": {
+          "type": "boolean",
+          "default": false,
+          "description": "Komutları onay sormadan otomatik çalıştır. Yalnızca güvendiğiniz çalışma alanlarında etkinleştirin."
         }
       }
     }

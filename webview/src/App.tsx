@@ -18,6 +18,7 @@ import {
   Send,
   Sparkles,
   SquarePen,
+  Terminal,
   ThumbsDown,
   ThumbsUp,
 } from 'lucide-react';
@@ -27,13 +28,15 @@ const MIN_WIDTH = 200;
 
 interface ChatMessage {
   id: number;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'command';
   text: string;
+  exitCode?: number;
 }
 
 const QUICK_ACTIONS = [
   { icon: <MessageSquare size={13} />, label: 'Dosyayı açıkla', prompt: 'Bu dosyayı açıklar mısın?' },
   { icon: <GitBranch size={13} />, label: 'Git değişikliklerini incele', prompt: 'Git değişikliklerimi incele' },
+  { icon: <Terminal size={13} />, label: 'Komut çalıştır', prompt: '/run git status' },
   { icon: <Sparkles size={13} />, label: 'Commit mesajı oluştur', prompt: 'Commit mesajı oluştur' },
 ];
 
@@ -46,23 +49,18 @@ const SKILLS = [
 
 const MODELS = ['Otomatik', 'GPT-4o', 'Gemini 1.5', 'Claude 3.5'];
 
-// Deterministik binary arka plan — her render'da aynı kalsın
 const BINARY_ROWS = Array.from({ length: 18 }, (_, r) =>
-  Array.from({ length: 28 }, (_, c) => ((r * 31 + c * 17) % 3 === 0 ? '1' : '0')).join(' ')
+  Array.from({ length: 28 }, (_, c) => ((r * 31 + c * 17) % 3 === 0 ? '1' : '0')).join(' '),
 );
 
 function TooNarrow(): JSX.Element {
   return (
     <div className="too-narrow">
       <div className="too-narrow-binary" aria-hidden="true">
-        {BINARY_ROWS.map((row, i) => (
-          <div key={i}>{row}</div>
-        ))}
+        {BINARY_ROWS.map((row, i) => <div key={i}>{row}</div>)}
       </div>
       <div className="too-narrow-content">
-        <span className="too-narrow-icon">
-          <Sparkles size={16} strokeWidth={1.6} />
-        </span>
+        <span className="too-narrow-icon"><Sparkles size={16} strokeWidth={1.6} /></span>
         <p className="too-narrow-title">Bileşenler boyuta sığmıyor</p>
         <p className="too-narrow-sub">Tulvez Code alanını genişletmeyi deneyin</p>
         <button
@@ -79,6 +77,7 @@ function TooNarrow(): JSX.Element {
 
 export function App(): JSX.Element {
   const [workspaceName, setWorkspaceName] = useState('');
+  const [logoUri, setLogoUri] = useState('');
   const [input, setInput] = useState('');
   const [model, setModel] = useState('Otomatik');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -94,8 +93,16 @@ export function App(): JSX.Element {
       const msg = event.data;
       if (msg.type === 'initialized') {
         setWorkspaceName(msg.workspaceName);
+        setLogoUri(msg.logoUri);
       } else if (msg.type === 'assistantMessage') {
         setMessages((prev) => [...prev, { id: nextId.current++, role: 'assistant', text: msg.text }]);
+      } else if (msg.type === 'commandResult') {
+        setMessages((prev) => [...prev, {
+          id: nextId.current++,
+          role: 'command',
+          text: msg.output || '(çıktı yok)',
+          exitCode: msg.exitCode,
+        }]);
       }
     };
     window.addEventListener('message', handler);
@@ -103,7 +110,6 @@ export function App(): JSX.Element {
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  // ResizeObserver ile gerçek webview genişliğini takip et
   useEffect(() => {
     const el = shellRef.current;
     if (!el) return;
@@ -128,6 +134,17 @@ export function App(): JSX.Element {
   const send = () => {
     const text = input.trim();
     if (!text) return;
+
+    // /run <komut> sözdizimi
+    const runMatch = /^\/run\s+(.+)$/i.exec(text);
+    if (runMatch) {
+      setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
+      vscode.postMessage({ type: 'runCommand', command: runMatch[1] });
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      return;
+    }
+
     setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
     vscode.postMessage({ type: 'sendMessage', text });
     setInput('');
@@ -146,33 +163,32 @@ export function App(): JSX.Element {
         <TooNarrow />
       ) : (
         <>
-          {/* Header */}
           <header className="header">
             <div className="header-brand">
-              <span className="brand-icon">T</span>
+              {logoUri
+                ? <img src={logoUri} className="brand-logo" alt="Tulvez" />
+                : <span className="brand-icon">T</span>
+              }
               <span className="brand-name">Tulvez Code</span>
             </div>
             {workspaceName && (
               <span className="header-workspace" title={workspaceName}>{workspaceName}</span>
             )}
             <div className="header-actions">
-              <button
-                className="icon-btn"
-                type="button"
-                title="Yeni sohbet"
-                onClick={() => setMessages([])}
-              >
+              <button className="icon-btn" type="button" title="Yeni sohbet" onClick={() => setMessages([])}>
                 <SquarePen size={14} strokeWidth={1.8} />
               </button>
             </div>
           </header>
 
-          {/* Chat area */}
           <div ref={scrollRef} className="chat-area">
             {messages.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">
-                  <Sparkles size={15} strokeWidth={1.6} />
+                  {logoUri
+                    ? <img src={logoUri} className="empty-logo" alt="Tulvez" />
+                    : <Sparkles size={15} strokeWidth={1.6} />
+                  }
                 </div>
                 <p className="empty-title">Tulvez Code</p>
                 <p className="empty-subtitle">Kodunuz hakkında soru sorun veya aşağıdaki işlemlerden birini seçin.</p>
@@ -192,43 +208,52 @@ export function App(): JSX.Element {
               </div>
             ) : (
               <div className="message-list">
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`message-turn ${msg.role}`}>
-                    {msg.role === 'assistant' && (
-                      <div className="turn-header">
-                        <span className="turn-avatar assistant">
-                          <Sparkles size={10} strokeWidth={2} />
-                        </span>
+                {messages.map((msg) => {
+                  if (msg.role === 'command') {
+                    return (
+                      <div key={msg.id} className="message-turn command">
+                        <div className="command-header">
+                          <Terminal size={11} />
+                          <span>terminal</span>
+                          {msg.exitCode !== 0 && <span className="command-exit-err">exit {msg.exitCode}</span>}
+                        </div>
+                        <pre className="command-output">{msg.text}</pre>
                       </div>
-                    )}
-                    <div className="turn-body">{msg.text}</div>
-                    {msg.role === 'assistant' && (
-                      <div className="turn-actions">
-                        <button className="turn-action-btn" type="button" title="Kopyala" onClick={() => void copy(msg)}>
-                          {copiedId === msg.id ? <Check size={12} /> : <Copy size={12} />}
-                        </button>
-                        <button className="turn-action-btn" type="button" title="Beğen">
-                          <ThumbsUp size={12} />
-                        </button>
-                        <button className="turn-action-btn" type="button" title="Beğenme">
-                          <ThumbsDown size={12} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                    );
+                  }
+                  return (
+                    <div key={msg.id} className={`message-turn ${msg.role}`}>
+                      {msg.role === 'assistant' && (
+                        <div className="turn-header">
+                          <span className="turn-avatar assistant">
+                            <Sparkles size={10} strokeWidth={2} />
+                          </span>
+                        </div>
+                      )}
+                      <div className="turn-body">{msg.text}</div>
+                      {msg.role === 'assistant' && (
+                        <div className="turn-actions">
+                          <button className="turn-action-btn" type="button" title="Kopyala" onClick={() => void copy(msg)}>
+                            {copiedId === msg.id ? <Check size={12} /> : <Copy size={12} />}
+                          </button>
+                          <button className="turn-action-btn" type="button" title="Beğen"><ThumbsUp size={12} /></button>
+                          <button className="turn-action-btn" type="button" title="Beğenme"><ThumbsDown size={12} /></button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* Composer */}
           <div className="composer-wrap">
             <form className="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
               <textarea
                 ref={textareaRef}
                 className="composer-input"
                 value={input}
-                placeholder="Tulvez Code ile inşa edin..."
+                placeholder="Tulvez Code ile inşa edin... (/run <komut>)"
                 rows={1}
                 onChange={(e) => { setInput(e.target.value); autoResize(); }}
                 onKeyDown={(e) => {
@@ -243,15 +268,12 @@ export function App(): JSX.Element {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className="composer-btn" type="button">
-                        {model}
-                        <ChevronDown size={10} />
+                        {model}<ChevronDown size={10} />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="dropdown-content">
                       {MODELS.map((m) => (
-                        <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => setModel(m)}>
-                          {m}
-                        </DropdownMenuItem>
+                        <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => setModel(m)}>{m}</DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -260,16 +282,12 @@ export function App(): JSX.Element {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className="composer-btn" type="button">
-                        <Sparkles size={12} strokeWidth={1.8} />
-                        Beceriler
-                        <ChevronDown size={10} />
+                        <Sparkles size={12} strokeWidth={1.8} />Beceriler<ChevronDown size={10} />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="dropdown-content">
                       {SKILLS.map((s) => (
-                        <DropdownMenuItem key={s} className="dropdown-item" onSelect={() => setInput(s)}>
-                          {s}
-                        </DropdownMenuItem>
+                        <DropdownMenuItem key={s} className="dropdown-item" onSelect={() => setInput(s)}>{s}</DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
