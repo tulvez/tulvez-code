@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { vscode } from '../services/vscode';
 import type { TulvezSettings } from '../types';
-import { Check, ChevronLeft, Eye, EyeOff, FolderOpen, Lock, Shield, Terminal, Zap } from 'lucide-react';
+import { Check, ChevronLeft, Eye, EyeOff, FolderOpen, Lock, Shield, Sparkles, Terminal, Zap } from 'lucide-react';
 
 interface Props { onBack: () => void; }
 
@@ -63,9 +63,10 @@ export function SettingsPage({ onBack }: Props) {
   const [models, setModels] = useState<string[] | null>(null);
   const [modelsError, setModelsError] = useState('');
   const [quotas, setQuotas] = useState<Quota[]>([]);
+  const [skills, setSkills] = useState<{ exists: boolean; path: string; skills: string[] } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => { vscode.postMessage({ type: 'getSettings' }); }, []);
+  useEffect(() => { vscode.postMessage({ type: 'getSettings' }); vscode.postMessage({ type: 'getSkills' }); }, []);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -73,6 +74,9 @@ export function SettingsPage({ onBack }: Props) {
       if (e.data?.type === 'modelsList') {
         setModels(e.data.models as string[]);
         setModelsError((e.data.error as string) ?? '');
+      }
+      if (e.data?.type === 'skillsStatus') {
+        setSkills(e.data as unknown as { exists: boolean; path: string; skills: string[] });
       }
       if (e.data?.type === 'quotaInfo' && e.data.limited) {
         setQuotas((prev) => {
@@ -284,6 +288,24 @@ export function SettingsPage({ onBack }: Props) {
           <div className="privacy-note">
             <Lock size={11} />
             <p>API anahtarınız yalnızca VS Code SecretStorage'da saklanır. Kodunuz, siz açıkça izin vermedikçe Tulvez sunucularına gönderilmez.</p>
+          </div>
+        </div>
+
+        <div className="s-card">
+          <SectionTitle icon={<Sparkles size={12} />} label="Skills" />
+          <div className="s-hint">
+            Ajanın kimliği ve yetenekleri çalışma alanındaki <code>code_skills.md</code> dosyasından okunur.
+            Dosyayı düzenleyerek ajanın karakterini, kurallarını ve slash komutlarını özelleştirebilirsin.
+          </div>
+          {skills && (
+            <div className="s-hint">
+              Durum: {skills.exists ? `${skills.skills.length} skill tanımlı` : 'dosya yok (varsayılan kimlik kullanılıyor)'}
+            </div>
+          )}
+          <div className="ws-create-row">
+            <button className="ws-create-btn" type="button" onClick={() => vscode.postMessage({ type: 'openSkillsFile' })}>
+              {skills?.exists ? 'code_skills.md aç' : 'code_skills.md oluştur'}
+            </button>
           </div>
         </div>
 

@@ -16,7 +16,10 @@ export type WebviewToHostMessage =
   | { type: 'ready' }
   | { type: 'openFolder' }
   | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[]; model?: string }
-  | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain'; mode: 'ask' | 'plan' | 'build' }
+  | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain' | 'skill'; arg?: string; mode: 'ask' | 'plan' | 'build' }
+  | { type: 'openSkillsFile' }
+  | { type: 'getSkills' }
+  | { type: 'openFolder' }
   | { type: 'toolApproval'; id: string; approved: boolean }
   | { type: 'listModels' }
   | { type: 'cancelStream' }
@@ -37,5 +40,6 @@ export type HostToWebviewMessage =
   | { type: 'toolCall'; tool: string; summary: string }
   | { type: 'modelsList'; models: string[]; error?: string }
   | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
-  | { type: 'cancelled' };
+  | { type: 'cancelled' }
+  | { type: 'skillsStatus'; exists: boolean; path: string; skills: string[] };
 

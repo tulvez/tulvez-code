@@ -7,6 +7,7 @@ process.noDeprecation = true;
 import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from './services/messages';
 import { runAgent } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations } from './services/tools';
+import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 
 export function activate(context: vscode.ExtensionContext): void {
   const createWebview = (webview: vscode.Webview): void => {
@@ -166,6 +167,24 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
+    if (message.type === 'openSkillsFile') {
+      if (!skillsFileExists()) createSkillsTemplate();
+      const uri = skillsFileUri();
+      if (uri) await vscode.window.showTextDocument(uri);
+      return;
+    }
+
+    if (message.type === 'getSkills') {
+      const uri = skillsFileUri();
+      await webview.postMessage({
+        type: 'skillsStatus',
+        exists: skillsFileExists(),
+        path: uri?.fsPath ?? '',
+        skills: parseSkills().map((s) => s.name),
+      } satisfies HostToWebviewMessage);
+      return;
+    }
+
     if (message.type === 'openFolder') {
       void vscode.commands.executeCommand('vscode.openFolder');
       return;
@@ -289,6 +308,15 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
         prompt = `Aşağıdaki kodu Türkçe olarak açıkla; ne yaptığını, önemli noktaları ve olası sorunları yaz:\n\n\`\`\`\n${sel.slice(0, 8000)}\n\`\`\``;
+      } else if (message.name === 'skill') {
+        const wanted = (message.arg ?? '').trim().toLowerCase();
+        const skills = parseSkills();
+        if (skills.length === 0) {
+          await webview.postMessage({ type: 'error', message: 'code_skills.md bulunamadı veya içinde Skills bölümü yok. Ayarlar\'dan oluşturabilirsin.' } satisfies HostToWebviewMessage);
+          return;
+        }
+        const found = skills.find((s) => s.name.toLowerCase() === wanted) ?? skills[0];
+        prompt = `${found.text}\n\n(Bu talimat code_skills.md içindeki "${found.name}" skill'inden geldi.)`;
       }
 
       await runAgentFor(webview, settings, prompt, mode, []);

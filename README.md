@@ -48,6 +48,13 @@ npx @vscode/vsce publish -p $VSCE_PAT   # Marketplace'e gönder
 
 `v*` etiketi (tag) atınca GitHub Actions otomatik derleyip Marketplace'e yayınlar. Detaylar `.github/workflows/publish.yml` dosyasında. `VSCE_PAT` adlı bir repository secret'ı gereklidir (Marketplace bir Azure DevOps Personal Access Token ister).
 
+## Skills (code_skills.md)
+
+Ajanın kimliği ve yetenekleri çalışma alanındaki `code_skills.md` dosyasından okunur — kodda gömülü
+değildir, böylece fork'lar kendi karakterlerini yazabilir. Dosyada `### başlık` ile tanımlanan
+skill'ler `/skill <başlık>` komutuyla çalıştırılır. Dosya yoksa Ayarlar → Skills bölümünden tek
+tıkla oluşturulabilir.
+
 ## Gizlilik
 
 - API anahtarları VS Code `SecretStorage`'da saklanır.

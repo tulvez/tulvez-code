@@ -49,6 +49,7 @@ const SLASH_COMMANDS = [
   { cmd: '/commit',  hint: 'Commit mesajı oluştur' },
   { cmd: '/diff',    hint: 'Git değişikliklerini göster' },
   { cmd: '/explain', hint: 'Seçili kodu açıkla' },
+  { cmd: '/skill',   hint: 'code_skills.md içindeki bir skill çalıştır' },
 ];
 
 const QUICK_ACTIONS = [
@@ -324,6 +325,17 @@ export function App(): JSX.Element {
     if (slashMatch) {
       setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
       vscode.postMessage({ type: 'slash', name: slashMatch[1].toLowerCase() as 'commit' | 'review' | 'diff' | 'explain', mode });
+      setWaiting(true);
+      setStreaming(true);
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      return;
+    }
+
+    const skillMatch = /^\/skill\s+(.+)$/i.exec(text);
+    if (skillMatch) {
+      setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
+      vscode.postMessage({ type: 'slash', name: 'skill', arg: skillMatch[1].trim(), mode });
       setWaiting(true);
       setStreaming(true);
       setInput('');
