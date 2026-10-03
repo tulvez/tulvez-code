@@ -262,8 +262,16 @@ async function runGemini(
 
   for (let step = 0; step < 10; step++) {
     const result = await genModel.generateContentStream({ contents });
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
+    const reader = result.stream[Symbol.asyncIterator]();
+    while (true) {
+      const next = await Promise.race([
+        reader.next(),
+        new Promise<{ done: boolean; value?: undefined }>((_, rej) =>
+          setTimeout(() => rej(new Error('Cevap zaman aşımına uğradı. Bağlantı kesildi olabilir — Tekrar dene.')), 90000),
+        ),
+      ]);
+      if (next.done) break;
+      const text = next.value?.text();
       if (text) cb.onChunk(text);
     }
     const response = await result.response;
