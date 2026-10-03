@@ -72,27 +72,18 @@ function TooNarrow() {
 }
 
 function useTyping(full: string, active: boolean, speed = 8) {
-  const initialActive = useRef(active).current;
-  const [displayed, setDisplayed] = useState(initialActive ? '' : full);
-  const [done, setDone] = useState(!initialActive);
+  const [index, setIndex] = useState(active ? 0 : full.length);
+  const done = index >= full.length;
 
   useEffect(() => {
-    if (!initialActive) return;
-    let i = 0;
-    let cancelled = false;
-    const tick = () => {
-      if (cancelled) return;
-      i += 3;
-      setDisplayed(full.slice(0, i));
-      if (i < full.length) window.setTimeout(tick, speed);
-      else { setDisplayed(full); setDone(true); }
-    };
-    window.setTimeout(tick, speed);
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // sadece mount'ta bir kez
+    if (!active) return;
+    const id = window.setInterval(() => {
+      setIndex((i) => (i >= full.length ? i : i + 3));
+    }, speed);
+    return () => window.clearInterval(id);
+  }, [full, active, speed]);
 
-  return { displayed, done };
+  return { displayed: full.slice(0, index), done };
 }
 
 function UsageBadge({ inputTokens, outputTokens, costUsd }: { inputTokens: number; outputTokens: number; costUsd: number }) {
@@ -148,6 +139,7 @@ export function App(): JSX.Element {
   const [toolApproval, setToolApproval] = useState<{ id: string; tool: string; args: string } | null>(null);
   const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [provider, setProvider] = useState('');
@@ -183,6 +175,7 @@ export function App(): JSX.Element {
       } else if (msg.type === 'modelsList') {
         setLiveModels(msg.models);
       } else if (msg.type === 'assistantChunk') {
+        setWaiting(false);
         if (streamingIdRef.current === null) {
           const id = nextId.current++;
           streamingIdRef.current = id;
@@ -192,6 +185,7 @@ export function App(): JSX.Element {
           setMessages((prev) => prev.map((m) => m.id === sid ? { ...m, text: m.text + msg.text } : m));
         }
       } else if (msg.type === 'assistantDone') {
+        setWaiting(false);
         const sid = streamingIdRef.current;
         if (sid !== null) {
           setMessages((prev) => prev.map((m) => m.id === sid
@@ -201,6 +195,7 @@ export function App(): JSX.Element {
           streamingIdRef.current = null;
         }
       } else if (msg.type === 'error') {
+        setWaiting(false);
         streamingIdRef.current = null;
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'assistant',
@@ -258,6 +253,7 @@ export function App(): JSX.Element {
     if (slashMatch) {
       setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
       vscode.postMessage({ type: 'slash', name: slashMatch[1].toLowerCase() as 'commit' | 'review' | 'diff' | 'explain', mode });
+      setWaiting(true);
       setInput('');
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
       return;
@@ -279,6 +275,7 @@ export function App(): JSX.Element {
       .map((m) => ({ role: m.role as 'user' | 'assistant', text: m.text }))
       .slice(-20);
     vscode.postMessage({ type: 'sendMessage', text, mode, history, model: model === 'Varsayılan' ? undefined : model });
+    setWaiting(true);
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
@@ -486,9 +483,22 @@ export function App(): JSX.Element {
                   })}
                 </div>
               )}
+              {waiting && (
+                <div className="message-turn assistant">
+                  <div className="turn-header">
+                    <span className={`turn-avatar assistant mode-avatar-${mode}`}>
+                      <Sparkles size={10} strokeWidth={2} />
+                    </span>
+                    <span className="thinking-label">Tulvez Code · {MODES.find((m) => m.id === mode)?.label} modu</span>
+                  </div>
+                  <div className="turn-body thinking-dots">
+                    <span /><span /><span />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {runConfirm && (
+        {runConfirm && (
               <div className="run-confirm-bar">
                 <div className="run-confirm-bar-top">
                   <Terminal size={11} /><span>Komut çalıştırma izni</span>

@@ -60,29 +60,31 @@ export async function runAgent(
     return;
   }
   const systemPrompt = SYSTEM_PROMPTS[mode];
+  // Ask modunda yalnızca salt-okunur araçlar çalışır; yazma/komut araçları kapalı.
+  const allowedTools = TOOL_DEFINITIONS.filter((t) => mode !== 'ask' || !t.requiresApproval);
 
-  // Build modunda araçlara izin ver; ask modunda da salt-okunur araçlar çalışır, yazma araçları approval ister.
   try {
     if (settings.aiProvider === 'anthropic') {
-      await runAnthropic(settings, systemPrompt, userMessage, history, cb);
+      await runAnthropic(settings, systemPrompt, userMessage, history, cb, allowedTools);
     } else if (settings.aiProvider === 'gemini') {
-      await runGemini(settings, systemPrompt, userMessage, history, cb);
+      await runGemini(settings, systemPrompt, userMessage, history, cb, allowedTools);
     } else {
       const baseURL =
         settings.aiProvider === 'groq' ? 'https://api.groq.com/openai/v1'
         : settings.aiProvider === 'ollama' ? `${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`
         : undefined;
-      await runOpenAICompatible(settings, systemPrompt, userMessage, history, cb, baseURL);
+      await runOpenAICompatible(settings, systemPrompt, userMessage, history, cb, baseURL, allowedTools);
     }
   } catch (err) {
     cb.onError(err instanceof Error ? err.message : String(err));
   }
 }
 
-const openAITools: OpenAI.Chat.Completions.ChatCompletionTool[] = TOOL_DEFINITIONS.map((t) => ({
-  type: 'function',
-  function: { name: t.name, description: t.description, parameters: t.parameters as OpenAI.FunctionDefinition['parameters'] },
-}));
+const openAIToolsFor = (tools: typeof TOOL_DEFINITIONS): OpenAI.Chat.Completions.ChatCompletionTool[] =>
+  tools.map((t) => ({
+    type: 'function',
+    function: { name: t.name, description: t.description, parameters: t.parameters as OpenAI.FunctionDefinition['parameters'] },
+  }));
 
 async function runOpenAICompatible(
   settings: TulvezSettings,
@@ -91,6 +93,7 @@ async function runOpenAICompatible(
   history: ChatTurn[],
   cb: AgentCallbacks,
   baseURL?: string,
+  tools: typeof TOOL_DEFINITIONS = TOOL_DEFINITIONS,
 ): Promise<void> {
   const apiKey = settings.aiProvider === 'ollama' ? 'ollama' : settings.apiKey;
   const isOllama = settings.aiProvider === 'ollama';
@@ -114,7 +117,7 @@ async function runOpenAICompatible(
       stream: true,
       stream_options: { include_usage: true },
       messages,
-      tools: openAITools,
+      tools: openAIToolsFor(tools),
     });
 
     let content = '';
@@ -174,6 +177,7 @@ async function runAnthropic(
   userMessage: string,
   history: ChatTurn[],
   cb: AgentCallbacks,
+  toolDefs: typeof TOOL_DEFINITIONS = TOOL_DEFINITIONS,
 ): Promise<void> {
   if (!settings.apiKey) { cb.onError('Anthropic API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
   const model = settings.model || 'claude-3-5-haiku-20241022';
@@ -182,7 +186,7 @@ async function runAnthropic(
     ...history.map((t) => ({ role: t.role, content: t.text })),
     { role: 'user', content: userMessage },
   ];
-  const tools: Anthropic.Tool[] = TOOL_DEFINITIONS.map((t) => ({
+  const tools: Anthropic.Tool[] = toolDefs.map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.parameters as Anthropic.Tool.InputSchema,
@@ -231,6 +235,7 @@ async function runGemini(
   userMessage: string,
   history: ChatTurn[],
   cb: AgentCallbacks,
+  toolDefs: typeof TOOL_DEFINITIONS = TOOL_DEFINITIONS,
 ): Promise<void> {
   if (!settings.apiKey) { cb.onError('Gemini API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
   const model = settings.model || 'gemini-2.5-flash';
@@ -240,7 +245,7 @@ async function runGemini(
     systemInstruction: systemPrompt,
     generationConfig: { maxOutputTokens: 8192 },
     tools: [{
-      functionDeclarations: TOOL_DEFINITIONS.map((t) => ({
+      functionDeclarations: toolDefs.map((t) => ({
         name: t.name,
         description: t.description,
         parameters: t.parameters as object,

@@ -6,9 +6,9 @@ import type { TulvezSettings } from './messages';
 export type AgentMode = 'ask' | 'plan' | 'build';
 
 export const SYSTEM_PROMPTS: Record<AgentMode, string> = {
-  ask: ' Kullanıcının sorularını açık, net ve Türkçe olarak yanıtla. Kod örnekleri gerektiğinde ekle.',
-  plan: ' Kullanıcının isteğini adım adım planla. Önce genel yaklaşımı açıkla, sonra somut adımları listele. Henüz kod yazma, sadece planla.',
-  build: ' Kullanıcının isteğini direkt çalışan kodla karşıla. Açıklamayı kısa tut, kodu ön plana çıkar. TypeScript/modern JS tercih et.',
+  ask: '  Kısa ve net ol, gerektiğinde kod örneği ver. Dosya yazma veya komut çalıştırma isteğinde kullanıcıyı Build moduna yönlendir.',
+  plan: '  İsteği adım adım planla: önce hedef ve yaklaşım, sonra numaralı somut adımlar, riskler ve doğrulama yöntemi. Kod yazma, sadece plan üret.',
+  build: '  İsteği direkt uygularsın: gerekiyorsa dosyaları oku, doğru dosyayı düzenle, komut çalıştır. Açıklama kısa, sonuç çalışır kod olsun.',
 };
 
 // Token başına USD maliyet tablosu (input/output)
