@@ -1,6 +1,7 @@
 export type WebviewToHostMessage =
   | { type: 'ready' }
-  | { type: 'sendMessage'; text: string };
+  | { type: 'sendMessage'; text: string }
+  | { type: 'expandSidebar' };
 
 export type HostToWebviewMessage =
   | { type: 'initialized'; workspaceName: string }

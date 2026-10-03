@@ -25,6 +25,11 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
+    if (message.type === 'expandSidebar') {
+      await vscode.commands.executeCommand('workbench.action.resizeSideBarToFitContent');
+      return;
+    }
+
     if (message.type === 'sendMessage') {
       const text = message.text.trim();
       if (text.length === 0) {

@@ -8,6 +8,7 @@ import {
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage } from './types';
 import {
+  ArrowRight,
   Check,
   ChevronDown,
   CirclePlus,
@@ -21,6 +22,8 @@ import {
   ThumbsUp,
 } from 'lucide-react';
 import './styles.css';
+
+const MIN_WIDTH = 200;
 
 interface ChatMessage {
   id: number;
@@ -43,15 +46,48 @@ const SKILLS = [
 
 const MODELS = ['Otomatik', 'GPT-4o', 'Gemini 1.5', 'Claude 3.5'];
 
+// Deterministik binary arka plan — her render'da aynı kalsın
+const BINARY_ROWS = Array.from({ length: 18 }, (_, r) =>
+  Array.from({ length: 28 }, (_, c) => ((r * 31 + c * 17) % 3 === 0 ? '1' : '0')).join(' ')
+);
+
+function TooNarrow(): JSX.Element {
+  return (
+    <div className="too-narrow">
+      <div className="too-narrow-binary" aria-hidden="true">
+        {BINARY_ROWS.map((row, i) => (
+          <div key={i}>{row}</div>
+        ))}
+      </div>
+      <div className="too-narrow-content">
+        <span className="too-narrow-icon">
+          <Sparkles size={16} strokeWidth={1.6} />
+        </span>
+        <p className="too-narrow-title">Bileşenler boyuta sığmıyor</p>
+        <p className="too-narrow-sub">Tulvez Code alanını genişletmeyi deneyin</p>
+        <button
+          className="too-narrow-btn"
+          type="button"
+          onClick={() => vscode.postMessage({ type: 'expandSidebar' })}
+        >
+          Genişlet <ArrowRight size={12} strokeWidth={2} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function App(): JSX.Element {
   const [workspaceName, setWorkspaceName] = useState('');
   const [input, setInput] = useState('');
   const [model, setModel] = useState('Otomatik');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [width, setWidth] = useState(window.innerWidth);
   const nextId = useRef(1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (event: MessageEvent<HostToWebviewMessage>) => {
@@ -65,6 +101,17 @@ export function App(): JSX.Element {
     window.addEventListener('message', handler);
     vscode.postMessage({ type: 'ready' });
     return () => window.removeEventListener('message', handler);
+  }, []);
+
+  // ResizeObserver ile gerçek webview genişliğini takip et
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      setWidth(entries[0]?.contentRect.width ?? window.innerWidth);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
@@ -94,140 +141,147 @@ export function App(): JSX.Element {
   };
 
   return (
-    <div className="shell">
-      {/* Header */}
-      <header className="header">
-        <div className="header-brand">
-          <span className="brand-icon">T</span>
-          <span className="brand-name">Tulvez AI</span>
-        </div>
-        {workspaceName && (
-          <span className="header-workspace" title={workspaceName}>{workspaceName}</span>
-        )}
-        <div className="header-actions">
-          <button
-            className="icon-btn"
-            type="button"
-            title="Yeni sohbet"
-            onClick={() => setMessages([])}
-          >
-            <SquarePen size={14} strokeWidth={1.8} />
-          </button>
-        </div>
-      </header>
+    <div className="shell" ref={shellRef}>
+      {width < MIN_WIDTH ? (
+        <TooNarrow />
+      ) : (
+        <>
+          {/* Header */}
+          <header className="header">
+            <div className="header-brand">
+              <span className="brand-icon">T</span>
+              <span className="brand-name">Tulvez Code</span>
+            </div>
+            {workspaceName && (
+              <span className="header-workspace" title={workspaceName}>{workspaceName}</span>
+            )}
+            <div className="header-actions">
+              <button
+                className="icon-btn"
+                type="button"
+                title="Yeni sohbet"
+                onClick={() => setMessages([])}
+              >
+                <SquarePen size={14} strokeWidth={1.8} />
+              </button>
+            </div>
+          </header>
 
-      {/* Chat area */}
-      <div ref={scrollRef} className="chat-area">
-        {messages.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">
-              <Sparkles size={15} strokeWidth={1.6} />
-            </div>
-            <p className="empty-title">Tulvez AI</p>
-            <p className="empty-subtitle">Kodunuz hakkında soru sorun veya aşağıdaki işlemlerden birini seçin.</p>
-            <div className="quick-actions">
-              {QUICK_ACTIONS.map((a) => (
-                <button
-                  key={a.label}
-                  type="button"
-                  className="quick-action-btn"
-                  onClick={() => { setInput(a.prompt); textareaRef.current?.focus(); }}
-                >
-                  {a.icon}
-                  {a.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="message-list">
-            {messages.map((msg) => (
-              <div key={msg.id} className="message-turn">
-                <div className="turn-header">
-                  <span className={`turn-avatar ${msg.role}`}>
-                    {msg.role === 'user' ? 'S' : <Sparkles size={10} strokeWidth={2} />}
-                  </span>
-                  <span className="turn-name">{msg.role === 'user' ? 'Sen' : 'Tulvez AI'}</span>
+          {/* Chat area */}
+          <div ref={scrollRef} className="chat-area">
+            {messages.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">
+                  <Sparkles size={15} strokeWidth={1.6} />
                 </div>
-                <div className="turn-body">{msg.text}</div>
-                {msg.role === 'assistant' && (
-                  <div className="turn-actions">
-                    <button className="turn-action-btn" type="button" title="Kopyala" onClick={() => void copy(msg)}>
-                      {copiedId === msg.id ? <Check size={12} /> : <Copy size={12} />}
+                <p className="empty-title">Tulvez Code</p>
+                <p className="empty-subtitle">Kodunuz hakkında soru sorun veya aşağıdaki işlemlerden birini seçin.</p>
+                <div className="quick-actions">
+                  {QUICK_ACTIONS.map((a) => (
+                    <button
+                      key={a.label}
+                      type="button"
+                      className="quick-action-btn"
+                      onClick={() => { setInput(a.prompt); textareaRef.current?.focus(); }}
+                    >
+                      {a.icon}
+                      {a.label}
                     </button>
-                    <button className="turn-action-btn" type="button" title="Beğen">
-                      <ThumbsUp size={12} />
-                    </button>
-                    <button className="turn-action-btn" type="button" title="Beğenme">
-                      <ThumbsDown size={12} />
-                    </button>
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
-            ))}
+            ) : (
+              <div className="message-list">
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`message-turn ${msg.role}`}>
+                    {msg.role === 'assistant' && (
+                      <div className="turn-header">
+                        <span className="turn-avatar assistant">
+                          <Sparkles size={10} strokeWidth={2} />
+                        </span>
+                      </div>
+                    )}
+                    <div className="turn-body">{msg.text}</div>
+                    {msg.role === 'assistant' && (
+                      <div className="turn-actions">
+                        <button className="turn-action-btn" type="button" title="Kopyala" onClick={() => void copy(msg)}>
+                          {copiedId === msg.id ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                        <button className="turn-action-btn" type="button" title="Beğen">
+                          <ThumbsUp size={12} />
+                        </button>
+                        <button className="turn-action-btn" type="button" title="Beğenme">
+                          <ThumbsDown size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Composer */}
-      <div className="composer-wrap">
-        <form className="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
-          <textarea
-            ref={textareaRef}
-            className="composer-input"
-            value={input}
-            placeholder="Tulvez Code ile inşa edin..."
-            rows={1}
-            onChange={(e) => { setInput(e.target.value); autoResize(); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-            }}
-          />
-          <div className="composer-footer">
-            <div className="composer-left">
-              <button className="composer-btn icon-only" type="button" title="Ekle">
-                <CirclePlus size={15} strokeWidth={1.8} />
-              </button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="composer-btn" type="button">
-                    {model}
-                    <ChevronDown size={10} />
+          {/* Composer */}
+          <div className="composer-wrap">
+            <form className="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
+              <textarea
+                ref={textareaRef}
+                className="composer-input"
+                value={input}
+                placeholder="Tulvez Code ile inşa edin..."
+                rows={1}
+                onChange={(e) => { setInput(e.target.value); autoResize(); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+                }}
+              />
+              <div className="composer-footer">
+                <div className="composer-left">
+                  <button className="composer-btn icon-only" type="button" title="Ekle">
+                    <CirclePlus size={15} strokeWidth={1.8} />
                   </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="dropdown-content">
-                  {MODELS.map((m) => (
-                    <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => setModel(m)}>
-                      {m}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <div className="composer-right">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="composer-btn" type="button">
-                    <Sparkles size={12} strokeWidth={1.8} />
-                    Beceriler
-                    <ChevronDown size={10} />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="composer-btn" type="button">
+                        {model}
+                        <ChevronDown size={10} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="dropdown-content">
+                      {MODELS.map((m) => (
+                        <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => setModel(m)}>
+                          {m}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="composer-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="composer-btn" type="button">
+                        <Sparkles size={12} strokeWidth={1.8} />
+                        Beceriler
+                        <ChevronDown size={10} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="dropdown-content">
+                      {SKILLS.map((s) => (
+                        <DropdownMenuItem key={s} className="dropdown-item" onSelect={() => setInput(s)}>
+                          {s}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <button className="send-btn" type="submit" title="Gönder" disabled={!input.trim()}>
+                    <Send size={13} strokeWidth={2} />
                   </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="dropdown-content">
-                  {SKILLS.map((s) => (
-                    <DropdownMenuItem key={s} className="dropdown-item" onSelect={() => setInput(s)}>
-                      {s}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <button className="send-btn" type="submit" title="Gönder" disabled={!input.trim()}>
-                <Send size={13} strokeWidth={2} />
-              </button>
-            </div>
+                </div>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
+        </>
+      )}
     </div>
   );
 }

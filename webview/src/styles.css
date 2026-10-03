@@ -188,20 +188,44 @@ button { cursor: pointer; border: none; background: none; }
 .message-list {
   display: flex;
   flex-direction: column;
-  padding: 8px 0;
+  padding: 8px 0 16px;
 }
 
 .message-turn {
-  padding: 10px 16px;
+  padding: 6px 14px;
+}
+
+/* Kullanıcı mesajı — sağda balon */
+.message-turn.user {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 12px;
+}
+.message-turn.user .turn-body {
+  max-width: 82%;
+  padding: 8px 12px;
+  border-radius: 14px 14px 3px 14px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.11);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--vscode-foreground);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* AI mesajı — solda tam genişlik */
+.message-turn.assistant {
+  padding: 8px 14px 4px;
   transition: background 0.1s;
 }
-.message-turn:hover { background: var(--vscode-list-hoverBackground); }
+.message-turn.assistant:hover { background: var(--vscode-list-hoverBackground); }
 
 .turn-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 
 .turn-avatar {
@@ -212,26 +236,13 @@ button { cursor: pointer; border: none; background: none; }
   border-radius: 3px;
   flex-shrink: 0;
 }
-.turn-avatar.user {
-  background: var(--tulvez-green);
-  color: #0a1a0f;
-  font-size: 9px;
-  font-weight: 700;
-}
 .turn-avatar.assistant {
   background: var(--tulvez-green-dim);
   border: 1px solid var(--tulvez-green-border);
   color: var(--tulvez-green);
 }
 
-.turn-name {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--vscode-foreground);
-}
-
 .turn-body {
-  padding-left: 24px;
   font-size: 12px;
   line-height: 1.6;
   color: var(--vscode-foreground);
@@ -239,15 +250,19 @@ button { cursor: pointer; border: none; background: none; }
   word-break: break-word;
 }
 
+.message-turn.assistant .turn-body {
+  padding-left: 24px;
+}
+
 .turn-actions {
   display: flex;
   gap: 2px;
   padding-left: 24px;
-  margin-top: 6px;
+  margin-top: 5px;
   opacity: 0;
   transition: opacity 0.15s;
 }
-.message-turn:hover .turn-actions { opacity: 1; }
+.message-turn.assistant:hover .turn-actions { opacity: 1; }
 
 .turn-action-btn {
   display: grid;
@@ -263,7 +278,92 @@ button { cursor: pointer; border: none; background: none; }
   color: var(--vscode-foreground);
 }
 
-/* ── Composer ───────────────────────────────────────────── */
+/* ── Too narrow overlay ─────────────────────────────────── */
+.too-narrow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--vscode-sideBar-background);
+}
+
+.too-narrow-binary {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  line-height: 1.4;
+  color: var(--tulvez-green);
+  opacity: 0.07;
+  letter-spacing: 1px;
+  pointer-events: none;
+  user-select: none;
+  overflow: hidden;
+}
+
+.too-narrow-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 0 12px;
+}
+
+.too-narrow-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--tulvez-green-border);
+  background: var(--tulvez-green-dim);
+  color: var(--tulvez-green);
+  margin-bottom: 4px;
+}
+
+.too-narrow-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  line-height: 1.4;
+}
+
+.too-narrow-sub {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.5;
+}
+
+.too-narrow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--tulvez-green-border);
+  background: var(--tulvez-green-dim);
+  color: var(--tulvez-green);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.too-narrow-btn:hover {
+  background: rgba(74,222,128,0.15);
+  border-color: var(--tulvez-green);
+}
+
+
 .composer-wrap {
   flex-shrink: 0;
   padding: 8px 10px 10px;
