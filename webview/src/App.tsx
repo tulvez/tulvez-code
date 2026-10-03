@@ -146,8 +146,28 @@ export function App(): JSX.Element {
   const [logoUri, setLogoUri] = useState('');
   const [input, setInput] = useState('');
   const [model, setModel] = useState('Varsayılan');
-  const [mode, setMode] = useState<AgentMode>('build');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [mode, setMode] = useState<AgentMode>(() => {
+    try {
+      const raw = localStorage.getItem('tulvez.current');
+      const m = raw ? (JSON.parse(raw) as { mode?: AgentMode }).mode : undefined;
+      return m ?? 'build';
+    } catch { return 'build'; }
+  });
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const raw = localStorage.getItem('tulvez.current');
+      return raw ? ((JSON.parse(raw) as { messages?: ChatMessage[] }).messages ?? []) : [];
+    } catch { return []; }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tulvez.current', JSON.stringify({
+        messages: messages.map((m) => ({ ...m, animated: false })),
+        mode,
+      }));
+    } catch { /* kota */ }
+  }, [messages, mode]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [width, setWidth] = useState(window.innerWidth);
   const [runConfirm, setRunConfirm] = useState<RunConfirm | null>(null);

@@ -61,7 +61,7 @@ export async function runAgent(
   }
   const systemPrompt = SYSTEM_PROMPTS[mode];
   // Ask modunda yalnızca salt-okunur araçlar çalışır; yazma/komut araçları kapalı.
-  const allowedTools = TOOL_DEFINITIONS.filter((t) => mode !== 'ask' || !t.requiresApproval);
+  const allowedTools = TOOL_DEFINITIONS.filter((t) => mode !== 'ask' || t.readOnly);
 
   try {
     if (settings.aiProvider === 'anthropic') {

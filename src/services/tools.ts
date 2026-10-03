@@ -8,6 +8,7 @@ export interface ToolDefinition {
   description: string;
   parameters: Record<string, unknown>;
   requiresApproval: boolean;
+  readOnly: boolean;
 }
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
@@ -15,6 +16,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'read_file',
     description: 'Çalışma alanındaki bir dosyanın içeriğini okur.',
     requiresApproval: false,
+    readOnly: true,
     parameters: {
       type: 'object',
       properties: { path: { type: 'string', description: 'Dosya yolu (çalışma alanına göre)' } },
@@ -24,7 +26,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'write_file',
     description: 'Bir dosyaya içerik yazar (yoksa oluşturur).',
-    requiresApproval: true,
+    requiresApproval: false,
+    readOnly: false,
     parameters: {
       type: 'object',
       properties: {
@@ -37,7 +40,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'edit_file',
     description: 'Bir dosyada eski metni yenisiyle değiştirir.',
-    requiresApproval: true,
+    requiresApproval: false,
+    readOnly: false,
     parameters: {
       type: 'object',
       properties: {
@@ -52,6 +56,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'list_files',
     description: 'Bir klasördeki dosyaları listeler.',
     requiresApproval: false,
+    readOnly: true,
     parameters: {
       type: 'object',
       properties: { directory: { type: 'string', description: 'Klasör yolu (varsayılan: kök)' } },
@@ -61,6 +66,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'run_command',
     description: 'Çalışma alanında terminal komutu çalıştırır.',
     requiresApproval: true,
+    readOnly: false,
     parameters: {
       type: 'object',
       properties: { command: { type: 'string', description: 'Çalıştırılacak komut' } },
