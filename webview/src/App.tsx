@@ -49,22 +49,19 @@ const SKILLS = [
 
 const MODELS = ['Otomatik', 'GPT-4o', 'Gemini 1.5', 'Claude 3.5'];
 
-// Rastgele binary arka plan — seed'li LCG ile her render'da aynı ama gerçekten dağınık
+// Seed'li LCG rastgele binary
 function lcg(seed: number): () => number {
   let s = seed;
   return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
 }
 const rand = lcg(0xdeadbeef);
-const BINARY_CHARS = Array.from({ length: 420 }, () => (rand() > 0.5 ? '1' : '0'));
+const BINARY_CHARS = Array.from({ length: 600 }, () => (rand() > 0.5 ? '1' : '0'));
+const BINARY_OPACITIES = Array.from({ length: 600 }, () => 0.3 + rand() * 0.7);
 
 function TooNarrow(): JSX.Element {
   return (
     <div className="too-narrow">
-      <div className="too-narrow-binary" aria-hidden="true">
-        {BINARY_CHARS.map((ch, i) => (
-          <span key={i} style={{ opacity: 0.4 + rand() * 0.6 }}>{ch}</span>
-        ))}
-      </div>
+      <div className="too-narrow-binary" aria-hidden="true" />
       <div className="too-narrow-content">
         <span className="too-narrow-icon"><Sparkles size={16} strokeWidth={1.6} /></span>
         <p className="too-narrow-title">Bileşenler boyuta sığmıyor</p>
@@ -165,6 +162,12 @@ export function App(): JSX.Element {
 
   return (
     <div className="shell" ref={shellRef}>
+      <div className="shell-binary" aria-hidden="true">
+        {BINARY_CHARS.map((ch, i) => (
+          <span key={i} style={{ opacity: BINARY_OPACITIES[i] }}>{ch}</span>
+        ))}
+      </div>
+      <div className="shell-content">
       {width < MIN_WIDTH ? (
         <TooNarrow />
       ) : (
@@ -314,6 +317,7 @@ export function App(): JSX.Element {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

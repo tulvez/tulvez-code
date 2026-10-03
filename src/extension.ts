@@ -15,9 +15,10 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const getLogoUri = (webview: vscode.Webview): string =>
-    webview.asWebviewUri(
-      vscode.Uri.joinPath(context.extensionUri, 'resources', 'tulvez-logo.svg'),
-    ).toString();
+    webview
+      .asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'resources', 'tulvez-logo.svg'))
+      .with({ query: '' })
+      .toString(false);
 
   const runShellCommand = (command: string): Promise<{ output: string; exitCode: number }> =>
     new Promise((resolve) => {
@@ -95,7 +96,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!text) return;
       await webview.postMessage({
         type: 'assistantMessage',
-        text: 'Yapay zeka sağlayıcısı henüz yapılandırılmadı. Mesajınız alındı.',
+        text: `"${text}" mesajınız alındı. Yapı zeka sağlayıcısı henüz bağlanmadı — API anahtarı yapılandırıldığında gerçek yanıt gelecek.`,
       } satisfies HostToWebviewMessage);
     }
   };
