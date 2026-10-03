@@ -198,6 +198,8 @@ export function App(): JSX.Element {
   const [settings, setSettings] = useState<TulvezSettings | null>(null);
   const [setupProvider, setSetupProvider] = useState<TulvezSettings['aiProvider']>('gemini');
   const [setupKey, setSetupKey] = useState('');
+  const [setupStep, setSetupStep] = useState(0);
+  const [setupModel, setSetupModel] = useState('');
   const [liveModels, setLiveModels] = useState<string[]>([]);
 
   const sessionIdRef = useRef(1);
@@ -469,39 +471,105 @@ export function App(): JSX.Element {
                   <p className="empty-subtitle">Kodunuz hakkında soru sorun veya bir işlem seçin.</p>
                   {hasApiKey === false && (
                     <div className="setup-card">
-                      <p className="setup-card-title">Başlamak için API anahtarınızı girin</p>
-                      <select
-                        className="ws-input setup-provider"
-                        value={setupProvider}
-                        onChange={(e) => setSetupProvider(e.target.value as TulvezSettings['aiProvider'])}
-                      >
-                        <option value="openai">OpenAI</option>
-                        <option value="anthropic">Anthropic</option>
-                        <option value="gemini">Google Gemini</option>
-                        <option value="groq">Groq</option>
-                        <option value="ollama">Ollama (anahtarsız)</option>
-                      </select>
-                      {setupProvider !== 'ollama' && (
-                        <input
-                          className="ws-input"
-                          type="password"
-                          placeholder="API anahtarı (BYOK — sadece VS Code'da saklanır)"
-                          value={setupKey}
-                          onChange={(e) => setSetupKey(e.target.value)}
-                          autoComplete="off"
-                        />
+                      <div className="setup-steps">
+                        <span className={setupStep === 0 ? 'on' : ''}>1 · Sağlayıcı</span>
+                        <span className={setupStep === 1 ? 'on' : ''}>2 · Anahtar</span>
+                        <span className={setupStep === 2 ? 'on' : ''}>3 · Model</span>
+                      </div>
+
+                      {setupStep === 0 && (
+                        <>
+                          <p className="setup-card-title">Hangi yapay zekayı kullanacaksın?</p>
+                          <select
+                            className="ws-input setup-provider"
+                            value={setupProvider}
+                            onChange={(e) => setSetupProvider(e.target.value as TulvezSettings['aiProvider'])}
+                          >
+                            <option value="gemini">Google Gemini (ücretsiz katman)</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="groq">Groq (çok hızlı)</option>
+                            <option value="ollama">Ollama (yerel, anahtarsız)</option>
+                          </select>
+                          <button className="ws-create-btn" type="button" onClick={() => {
+                            if (setupProvider === 'ollama' && settings) {
+                              const next = { ...settings, aiProvider: 'ollama' as const, model: '', apiKey: '' };
+                              vscode.postMessage({ type: 'saveSettings', settings: next });
+                              vscode.postMessage({ type: 'listModels' });
+                              setSettings(next);
+                            }
+                            setSetupStep(setupProvider === 'ollama' ? 2 : 1);
+                          }}>
+                            Devam
+                          </button>
+                        </>
                       )}
-                      <button className="ws-create-btn" type="button"
-                        disabled={setupProvider !== 'ollama' && !setupKey.trim()}
-                        onClick={() => {
-                          if (!settings) return;
-                          const next = { ...settings, aiProvider: setupProvider, model: '', apiKey: setupKey.trim() };
-                          vscode.postMessage({ type: 'saveSettings', settings: next });
-                          setSettings(next);
-                          setHasApiKey(true);
-                        }}>
-                        Kaydet
-                      </button>
+
+                      {setupStep === 1 && (
+                        <>
+                          <p className="setup-card-title">API anahtarını gir</p>
+                          <div className="s-hint">Anahtarın yalnızca VS Code SecretStorage'da şifreli saklanır, hiçbir yere gönderilmez.</div>
+                          <input
+                            className="ws-input"
+                            type="password"
+                            placeholder="API anahtarı"
+                            value={setupKey}
+                            onChange={(e) => setSetupKey(e.target.value)}
+                            autoComplete="off"
+                          />
+                          <div className="setup-row">
+                            <button className="ws-create-btn" type="button" style={{ background: 'transparent', border: '1px solid var(--vscode-panel-border)' }}
+                              onClick={() => setSetupStep(0)}>Geri</button>
+                            <button className="ws-create-btn" type="button" disabled={!setupKey.trim()}
+                              onClick={() => {
+                                if (!settings) return;
+                                const next = { ...settings, aiProvider: setupProvider, model: '', apiKey: setupKey.trim() };
+                                vscode.postMessage({ type: 'saveSettings', settings: next });
+                                vscode.postMessage({ type: 'listModels' });
+                                setSettings(next);
+                                setHasApiKey(true);
+                                setSetupStep(2);
+                              }}>
+                              Kaydet ve devam
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {setupStep === 2 && (
+                        <>
+                          <p className="setup-card-title">Model seç</p>
+                          {liveModels.length === 0 ? (
+                            <div className="s-hint">Modeller yükleniyor…</div>
+                          ) : (
+                            <div className="setup-model-list">
+                              {liveModels.slice(0, 40).map((m) => (
+                                <button key={m} type="button"
+                                  className={`provider-card ${setupModel === m ? 'active' : ''}`}
+                                  onClick={() => setSetupModel(m)}>
+                                  <span className="provider-dot" />
+                                  <span className="provider-name">{m}</span>
+                                  {setupModel === m && <Check size={12} className="provider-check" />}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <div className="setup-row">
+                            <button className="ws-create-btn" type="button" style={{ background: 'transparent', border: '1px solid var(--vscode-panel-border)' }}
+                              onClick={() => setSetupStep(0)}>Geri</button>
+                            <button className="ws-create-btn" type="button"
+                              onClick={() => {
+                                if (!settings) return;
+                                const next = { ...settings, aiProvider: setupProvider, apiKey: setupKey.trim(), model: setupModel };
+                                vscode.postMessage({ type: 'saveSettings', settings: next });
+                                setSettings(next);
+                                if (setupModel) setModel(setupModel);
+                              }}>
+                              Hazır
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                   <div className="quick-actions">

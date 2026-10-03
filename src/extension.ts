@@ -1,6 +1,9 @@
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
+
+// 3. parti SDK'ların Node deprecation uyarılarını susturur (VS Code terminalinde görünür gürültü)
+process.noDeprecation = true;
 import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from './services/messages';
 import { runAgent } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations } from './services/tools';
@@ -85,7 +88,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
       onDone: (usage) => void webview.postMessage({ type: 'assistantDone', inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, contextWindow: usage.contextWindow, model: usage.model } satisfies HostToWebviewMessage),
       onError: (err) => {
-        void webview.postMessage({ type: 'error', message: err } satisfies HostToWebviewMessage);
+        void webview.postMessage({ type: 'error', message: friendlyError(err) } satisfies HostToWebviewMessage);
         const lower = err.toLowerCase();
         if (lower.includes('429') || lower.includes('quota') || lower.includes('503')) {
           const retry = /retry in (\d+)h(\d+)m/.exec(err);
@@ -358,4 +361,29 @@ function getNonce(): string {
   let v = '';
   for (let i = 0; i < 32; i++) v += chars.charAt(Math.floor(Math.random() * chars.length));
   return v;
+}
+
+function friendlyError(err: string): string {
+  const m = err.toLowerCase();
+  if (m.includes('429') || m.includes('quota exceeded') || m.includes('quota')) {
+    const retry = /retry in (\d+)h(\d+)m/.exec(err);
+    const wait = retry ? ` Yaklaşık ${retry[1]} saat ${retry[2]} dakika sonra tekrar dene.` : '';
+    return `Sağlayıcı kotası doldu.${wait} Ücretsiz katmanda bu sınıra ulaştıysan başka bir model seçebilirsin.`;
+  }
+  if (m.includes('503') || m.includes('high demand')) {
+    return 'Model şu anda aşırı yoğun (sağlayıcı tarafı). Birkaç dakika sonra tekrar dene veya başka bir model seç.';
+  }
+  if (m.includes('failed to parse stream')) {
+    return 'Cevap akışı sağlayıcı tarafında kesildi. Tekrar dene veya başka bir model seç.';
+  }
+  if (m.includes('zaman aşımına uğradı')) {
+    return 'Cevap akışı zaman aşımına uğradı. Ağ bağlantını kontrol edip tekrar dene.';
+  }
+  if (m.includes('fetch failed') || m.includes('econnreset') || m.includes('network')) {
+    return 'Sağlayıcıya ulaşılamadı. İnternet bağlantını kontrol et veya Ollama kullanıyorsan sunucunun açık olduğundan emin ol.';
+  }
+  if (m.includes('api key') || m.includes('api anahtarı')) {
+    return 'API anahtarı eksik veya geçersiz. Ayarlar\'dan anahtarını kontrol et.';
+  }
+  return err;
 }

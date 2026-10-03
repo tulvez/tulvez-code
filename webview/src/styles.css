@@ -139,6 +139,10 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 .setup-card-title { font-size: 12px; font-weight: 600; color: var(--vscode-foreground); }
 .setup-provider { appearance: none; cursor: pointer; }
+.setup-steps { display: flex; gap: 10px; font-size: 10px; color: var(--vscode-descriptionForeground); }
+.setup-steps .on { color: var(--tulvez-green); font-weight: 600; }
+.setup-row { display: flex; gap: 6px; }
+.setup-model-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
 
 /* Messages */
 .message-list { display: flex; flex-direction: column; padding: 8px 0 16px; }

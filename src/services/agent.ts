@@ -53,31 +53,65 @@ export async function runAgent(
   userMessage: string,
   mode: AgentMode,
   history: ChatTurn[],
-  cb: AgentCallbacks,
+  callbacks: AgentCallbacks,
 ): Promise<void> {
   if (!SUPPORTED_TOOLS.includes(settings.aiProvider as (typeof SUPPORTED_TOOLS)[number])) {
-    cb.onError('Bu sağlayıcı henüz araç desteklemiyor.');
+    callbacks.onError('Bu sağlayıcı henüz araç desteklemiyor.');
     return;
   }
   const systemPrompt = SYSTEM_PROMPTS[mode];
   // Ask modunda yalnızca salt-okunur araçlar çalışır; yazma/komut araçları kapalı.
   const allowedTools = TOOL_DEFINITIONS.filter((t) => mode !== 'ask' || t.readOnly);
 
-  try {
-    if (settings.aiProvider === 'anthropic') {
-      await runAnthropic(settings, systemPrompt, userMessage, history, cb, allowedTools);
-    } else if (settings.aiProvider === 'gemini') {
-      await runGemini(settings, systemPrompt, userMessage, history, cb, allowedTools);
-    } else {
-      const baseURL =
-        settings.aiProvider === 'groq' ? 'https://api.groq.com/openai/v1'
-        : settings.aiProvider === 'ollama' ? `${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`
-        : undefined;
-      await runOpenAICompatible(settings, systemPrompt, userMessage, history, cb, baseURL, allowedTools);
+  const maxAttempts = settings.autoApproveCommands ? 1 : 3;
+  let chunkSeen = false;
+  const cb: AgentCallbacks = {
+    ...callbacks,
+    onChunk: (text) => {
+      chunkSeen = true;
+      callbacks.onChunk(text);
+    },
+  };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    chunkSeen = false;
+    try {
+      if (settings.aiProvider === 'anthropic') {
+        await runAnthropic(settings, systemPrompt, userMessage, history, cb, allowedTools);
+      } else if (settings.aiProvider === 'gemini') {
+        await runGemini(settings, systemPrompt, userMessage, history, cb, allowedTools);
+      } else {
+        const baseURL =
+          settings.aiProvider === 'groq' ? 'https://api.groq.com/openai/v1'
+          : settings.aiProvider === 'ollama' ? `${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`
+          : undefined;
+        await runOpenAICompatible(settings, systemPrompt, userMessage, history, cb, baseURL, allowedTools);
+      }
+      return;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const retryable = isRetryableError(message);
+      if (!retryable || attempt >= maxAttempts || chunkSeen) {
+        callbacks.onError(message);
+        return;
+      }
+      await delay(1200 * attempt * attempt);
     }
-  } catch (err) {
-    cb.onError(err instanceof Error ? err.message : String(err));
   }
+}
+
+function isRetryableError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('429') || m.includes('503') || m.includes('502') || m.includes('500') ||
+    m.includes('quota') || m.includes('high demand') || m.includes('failed to parse stream') ||
+    m.includes('econnreset') || m.includes('etimedout') || m.includes('socket hang up') ||
+    m.includes('zaman aşımına uğradı') || m.includes('fetch failed') || m.includes('network')
+  );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const openAIToolsFor = (tools: typeof TOOL_DEFINITIONS): OpenAI.Chat.Completions.ChatCompletionTool[] =>
