@@ -257,7 +257,13 @@ img { -webkit-user-drag: none; user-select: none; }
 .slash-hint { font-size: 11px; color: var(--vscode-descriptionForeground); }
 
 /* Mode bar */
-.mode-bar { padding: 0 0 6px; }
+.mode-bar { padding: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+.mode-ws {
+  flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  direction: rtl; text-align: left;
+  font-size: 11px; color: var(--vscode-descriptionForeground);
+  opacity: 0.8;
+}
 .mode-trigger {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px; border-radius: 20px;
@@ -274,6 +280,30 @@ img { -webkit-user-drag: none; user-select: none; }
 .mode-item-active { font-weight: 600; }
 .mode-item-labels { display: flex; flex-direction: column; gap: 1px; }
 .mode-item-hint { font-size: 11px; color: var(--vscode-descriptionForeground); font-weight: 400; }
+
+/* Markdown */
+.turn-body p { margin: 0 0 8px; }
+.turn-body p:last-child { margin-bottom: 0; }
+.turn-body ul, .turn-body ol { margin: 0 0 8px; padding-left: 18px; }
+.turn-body li { margin-bottom: 2px; }
+.turn-body h1, .turn-body h2, .turn-body h3 { margin: 10px 0 6px; font-weight: 600; }
+.turn-body h1 { font-size: 15px; } .turn-body h2 { font-size: 14px; } .turn-body h3 { font-size: 13px; }
+.turn-body code {
+  font-family: var(--mono); font-size: 12px; padding: 1px 5px; border-radius: 4px;
+  background: var(--vscode-textCodeBlock-background, rgba(255,255,255,0.08));
+}
+.turn-body pre {
+  margin: 0 0 8px; padding: 10px 12px; border-radius: var(--radius);
+  border: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.25));
+  overflow-x: auto;
+}
+.turn-body pre code { background: transparent; padding: 0; font-size: 12px; }
+.turn-body strong { font-weight: 600; }
+.turn-body a { color: var(--vscode-textLink-foreground); text-decoration: none; }
+.turn-body blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); }
+.turn-body table { border-collapse: collapse; margin-bottom: 8px; }
+.turn-body th, .turn-body td { border: 1px solid var(--vscode-panel-border); padding: 4px 8px; font-size: 12px; }
 
 /* Stats bar */
 .stats-bar {

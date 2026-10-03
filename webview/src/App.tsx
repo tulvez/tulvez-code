@@ -6,10 +6,12 @@ import { SettingsPage } from './components/SettingsPage';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
-  Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, GitBranch, Hammer,
+  Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, FolderOpen, GitBranch, Hammer,
   MessageSquare, Send, Settings, Sparkles, SquarePen,
   Terminal, ThumbsDown, ThumbsUp, X, Zap,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './styles.css';
 
 const MIN_WIDTH = 220;
@@ -106,7 +108,7 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
   return (
     <>
       <div className="turn-body">
-        {displayed}
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
         {!done && <span className="typing-cursor" />}
       </div>
       {done && inputTokens !== undefined && outputTokens !== undefined && costUsd !== undefined && (
@@ -128,6 +130,7 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
 
 export function App(): JSX.Element {
   const [workspaceName, setWorkspaceName] = useState('');
+  const [workspacePath, setWorkspacePath] = useState('');
   const [logoUri, setLogoUri] = useState('');
   const [input, setInput] = useState('');
   const [model, setModel] = useState('Varsayılan');
@@ -164,6 +167,7 @@ export function App(): JSX.Element {
       const msg = event.data;
       if (msg.type === 'initialized') {
         setWorkspaceName(msg.workspaceName);
+        setWorkspacePath(msg.workspacePath ?? '');
         setLogoUri(msg.logoUri);
       } else if (msg.type === 'settingsData') {
         setProvider(msg.settings.aiProvider);
@@ -270,6 +274,7 @@ export function App(): JSX.Element {
     }
 
     setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
+    lastPromptRef.current = { text, mode, model: model === 'Varsayılan' ? undefined : model };
     const history = messages
       .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim() && !m.text.startsWith('❌'))
       .map((m) => ({ role: m.role as 'user' | 'assistant', text: m.text }))
@@ -315,6 +320,21 @@ export function App(): JSX.Element {
     sessionIdRef.current = Date.now();
     setMessages([]);
     setRunConfirm(null);
+    setWaiting(false);
+  };
+
+  const lastPromptRef = useRef<{ text: string; mode: AgentMode; model?: string } | null>(null);
+
+  const retry = () => {
+    const p = lastPromptRef.current;
+    if (!p) return;
+    setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text: p.text }]);
+    const history = messages
+      .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim() && !m.text.startsWith('❌'))
+      .map((m) => ({ role: m.role as 'user' | 'assistant', text: m.text }))
+      .slice(-20);
+    vscode.postMessage({ type: 'sendMessage', text: p.text, mode: p.mode, history, model: p.model });
+    setWaiting(true);
   };
 
   const restoreSession = (s: ChatSession) => {
@@ -369,6 +389,9 @@ export function App(): JSX.Element {
               </div>
               {workspaceName && <span className="header-workspace" title={workspaceName}>{workspaceName}</span>}
               <div className="header-actions">
+                <button className="icon-btn" type="button" title="Klasör aç" onClick={() => vscode.postMessage({ type: 'openFolder' })}>
+                  <FolderOpen size={15} strokeWidth={1.8} />
+                </button>
                 <button className="icon-btn" type="button" title="Geçmiş" onClick={() => setPage('history')}>
                   <Clock size={15} strokeWidth={1.8} />
                 </button>
@@ -464,7 +487,14 @@ export function App(): JSX.Element {
                             </span>
                           </div>
                         )}
-                        {msg.role === 'assistant' ? (
+                        {msg.role === 'assistant' && msg.text.startsWith('❌') ? (
+                          <div className="turn-body">
+                            {msg.text}
+                            <div style={{ marginTop: 6 }}>
+                              <button className="rcb rcb-always" type="button" onClick={retry}>Tekrar dene</button>
+                            </div>
+                          </div>
+                        ) : msg.role === 'assistant' ? (
                           <AssistantBubble
                             text={msg.text}
                             animate={msg.animated ?? false}
@@ -565,6 +595,7 @@ export function App(): JSX.Element {
 
             <div className="composer-wrap">
               <div className="mode-bar">
+                {workspacePath && <span className="mode-ws" title={workspacePath}>{workspacePath}</span>}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="mode-trigger" type="button"

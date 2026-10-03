@@ -11,6 +11,7 @@ export interface TulvezSettings {
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
+  | { type: 'openFolder' }
   | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[]; model?: string }
   | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain'; mode: 'ask' | 'plan' | 'build' }
   | { type: 'toolApproval'; id: string; approved: boolean }
@@ -22,7 +23,7 @@ export type WebviewToHostMessage =
   | { type: 'createWorkspace'; name: string };
 
 export type HostToWebviewMessage =
-  | { type: 'initialized'; workspaceName: string; logoUri: string }
+  | { type: 'initialized'; workspaceName: string; workspacePath?: string; logoUri: string }
   | { type: 'error'; message: string }
   | { type: 'assistantChunk'; text: string }
   | { type: 'assistantDone'; inputTokens: number; outputTokens: number; costUsd: number; contextWindow?: number }

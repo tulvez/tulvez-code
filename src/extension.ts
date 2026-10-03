@@ -100,13 +100,20 @@ export function activate(context: vscode.ExtensionContext): void {
 
     if (message.type === 'ready') {
       const workspaceName = vscode.workspace.name ?? 'Çalışma alanı yok';
+      const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
       await webview.postMessage({
         type: 'initialized',
         workspaceName,
+        workspacePath,
         logoUri: getLogoUri(webview),
       } satisfies HostToWebviewMessage);
       const settings = await readSettings();
       await webview.postMessage({ type: 'settingsData', settings } satisfies HostToWebviewMessage);
+      return;
+    }
+
+    if (message.type === 'openFolder') {
+      void vscode.commands.executeCommand('vscode.openFolder');
       return;
     }
 
