@@ -16,7 +16,7 @@ const MIN_WIDTH = 220;
 
 type AgentMode = 'ask' | 'plan' | 'build';
 type Page = 'chat' | 'settings' | 'history';
-interface ChatMessage { id: number; role: 'user' | 'assistant' | 'command'; text: string; exitCode?: number; }
+interface ChatMessage { id: number; role: 'user' | 'assistant' | 'command'; text: string; exitCode?: number; mode?: AgentMode; animated?: boolean; }
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
 interface RunConfirm { command: string; }
 
@@ -63,32 +63,32 @@ function TooNarrow() {
 function useTyping(full: string, active: boolean, speed = 8) {
   const [displayed, setDisplayed] = useState(active ? '' : full);
   const [done, setDone] = useState(!active);
+  const activeRef = useRef(active);
   useEffect(() => {
-    if (!active) { setDisplayed(full); setDone(true); return; }
+    if (!activeRef.current) return; // sadece ilk mount'ta animate=true ise çalış
     setDisplayed('');
     setDone(false);
     if (!full) return;
     let i = 0;
+    let cancelled = false;
     const tick = () => {
+      if (cancelled) return;
       i += 3;
       setDisplayed(full.slice(0, i));
       if (i < full.length) window.setTimeout(tick, speed);
       else { setDisplayed(full); setDone(true); }
     };
     window.setTimeout(tick, speed);
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [full]);
+  }, []); // sadece mount'ta — text değişmez, sayfa değişince component unmount/remount olur
   return { displayed, done };
 }
 
-// Son eklenen assistant mesajının id'sini takip etmek için modül-level ref
-let lastAnimatedId = -1;
-
-function AssistantBubble({ text, msgId, onCopy, onRunHint, copied, mode }: {
-  text: string; msgId: number; onCopy: () => void; onRunHint: () => void; copied: boolean; mode: AgentMode;
+function AssistantBubble({ text, onCopy, onRunHint, copied, mode, animate }: {
+  text: string; onCopy: () => void; onRunHint: () => void; copied: boolean; mode: AgentMode; animate: boolean;
 }) {
-  const shouldAnimate = msgId === lastAnimatedId;
-  const { displayed, done } = useTyping(text, shouldAnimate);
+  const { displayed, done } = useTyping(text, animate);
   return (
     <>
       <div className="turn-body">
@@ -136,9 +136,7 @@ export function App(): JSX.Element {
         setWorkspaceName(msg.workspaceName);
         setLogoUri(msg.logoUri);
       } else if (msg.type === 'assistantMessage') {
-        const id = nextId.current++;
-        lastAnimatedId = id;
-        setMessages((prev) => [...prev, { id, role: 'assistant', text: msg.text }]);
+        setMessages((prev) => [...prev, { id: nextId.current++, role: 'assistant', text: msg.text, mode, animated: true }]);
       } else if (msg.type === 'commandResult') {
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'command',
@@ -326,14 +324,14 @@ export function App(): JSX.Element {
                       <div key={msg.id} className={`message-turn ${msg.role}`}>
                         {msg.role === 'assistant' && (
                           <div className="turn-header">
-                            <span className={`turn-avatar assistant mode-avatar-${mode}`}><Sparkles size={10} strokeWidth={2} /></span>
+                            <span className={`turn-avatar assistant mode-avatar-${msg.mode ?? 'ask'}`}><Sparkles size={10} strokeWidth={2} /></span>
                           </div>
                         )}
                         {msg.role === 'assistant' ? (
                           <AssistantBubble
                             text={msg.text}
-                            msgId={msg.id}
-                            mode={mode}
+                            mode={msg.mode ?? 'ask'}
+                            animate={msg.animated ?? false}
                             copied={copiedId === msg.id}
                             onCopy={() => void copy(msg)}
                             onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}
