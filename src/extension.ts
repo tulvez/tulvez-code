@@ -11,14 +11,18 @@ import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } fr
 
 export function activate(context: vscode.ExtensionContext): void {
   const createWebview = (webview: vscode.Webview): void => {
-    webview.options = {
-      enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview'),
-        vscode.Uri.joinPath(context.extensionUri, 'resources'),
-      ],
-    };
-    webview.html = getWebviewHtml(webview, context.extensionUri);
+    try {
+      webview.options = {
+        enableScripts: true,
+        localResourceRoots: [
+          vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview'),
+          vscode.Uri.joinPath(context.extensionUri, 'resources'),
+        ],
+      };
+      webview.html = getWebviewHtml(webview, context.extensionUri);
+    } catch (err) {
+      console.error('[Tulvez] Webview hazırlanamadı:', err);
+    }
   };
 
   const getLogoUri = (webview: vscode.Webview): string =>
@@ -384,7 +388,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.onDidChangeVisibleTextEditors(() => { refreshAiDecorations(); updateAiStatus(); }),
   );
 
-  if (context.extensionMode === vscode.ExtensionMode.Development) openPanel();
+  if (context.extensionMode === vscode.ExtensionMode.Development) {
+    try {
+      openPanel();
+    } catch (err) {
+      console.error('[Tulvez] Panel açılamadı:', err);
+      void vscode.window.showErrorMessage('Tulvez Code paneli açılamadı. Ayrıntı için Output → Extension Host loguna bakın.');
+    }
+  }
 }
 
 export function deactivate(): void {}
