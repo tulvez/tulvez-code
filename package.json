@@ -96,6 +96,11 @@
           "default": false,
           "description": "Model seçim listesini sohbet arayüzünde ve ayarlarda göster (varsayılan: kapalı)."
         },
+        "tulvez.showThinking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Modelin düşünüş (reasoning) metnini sohbette göster."
+        },
         "tulvez.showAiEdits": {
           "type": "boolean",
           "default": true,

@@ -9,7 +9,7 @@ const DEFAULT: TulvezSettings = {
   aiProvider: 'openai', model: 'gpt-4o-mini', apiKey: '', ollamaUrl: 'http://localhost:11434',
   baseUrl: 'https://opencode.ai/zen/v1',
   autoApproveCommands: false, allowShellCommands: false,
-  telemetry: false, sendCodeContext: false, showAiEdits: true, showModels: false,
+  telemetry: false, sendCodeContext: false, showAiEdits: true, showModels: false, showThinking: true,
 };
 
 const PROVIDERS = [
@@ -322,6 +322,13 @@ export function SettingsPage({ onBack }: Props) {
                 <div className="s-row-hint">Kapalıyken sadece varsayılan model kullanılır</div>
               </div>
               <Toggle checked={cfg.showModels} onChange={(v) => set('showModels', v)} />
+            </div>
+            <div className="s-row">
+              <div>
+                <div className="s-row-label">Düşünüş metnini göster</div>
+                <div className="s-row-hint">Modelin içsel düşünmesini sohbette listeler</div>
+              </div>
+              <Toggle checked={cfg.showThinking} onChange={(v) => set('showThinking', v)} />
             </div>
             <div className="s-row">
               <div>

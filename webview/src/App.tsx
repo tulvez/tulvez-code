@@ -115,10 +115,10 @@ function UsageBadge({ inputTokens, outputTokens, costUsd, model }: { inputTokens
   );
 }
 
-function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, stopped, reasoning, onAnimationEnd }: {
+function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, stopped, reasoning, showThinking, onAnimationEnd }: {
   text: string; onCopy: () => void; onRunHint: () => void; copied: boolean; animate: boolean;
   inputTokens?: number; outputTokens?: number; costUsd?: number; model?: string; stopped?: boolean;
-  reasoning?: string; onAnimationEnd?: () => void;
+  reasoning?: string; showThinking: boolean; onAnimationEnd?: () => void;
 }) {
   const { displayed, done } = useTyping(text, animate);
 
@@ -128,8 +128,8 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
 
   return (
     <>
-      {reasoning && reasoning.trim() && (
-        <details className="reasoning" open={!done}>
+      {reasoning && reasoning.trim() && showThinking && (
+        <details className="reasoning" open={done ? undefined : true}>
           <summary>Düşünüş ({reasoning.length} karakter)</summary>
           <div className="reasoning-body">{reasoning}</div>
         </details>
@@ -705,6 +705,7 @@ onClick={() => {
                             model={msg.model}
                             stopped={msg.stopped}
                             reasoning={msg.reasoning}
+                            showThinking={settings?.showThinking ?? true}
                             onAnimationEnd={() => animatedIdsRef.current.add(msg.id)}
                             onCopy={() => void copy(msg)}
                             onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}

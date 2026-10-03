@@ -38,6 +38,14 @@ const SUPPORTED_TOOLS = ['openai', 'groq', 'anthropic', 'gemini', 'ollama', 'ope
 let toolReqCounter = 0;
 const nextToolReqId = () => `tool-${Date.now()}-${toolReqCounter++}`;
 
+function isTrivialRequest(text: string): boolean {
+  const t = text.trim().toLowerCase().replace(/[.!?.,]/g, '');
+  if (t.length > 24) return false;
+  const trivial = ['merhaba', 'selam', 'hey', 'hi', 'hello', 'merhaba tulvez', 'sen kimsin',
+    'kimsin', 'kimsin sen', 'ne yapabilirsin', 'nasilsin', 'iyi misin', 'teskirler'];
+  return trivial.includes(t);
+}
+
 function defaultModelFor(provider: string): string {
   if (provider === 'groq') return 'llama-3.3-70b-versatile';
   if (provider === 'ollama') return 'llama3';
@@ -76,8 +84,10 @@ export async function runAgent(
     return;
   }
   const systemPrompt = SYSTEM_PROMPTS[mode];
+  // Selamlaşma ve kısa basit sorularda araç çağırma: model boşuna dosya listelemesin.
+  const trivial = isTrivialRequest(userMessage);
   // Ask modunda yalnızca salt-okunur araçlar çalışır; yazma/komut araçları kapalı.
-  const allowedTools = TOOL_DEFINITIONS.filter((t) => mode !== 'ask' || t.readOnly);
+  const allowedTools = TOOL_DEFINITIONS.filter((t) => (mode !== 'ask' || t.readOnly) && !trivial);
 
   const maxAttempts = settings.autoApproveCommands ? 1 : 3;
   let chunkSeen = false;

@@ -10,6 +10,7 @@ export interface TulvezSettings {
   sendCodeContext: boolean;
   showAiEdits: boolean;
   showModels: boolean;
+  showThinking: boolean;
 }
 
 export type WebviewToHostMessage =
@@ -43,4 +44,5 @@ export type HostToWebviewMessage =
   | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
   | { type: 'cancelled' }
   | { type: 'skillsStatus'; exists: boolean; path: string; skills: string[] };
+
 

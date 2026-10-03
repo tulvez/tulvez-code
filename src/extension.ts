@@ -64,6 +64,7 @@ export function activate(context: vscode.ExtensionContext): void {
       sendCodeContext: cfg.get('sendCodeContext') ?? false,
       showAiEdits: cfg.get('showAiEdits') ?? true,
       showModels: cfg.get('showModels') ?? false,
+      showThinking: cfg.get('showThinking') ?? true,
     };
   };
 
@@ -79,6 +80,7 @@ export function activate(context: vscode.ExtensionContext): void {
     await cfg.update('sendCodeContext', settings.sendCodeContext, vscode.ConfigurationTarget.Global);
     await cfg.update('showAiEdits', settings.showAiEdits ?? true, vscode.ConfigurationTarget.Global);
     await cfg.update('showModels', settings.showModels ?? false, vscode.ConfigurationTarget.Global);
+    await cfg.update('showThinking', settings.showThinking ?? true, vscode.ConfigurationTarget.Global);
     if (settings.apiKey) {
       await context.secrets.store(secretKeyFor(settings.aiProvider), settings.apiKey);
     } else {
