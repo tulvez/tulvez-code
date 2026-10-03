@@ -30,6 +30,7 @@ interface ChatMessage {
   outputTokens?: number;
   costUsd?: number;
   contextWindow?: number;
+  model?: string;
   toolName?: string;
 }
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
@@ -88,7 +89,7 @@ function useTyping(full: string, active: boolean, speed = 8) {
   return { displayed: full.slice(0, index), done };
 }
 
-function UsageBadge({ inputTokens, outputTokens, costUsd }: { inputTokens: number; outputTokens: number; costUsd: number }) {
+function UsageBadge({ inputTokens, outputTokens, costUsd, model }: { inputTokens: number; outputTokens: number; costUsd: number; model?: string }) {
   const total = inputTokens + outputTokens;
   const costStr = costUsd === 0 ? 'ücretsiz' : costUsd < 0.001 ? `$${(costUsd * 1000).toFixed(3)}m` : `$${costUsd.toFixed(4)}`;
   return (
@@ -96,15 +97,26 @@ function UsageBadge({ inputTokens, outputTokens, costUsd }: { inputTokens: numbe
       <span>{total.toLocaleString()} token</span>
       <span className="usage-sep">·</span>
       <span>{costStr}</span>
+      {model && (
+        <>
+          <span className="usage-sep">·</span>
+          <span>{model}</span>
+        </>
+      )}
     </div>
   );
 }
 
-function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd }: {
+function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, onAnimationEnd }: {
   text: string; onCopy: () => void; onRunHint: () => void; copied: boolean; animate: boolean;
-  inputTokens?: number; outputTokens?: number; costUsd?: number;
+  inputTokens?: number; outputTokens?: number; costUsd?: number; model?: string; onAnimationEnd?: () => void;
 }) {
   const { displayed, done } = useTyping(text, animate);
+
+  useEffect(() => {
+    if (done && animate) onAnimationEnd?.();
+  }, [done, animate, onAnimationEnd]);
+
   return (
     <>
       <div className="turn-body">
@@ -112,7 +124,7 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
         {!done && <span className="typing-cursor" />}
       </div>
       {done && inputTokens !== undefined && outputTokens !== undefined && costUsd !== undefined && (
-        <UsageBadge inputTokens={inputTokens} outputTokens={outputTokens} costUsd={costUsd} />
+        <UsageBadge inputTokens={inputTokens} outputTokens={outputTokens} costUsd={costUsd} model={model} />
       )}
       <div className="turn-actions">
         <button className="turn-action-btn" type="button" title="Kopyala" onClick={onCopy}>
@@ -172,6 +184,7 @@ export function App(): JSX.Element {
   const pendingRun = useRef<string | null>(null);
   const nextId = useRef(1);
   const streamingIdRef = useRef<number | null>(null);
+  const animatedIdsRef = useRef<Set<number>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -210,7 +223,7 @@ export function App(): JSX.Element {
         const sid = streamingIdRef.current;
         if (sid !== null) {
           setMessages((prev) => prev.map((m) => m.id === sid
-            ? { ...m, inputTokens: msg.inputTokens, outputTokens: msg.outputTokens, costUsd: msg.costUsd, contextWindow: msg.contextWindow }
+            ? { ...m, inputTokens: msg.inputTokens, outputTokens: msg.outputTokens, costUsd: msg.costUsd, contextWindow: msg.contextWindow, model: msg.model }
             : m,
           ));
           streamingIdRef.current = null;
@@ -326,7 +339,10 @@ export function App(): JSX.Element {
     const title = msgs.find((m) => m.role === 'user')?.text.slice(0, 40) ?? 'Sohbet';
     setSessions((prev) => {
       const existing = prev.findIndex((s) => s.id === sessionIdRef.current);
-      const session: ChatSession = { id: sessionIdRef.current, title, messages: msgs, mode, ts: Date.now() };
+      const session: ChatSession = {
+        id: sessionIdRef.current, title, mode, ts: Date.now(),
+        messages: msgs.map((m) => ({ ...m, animated: false })),
+      };
       if (existing >= 0) { const next = [...prev]; next[existing] = session; return next; }
       return [session, ...prev];
     });
@@ -517,11 +533,13 @@ export function App(): JSX.Element {
                         ) : msg.role === 'assistant' ? (
                           <AssistantBubble
                             text={msg.text}
-                            animate={msg.animated ?? false}
+                            animate={(msg.animated ?? false) && !animatedIdsRef.current.has(msg.id)}
                             copied={copiedId === msg.id}
                             inputTokens={msg.inputTokens}
                             outputTokens={msg.outputTokens}
                             costUsd={msg.costUsd}
+                            model={msg.model}
+                            onAnimationEnd={() => animatedIdsRef.current.add(msg.id)}
                             onCopy={() => void copy(msg)}
                             onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}
                           />

@@ -80,7 +80,7 @@ export function activate(context: vscode.ExtensionContext): void {
           pendingToolApprovals.set(id, resolve);
           void webview.postMessage({ type: 'toolRequest', id, tool, args } satisfies HostToWebviewMessage);
         }),
-      onDone: (usage) => void webview.postMessage({ type: 'assistantDone', inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, contextWindow: usage.contextWindow } satisfies HostToWebviewMessage),
+      onDone: (usage) => void webview.postMessage({ type: 'assistantDone', inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, contextWindow: usage.contextWindow, model: usage.model } satisfies HostToWebviewMessage),
       onError: (err) => {
         void webview.postMessage({ type: 'error', message: err } satisfies HostToWebviewMessage);
         const lower = err.toLowerCase();

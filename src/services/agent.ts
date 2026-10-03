@@ -9,7 +9,7 @@ export interface AgentCallbacks {
   onChunk: (text: string) => void;
   onToolCall: (tool: string, summary: string) => void;
   onToolRequest: (id: string, tool: string, args: string) => Promise<boolean>;
-  onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number }) => void;
+  onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number; model: string }) => void;
   onError: (err: string) => void;
 }
 
@@ -168,7 +168,7 @@ async function runOpenAICompatible(
     }
   }
 
-  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model) });
+  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model), model });
 }
 
 async function runAnthropic(
@@ -226,7 +226,7 @@ async function runAnthropic(
     messages.push({ role: 'user', content: results });
   }
 
-  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model) });
+  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model), model });
 }
 
 async function runGemini(
@@ -291,5 +291,5 @@ async function runGemini(
     contents.push({ role: 'user', parts });
   }
 
-  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model) });
+  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model), model });
 }
