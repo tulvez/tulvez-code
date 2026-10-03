@@ -230,7 +230,7 @@ export function App(): JSX.Element {
         setProvider(msg.settings.aiProvider);
         setHasApiKey(msg.settings.aiProvider === 'ollama' || !!msg.settings.apiKey);
         setSettings(msg.settings);
-        if (msg.settings.aiProvider === 'ollama' || msg.settings.apiKey) {
+        if (msg.settings.showModels && (msg.settings.aiProvider === 'ollama' || msg.settings.apiKey)) {
           vscode.postMessage({ type: 'listModels' });
         }
       } else if (msg.type === 'modelsList') {
@@ -492,7 +492,7 @@ export function App(): JSX.Element {
                       <div className="setup-steps">
                         <span className={setupStep === 0 ? 'on' : ''}>1 · Sağlayıcı</span>
                         <span className={setupStep === 1 ? 'on' : ''}>2 · Anahtar</span>
-                        <span className={setupStep === 2 ? 'on' : ''}>3 · Model</span>
+                        {settings?.showModels && <span className={setupStep === 2 ? 'on' : ''}>3 · Model</span>}
                       </div>
 
                       {setupStep === 0 && (
@@ -515,10 +515,10 @@ export function App(): JSX.Element {
                             if (setupProvider === 'ollama' && settings) {
                               const next = { ...settings, aiProvider: 'ollama' as const, model: '', apiKey: '', baseUrl: setupBaseUrl || settings.baseUrl };
                               vscode.postMessage({ type: 'saveSettings', settings: next });
-                              vscode.postMessage({ type: 'listModels' });
+                              if (settings.showModels) vscode.postMessage({ type: 'listModels' });
                               setSettings(next);
                             }
-                            setSetupStep(setupProvider === 'ollama' ? 2 : 1);
+                            setSetupStep(setupProvider === 'ollama' && settings?.showModels ? 2 : (setupProvider === 'ollama' ? 1 : 1));
                           }}>
                             Devam
                           </button>
@@ -549,21 +549,28 @@ export function App(): JSX.Element {
                           <div className="setup-row">
                             <button className="ws-create-btn" type="button" style={{ background: 'transparent', border: '1px solid var(--vscode-panel-border)' }}
                               onClick={() => setSetupStep(0)}>Geri</button>
+                            {setupProvider === 'ollama' ? (
+                              <button className="ws-create-btn" type="button"
+                                onClick={() => { setHasApiKey(true); setSetupStep(0); }}>
+                                Hazır
+                              </button>
+                            ) : (
                             <button className="ws-create-btn" type="button" disabled={!setupKey.trim()}
-                              onClick={() => {
-                                if (!settings) return;
-                                const next = {
-                                  ...settings, aiProvider: setupProvider, model: '',
-                                  apiKey: setupKey.trim(), baseUrl: setupBaseUrl.trim() || settings.baseUrl,
-                                };
-                                vscode.postMessage({ type: 'saveSettings', settings: next });
-                                vscode.postMessage({ type: 'listModels' });
-                                setSettings(next);
-                                setHasApiKey(true);
-                                setSetupStep(2);
-                              }}>
+onClick={() => {
+                                  if (!settings) return;
+                                  const next = {
+                                    ...settings, aiProvider: setupProvider, model: '',
+                                    apiKey: setupKey.trim(), baseUrl: setupBaseUrl.trim() || settings.baseUrl,
+                                  };
+                                  vscode.postMessage({ type: 'saveSettings', settings: next });
+                                  if (settings.showModels) vscode.postMessage({ type: 'listModels' });
+                                  setSettings(next);
+                                  setHasApiKey(true);
+                                  if (settings.showModels) setSetupStep(2);
+                                }}>
                               Kaydet ve devam
                             </button>
+                            )}
                           </div>
                         </>
                       )}
@@ -800,16 +807,18 @@ export function App(): JSX.Element {
                     <button className="composer-btn icon-only" type="button" title="Ekle">
                       <CirclePlus size={15} strokeWidth={1.8} />
                     </button>
+{settings?.showModels && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button className="composer-btn" type="button">{model}<ChevronDown size={10} /></button>
                       </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="dropdown-content">
-                          {['Varsayılan', ...liveModels].map((m) => (
-                            <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => setModel(m)}>{m}</DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
+                      <DropdownMenuContent align="start" className="dropdown-content">
+                        {['Varsayılan', ...liveModels].map((m) => (
+                          <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => setModel(m)}>{m}</DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
                     </DropdownMenu>
+                  )}
                   </div>
                   <div className="composer-right">
                     <DropdownMenu>

@@ -36,13 +36,21 @@ export function activate(context: vscode.ExtensionContext): void {
       });
     });
 
+  const secretKeyFor = (provider: string): string => `tulvez.apiKey.${provider}`;
+
+  const readApiKey = async (provider: string): Promise<string> => {
+    const specific = await context.secrets.get(secretKeyFor(provider));
+    if (specific) return specific;
+    return (await context.secrets.get('tulvez.apiKey')) ?? '';
+  };
+
   const readSettings = async (): Promise<TulvezSettings> => {
     const cfg = vscode.workspace.getConfiguration('tulvez');
-    const apiKey = await context.secrets.get('tulvez.apiKey') ?? '';
+    const provider = cfg.get<string>('aiProvider') ?? 'openai';
     return {
-      aiProvider: cfg.get('aiProvider') ?? 'openai',
+      aiProvider: provider as TulvezSettings['aiProvider'],
       model: cfg.get('model') ?? '',
-      apiKey,
+      apiKey: await readApiKey(provider),
       ollamaUrl: cfg.get('ollamaUrl') ?? 'http://localhost:11434',
       baseUrl: cfg.get('baseUrl') ?? 'https://opencode.ai/zen/v1',
       autoApproveCommands: cfg.get('autoApproveCommands') ?? false,
@@ -50,6 +58,7 @@ export function activate(context: vscode.ExtensionContext): void {
       telemetry: cfg.get('telemetry') ?? false,
       sendCodeContext: cfg.get('sendCodeContext') ?? false,
       showAiEdits: cfg.get('showAiEdits') ?? true,
+      showModels: cfg.get('showModels') ?? false,
     };
   };
 
@@ -64,10 +73,11 @@ export function activate(context: vscode.ExtensionContext): void {
     await cfg.update('telemetry', settings.telemetry, vscode.ConfigurationTarget.Global);
     await cfg.update('sendCodeContext', settings.sendCodeContext, vscode.ConfigurationTarget.Global);
     await cfg.update('showAiEdits', settings.showAiEdits ?? true, vscode.ConfigurationTarget.Global);
+    await cfg.update('showModels', settings.showModels ?? false, vscode.ConfigurationTarget.Global);
     if (settings.apiKey) {
-      await context.secrets.store('tulvez.apiKey', settings.apiKey);
+      await context.secrets.store(secretKeyFor(settings.aiProvider), settings.apiKey);
     } else {
-      await context.secrets.delete('tulvez.apiKey');
+      await context.secrets.delete(secretKeyFor(settings.aiProvider));
     }
   };
 

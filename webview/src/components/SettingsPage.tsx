@@ -9,7 +9,7 @@ const DEFAULT: TulvezSettings = {
   aiProvider: 'openai', model: 'gpt-4o-mini', apiKey: '', ollamaUrl: 'http://localhost:11434',
   baseUrl: 'https://opencode.ai/zen/v1',
   autoApproveCommands: false, allowShellCommands: false,
-  telemetry: false, sendCodeContext: false, showAiEdits: true,
+  telemetry: false, sendCodeContext: false, showAiEdits: true, showModels: false,
 };
 
 const PROVIDERS = [
@@ -86,10 +86,11 @@ export function SettingsPage({ onBack }: Props) {
   }, []);
 
   useEffect(() => {
+    if (!cfg.showModels) return;
     if (cfg.aiProvider !== 'ollama' && !cfg.apiKey) { setModels(null); return; }
     const t = window.setTimeout(() => vscode.postMessage({ type: 'listModels' }), 800);
     return () => window.clearTimeout(t);
-  }, [cfg.aiProvider, cfg.apiKey]);
+  }, [cfg.aiProvider, cfg.apiKey, cfg.showModels]);
 
   const set = <K extends keyof TulvezSettings>(key: K, val: TulvezSettings[K]) => {
     setCfg((prev) => {
@@ -142,6 +143,7 @@ export function SettingsPage({ onBack }: Props) {
           </div>
         </div>
 
+        {cfg.showModels && (
         <div className="s-card">
           <SectionTitle icon={<Zap size={12} />} label="Model" />
           {cfg.aiProvider !== 'ollama' && !cfg.apiKey ? (
@@ -172,6 +174,7 @@ export function SettingsPage({ onBack }: Props) {
             </>
           )}
         </div>
+        )}
 
         {quotas.length > 0 && (
           <div className="s-card">
@@ -272,13 +275,6 @@ export function SettingsPage({ onBack }: Props) {
             </div>
             <div className="s-row">
               <div>
-                <div className="s-row-label">AI satırlarını işaretle</div>
-                <div className="s-row-hint">Agent'ın yazdığı satırlar editörde vurgulanır</div>
-              </div>
-              <Toggle checked={cfg.showAiEdits} onChange={(v) => set('showAiEdits', v)} />
-            </div>
-            <div className="s-row">
-              <div>
                 <div className="s-row-label">Anonim kullanım verisi</div>
                 <div className="s-row-hint">Henüz aktif değil</div>
               </div>
@@ -288,6 +284,26 @@ export function SettingsPage({ onBack }: Props) {
           <div className="privacy-note">
             <Lock size={11} />
             <p>API anahtarınız yalnızca VS Code SecretStorage'da saklanır. Kodunuz, siz açıkça izin vermedikçe Tulvez sunucularına gönderilmez.</p>
+          </div>
+        </div>
+
+        <div className="s-card">
+          <SectionTitle icon={<Zap size={12} />} label="Arayüz" />
+          <div className="s-section">
+            <div className="s-row">
+              <div>
+                <div className="s-row-label">Model seçimini göster</div>
+                <div className="s-row-hint">Kapalıyken sadece varsayılan model kullanılır</div>
+              </div>
+              <Toggle checked={cfg.showModels} onChange={(v) => set('showModels', v)} />
+            </div>
+            <div className="s-row">
+              <div>
+                <div className="s-row-label">AI satırlarını işaretle</div>
+                <div className="s-row-hint">Agent'ın yazdığı satırlar editörde vurgulanır</div>
+              </div>
+              <Toggle checked={cfg.showAiEdits} onChange={(v) => set('showAiEdits', v)} />
+            </div>
           </div>
         </div>
 

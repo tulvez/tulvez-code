@@ -9,6 +9,7 @@ export interface TulvezSettings {
   telemetry: boolean;
   sendCodeContext: boolean;
   showAiEdits: boolean;
+  showModels: boolean;
 }
 
 export type WebviewToHostMessage =
@@ -37,3 +38,4 @@ export type HostToWebviewMessage =
   | { type: 'modelsList'; models: string[]; error?: string }
   | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
   | { type: 'cancelled' };
+

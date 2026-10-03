@@ -91,6 +91,11 @@
           "default": "https://opencode.ai/zen/v1",
           "description": "OpenAI uyumlu özel sağlayıcılar için endpoint (OpenCode Zen, OpenRouter, LM Studio vb.)."
         },
+        "tulvez.showModels": {
+          "type": "boolean",
+          "default": false,
+          "description": "Model seçim listesini sohbet arayüzünde ve ayarlarda göster (varsayılan: kapalı)."
+        },
         "tulvez.showAiEdits": {
           "type": "boolean",
           "default": true,
