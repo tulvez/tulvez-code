@@ -84,6 +84,11 @@
           "default": "http://localhost:11434",
           "description": "Ollama sunucu adresi."
         },
+        "tulvez.showAiEdits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Tulvez Code tarafından yazılan satırları editörde işaretle."
+        },
         "tulvez.allowShellCommands": {
           "type": "boolean",
           "default": false,

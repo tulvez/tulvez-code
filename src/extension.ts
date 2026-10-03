@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import OpenAI from 'openai';
 import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from './services/messages';
 import { runAgent } from './services/agent';
+import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations } from './services/tools';
 
 export function activate(context: vscode.ExtensionContext): void {
   const createWebview = (webview: vscode.Webview): void => {
@@ -44,6 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
       allowShellCommands: cfg.get('allowShellCommands') ?? false,
       telemetry: cfg.get('telemetry') ?? false,
       sendCodeContext: cfg.get('sendCodeContext') ?? false,
+      showAiEdits: cfg.get('showAiEdits') ?? true,
     };
   };
 
@@ -56,6 +58,7 @@ export function activate(context: vscode.ExtensionContext): void {
     await cfg.update('allowShellCommands', settings.allowShellCommands, vscode.ConfigurationTarget.Global);
     await cfg.update('telemetry', settings.telemetry, vscode.ConfigurationTarget.Global);
     await cfg.update('sendCodeContext', settings.sendCodeContext, vscode.ConfigurationTarget.Global);
+    await cfg.update('showAiEdits', settings.showAiEdits ?? true, vscode.ConfigurationTarget.Global);
     if (settings.apiKey) {
       await context.secrets.store('tulvez.apiKey', settings.apiKey);
     } else {
@@ -287,6 +290,26 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(vscode.commands.registerCommand('tulvez.openPanel', openPanel));
+
+  const aiStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  aiStatus.command = 'tulvez.openPanel';
+  const updateAiStatus = (): void => {
+    const count = aiLineCountForActiveEditor();
+    if (count === null) {
+      aiStatus.hide();
+      return;
+    }
+    aiStatus.text = `$(sparkle) ${count} satır AI`;
+    aiStatus.tooltip = 'Tulvez Code tarafından yazıldı olarak işaretlenen satırlar';
+    aiStatus.show();
+  };
+  context.subscriptions.push(aiStatus);
+  aiEditHooks.onEdit = updateAiStatus;
+
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor(() => { refreshAiDecorations(); updateAiStatus(); }),
+    vscode.window.onDidChangeVisibleTextEditors(() => { refreshAiDecorations(); updateAiStatus(); }),
+  );
 
   if (context.extensionMode === vscode.ExtensionMode.Development) openPanel();
 }

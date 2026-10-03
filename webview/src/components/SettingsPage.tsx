@@ -8,7 +8,7 @@ interface Props { onBack: () => void; }
 const DEFAULT: TulvezSettings = {
   aiProvider: 'openai', model: 'gpt-4o-mini', apiKey: '', ollamaUrl: 'http://localhost:11434',
   autoApproveCommands: false, allowShellCommands: false,
-  telemetry: false, sendCodeContext: false,
+  telemetry: false, sendCodeContext: false, showAiEdits: true,
 };
 
 const PROVIDERS = [
@@ -249,6 +249,13 @@ export function SettingsPage({ onBack }: Props) {
                 <div className="s-row-hint">AI'ya aktif dosya içeriği eklenir</div>
               </div>
               <Toggle checked={cfg.sendCodeContext} onChange={(v) => set('sendCodeContext', v)} />
+            </div>
+            <div className="s-row">
+              <div>
+                <div className="s-row-label">AI satırlarını işaretle</div>
+                <div className="s-row-hint">Agent'ın yazdığı satırlar editörde vurgulanır</div>
+              </div>
+              <Toggle checked={cfg.showAiEdits} onChange={(v) => set('showAiEdits', v)} />
             </div>
             <div className="s-row">
               <div>

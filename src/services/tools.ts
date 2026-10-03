@@ -84,6 +84,52 @@ function resolvePath(p: string): string {
   return path.isAbsolute(p) ? p : path.join(root, p);
 }
 
+const aiEdits = new Map<string, { start: number; end: number }[]>();
+
+let aiDecorationType: vscode.TextEditorDecorationType | null = null;
+const AI_DECORATION_COLOR = 'rgba(63,185,80,0.10)';
+
+export function refreshAiDecorations(): void {
+  if (!aiDecorationType) {
+    aiDecorationType = vscode.window.createTextEditorDecorationType({
+      isWholeLine: true,
+      backgroundColor: AI_DECORATION_COLOR,
+      overviewRulerColor: '#3fb950',
+      overviewRulerLane: vscode.OverviewRulerLane.Right,
+    });
+  }
+  const enabled = vscode.workspace.getConfiguration('tulvez').get<boolean>('showAiEdits', true);
+  for (const editor of vscode.window.visibleTextEditors) {
+    const ranges = enabled ? aiEdits.get(editor.document.uri.fsPath) : undefined;
+    if (!ranges) {
+      editor.setDecorations(aiDecorationType, []);
+      continue;
+    }
+    editor.setDecorations(
+      aiDecorationType,
+      ranges.map((r) => new vscode.Range(r.start, 0, r.end, 0)),
+    );
+  }
+}
+
+export function aiLineCountForActiveEditor(): number | null {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return null;
+  const ranges = aiEdits.get(editor.document.uri.fsPath);
+  if (!ranges || ranges.length === 0) return null;
+  return ranges.reduce((a, r) => a + (r.end - r.start + 1), 0);
+}
+
+export const aiEditHooks: { onEdit?: () => void } = {};
+
+function markAiEdit(filePath: string, start: number, end: number): void {
+  const ranges = aiEdits.get(filePath) ?? [];
+  ranges.push({ start, end });
+  aiEdits.set(filePath, ranges);
+  refreshAiDecorations();
+  aiEditHooks.onEdit?.();
+}
+
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
@@ -99,6 +145,8 @@ export async function executeTool(
         const target = resolvePath(String(args.path ?? ''));
         await fs.mkdir(path.dirname(target), { recursive: true });
         await fs.writeFile(target, String(args.content ?? ''), 'utf8');
+        const lines = String(args.content ?? '').split('\n').length;
+        markAiEdit(target, 0, Math.max(0, lines - 1));
         return `Yazıldı: ${target}`;
       }
       case 'edit_file': {
@@ -106,7 +154,15 @@ export async function executeTool(
         const content = await fs.readFile(target, 'utf8');
         const oldStr = String(args.old_string ?? '');
         if (!content.includes(oldStr)) return 'Hata: old_string dosyada bulunamadı.';
-        await fs.writeFile(target, content.replace(oldStr, String(args.new_string ?? '')), 'utf8');
+        const newStr = String(args.new_string ?? '');
+        const updated = content.replace(oldStr, newStr);
+        await fs.writeFile(target, updated, 'utf8');
+        const idx = updated.indexOf(newStr);
+        if (idx >= 0) {
+          const startLine = updated.slice(0, idx).split('\n').length - 1;
+          const span = newStr.split('\n').length;
+          markAiEdit(target, startLine, Math.max(startLine, startLine + span - 1));
+        }
         return `Düzenlendi: ${target}`;
       }
       case 'list_files': {

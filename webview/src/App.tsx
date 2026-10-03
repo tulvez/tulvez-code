@@ -337,11 +337,10 @@ export function App(): JSX.Element {
 
   const approveRun = (autoApprove = false) => {
     if (!runConfirm) return;
-    if (autoApprove) {
-      vscode.postMessage({ type: 'saveSettings', settings: {
-        aiProvider: 'openai', model: '', apiKey: '', ollamaUrl: '',
-        autoApproveCommands: true, allowShellCommands: true, telemetry: false, sendCodeContext: false,
-      }});
+    if (autoApprove && settings) {
+      const next = { ...settings, autoApproveCommands: true, allowShellCommands: true };
+      vscode.postMessage({ type: 'saveSettings', settings: next });
+      setSettings(next);
     }
     vscode.postMessage({ type: 'runCommand', command: runConfirm.command });
     pendingRun.current = null;

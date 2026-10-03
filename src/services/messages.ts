@@ -7,6 +7,7 @@ export interface TulvezSettings {
   allowShellCommands: boolean;
   telemetry: boolean;
   sendCodeContext: boolean;
+  showAiEdits: boolean;
 }
 
 export type WebviewToHostMessage =
