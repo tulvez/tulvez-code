@@ -21,6 +21,9 @@ const COST_TABLE: Record<string, { in: number; out: number }> = {
   'claude-3-5-sonnet-20241022': { in: 0.000003, out: 0.000015 },
   'claude-3-5-haiku-20241022':  { in: 0.0000008, out: 0.000004 },
   'claude-3-opus-20240229':     { in: 0.000015,  out: 0.000075 },
+  'gemini-2.5-pro':    { in: 0.00000125, out: 0.00001 },
+  'gemini-2.5-flash':  { in: 0.0000003, out: 0.0000025 },
+  'gemini-2.5-flash-lite': { in: 0.000000075, out: 0.0000003 },
   'gemini-1.5-pro':    { in: 0.00000125, out: 0.000005 },
   'gemini-1.5-flash':  { in: 0.000000075, out: 0.0000003 },
   'gemini-2.0-flash':  { in: 0.0000001,  out: 0.0000004 },
@@ -60,7 +63,7 @@ export async function streamAI(
     } else if (settings.aiProvider === 'anthropic') {
       await streamAnthropic(settings.apiKey, model || 'claude-3-5-haiku-20241022', systemPrompt, userMessage, callbacks, history);
     } else if (settings.aiProvider === 'gemini') {
-      await streamGemini(settings.apiKey, model || 'gemini-1.5-flash', systemPrompt, userMessage, callbacks, history);
+      await streamGemini(settings.apiKey, model || 'gemini-2.5-flash', systemPrompt, userMessage, callbacks, history);
     } else if (settings.aiProvider === 'groq') {
       await streamOpenAI(settings.apiKey, model || 'llama-3.3-70b-versatile', systemPrompt, userMessage, callbacks, 'https://api.groq.com/openai/v1', history);
     } else if (settings.aiProvider === 'ollama') {

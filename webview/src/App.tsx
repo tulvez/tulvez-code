@@ -60,7 +60,7 @@ const SKILLS = [
   { label: 'Kod incelemesi yap',          prompt: 'Kodumu incele ve geri bildirim ver' },
 ];
 
-const MODELS = ['Otomatik', 'GPT-4o', 'GPT-4o-mini', 'Claude 3.5 Sonnet', 'Gemini 1.5 Flash', 'Llama 3 (Ollama)'];
+const MODELS = ['Otomatik', 'GPT-4o', 'GPT-4o-mini', 'Claude 3.5 Sonnet', 'Gemini 2.5 Flash', 'Llama 3 (Ollama)'];
 
 function TooNarrow() {
   return (
@@ -150,6 +150,8 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+  const [provider, setProvider] = useState('');
 
   const sessionIdRef = useRef(1);
   const pendingRun = useRef<string | null>(null);
@@ -168,6 +170,9 @@ export function App(): JSX.Element {
       if (msg.type === 'initialized') {
         setWorkspaceName(msg.workspaceName);
         setLogoUri(msg.logoUri);
+      } else if (msg.type === 'settingsData') {
+        setProvider(msg.settings.aiProvider);
+        setHasApiKey(msg.settings.aiProvider === 'ollama' || !!msg.settings.apiKey);
       } else if (msg.type === 'assistantChunk') {
         if (streamingIdRef.current === null) {
           const id = nextId.current++;
@@ -371,6 +376,12 @@ export function App(): JSX.Element {
                   </div>
                   <p className="empty-title">Tulvez Code</p>
                   <p className="empty-subtitle">Kodunuz hakkında soru sorun veya bir işlem seçin.</p>
+                  {hasApiKey === false && (
+                    <button type="button" className="quick-action-btn" style={{ maxWidth: 250, marginBottom: 10, justifyContent: 'center', borderColor: 'var(--mode-ask-border)', color: 'var(--mode-ask)' }}
+                      onClick={() => setPage('settings')}>
+                      API anahtarı gerekli — Ayarlar'ı aç
+                    </button>
+                  )}
                   <div className="quick-actions">
                     {QUICK_ACTIONS.map((a) => (
                       <button key={a.label} type="button" className="quick-action-btn"

@@ -104,6 +104,8 @@ export function activate(context: vscode.ExtensionContext): void {
         workspaceName,
         logoUri: getLogoUri(webview),
       } satisfies HostToWebviewMessage);
+      const settings = await readSettings();
+      await webview.postMessage({ type: 'settingsData', settings } satisfies HostToWebviewMessage);
       return;
     }
 

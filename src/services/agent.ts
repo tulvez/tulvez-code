@@ -221,7 +221,7 @@ async function runGemini(
   cb: AgentCallbacks,
 ): Promise<void> {
   if (!settings.apiKey) { cb.onError('Gemini API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
-  const model = settings.model || 'gemini-1.5-flash';
+  const model = settings.model || 'gemini-2.5-flash';
   const genAI = new GoogleGenerativeAI(settings.apiKey);
   const genModel = genAI.getGenerativeModel({
     model,

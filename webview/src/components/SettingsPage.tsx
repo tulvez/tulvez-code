@@ -16,8 +16,8 @@ const PROVIDERS = [
     models: ['gpt-4o', 'gpt-4o-mini', 'o1-mini', 'o1'] },
   { id: 'anthropic' as const, label: 'Anthropic',     hint: 'Claude 3.5 Sonnet · Haiku',    color: '#d97706',
     models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'] },
-  { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 1.5 Pro · Flash · 2.0', color: '#4285f4',
-    models: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'] },
+  { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 2.5 Pro · Flash · Flash-Lite', color: '#4285f4',
+    models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'] },
   { id: 'groq' as const,     label: 'Groq',          hint: 'Llama 3.3 · Mixtral · Çok Hızlı', color: '#f97316',
     models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'] },
   { id: 'ollama' as const,    label: 'Ollama',        hint: 'Yerel · Ücretsiz · Gizli',     color: '#a78bfa',
@@ -54,12 +54,14 @@ export function SettingsPage({ onBack }: Props) {
 
   // Otomatik kaydet — her değişiklikte 600ms debounce
   const set = <K extends keyof TulvezSettings>(key: K, val: TulvezSettings[K]) => {
-    const next = { ...cfg, [key]: val };
-    setCfg(next);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      vscode.postMessage({ type: 'saveSettings', settings: next });
-    }, 600);
+    setCfg((prev) => {
+      const next = { ...prev, [key]: val };
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        vscode.postMessage({ type: 'saveSettings', settings: next });
+      }, 600);
+      return next;
+    });
   };
 
   const createWorkspace = () => {
