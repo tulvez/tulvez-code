@@ -253,15 +253,15 @@ async function runGemini(
       }) as any),
     }],
   });
-  const chat = genModel.startChat({
-    history: history.map((t) => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] })),
-  });
+  const contents: { role: string; parts: Part[] }[] = [
+    ...history.map((t) => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] as Part[] })),
+    { role: 'user', parts: [{ text: userMessage }] },
+  ];
   let inputTokens = 0;
   let outputTokens = 0;
-  let next: string | Part[] = userMessage;
 
   for (let step = 0; step < 10; step++) {
-    const result = await chat.sendMessageStream(next);
+    const result = await genModel.generateContentStream({ contents });
     for await (const chunk of result.stream) {
       const text = chunk.text();
       if (text) cb.onChunk(text);
@@ -272,6 +272,10 @@ async function runGemini(
     outputTokens = usage?.candidatesTokenCount ?? outputTokens;
 
     const calls = response.functionCalls() ?? [];
+    const modelParts = (response.candidates?.[0]?.content?.parts ?? []) as Part[];
+    if (modelParts.length > 0) {
+      contents.push({ role: 'model', parts: modelParts });
+    }
     if (calls.length === 0) break;
 
     const parts: Part[] = [];
@@ -284,7 +288,7 @@ async function runGemini(
         : 'Kullanıcı aracı reddetti.';
       parts.push({ functionResponse: { name: call.name, response: { result: content } } } as Part);
     }
-    next = parts;
+    contents.push({ role: 'user', parts });
   }
 
   cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model) });
