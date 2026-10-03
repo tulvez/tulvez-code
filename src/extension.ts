@@ -81,7 +81,24 @@ export function activate(context: vscode.ExtensionContext): void {
           void webview.postMessage({ type: 'toolRequest', id, tool, args } satisfies HostToWebviewMessage);
         }),
       onDone: (usage) => void webview.postMessage({ type: 'assistantDone', inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, contextWindow: usage.contextWindow } satisfies HostToWebviewMessage),
-      onError: (err) => void webview.postMessage({ type: 'error', message: err } satisfies HostToWebviewMessage),
+      onError: (err) => {
+        void webview.postMessage({ type: 'error', message: err } satisfies HostToWebviewMessage);
+        const lower = err.toLowerCase();
+        if (lower.includes('429') || lower.includes('quota') || lower.includes('503')) {
+          const retry = /retry in (\d+)h(\d+)m/.exec(err);
+          let retryAt: number | undefined;
+          if (retry) {
+            retryAt = Date.now() + (parseInt(retry[1], 10) * 3600 + parseInt(retry[2], 10) * 60) * 1000;
+          }
+          const modelMatch = /models\/([\w.-]+):/.exec(err) ?? /model: ([\w.-]+)/.exec(err);
+          void webview.postMessage({
+            type: 'quotaInfo',
+            model: modelMatch?.[1] ?? settings.model ?? '',
+            retryAt,
+            limited: true,
+          } satisfies HostToWebviewMessage);
+        }
+      },
     });
   };
 

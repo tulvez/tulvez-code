@@ -12,17 +12,34 @@ const DEFAULT: TulvezSettings = {
 };
 
 const PROVIDERS = [
-  { id: 'openai' as const,    label: 'OpenAI',        hint: 'GPT-4o · GPT-4o-mini · o1',    color: '#10a37f',
-    models: ['gpt-4o', 'gpt-4o-mini', 'o1-mini', 'o1'] },
-  { id: 'anthropic' as const, label: 'Anthropic',     hint: 'Claude 3.5 Sonnet · Haiku',    color: '#d97706',
-    models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'] },
-  { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 2.5 Pro · Flash · Flash-Lite', color: '#4285f4',
-    models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'] },
-  { id: 'groq' as const,     label: 'Groq',          hint: 'Llama 3.3 · Mixtral · Çok Hızlı', color: '#f97316',
-    models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'] },
-  { id: 'ollama' as const,    label: 'Ollama',        hint: 'Yerel · Ücretsiz · Gizli',     color: '#a78bfa',
-    models: ['llama3', 'llama3.1', 'codellama', 'mistral', 'deepseek-coder'] },
+  { id: 'openai' as const,    label: 'OpenAI',        hint: 'GPT-4o · GPT-4o-mini · o1',    color: '#10a37f' },
+  { id: 'anthropic' as const, label: 'Anthropic',     hint: 'Claude 3.5 Sonnet · Haiku',    color: '#d97706' },
+  { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 2.5 Pro · Flash · Flash-Lite', color: '#4285f4' },
+  { id: 'groq' as const,     label: 'Groq',          hint: 'Llama 3.3 · Mixtral · Çok Hızlı', color: '#f97316' },
+  { id: 'ollama' as const,    label: 'Ollama',        hint: 'Yerel · Ücretsiz · Gizli',     color: '#a78bfa' },
 ];
+
+const MODEL_HINTS: [RegExp, string][] = [
+  [/gemini-2\.5-flash-lite/, 'Ücretsiz katman · en yüksek limit'],
+  [/gemini-2\.5-flash/, 'Ücretsiz katman · hızlı'],
+  [/gemini-2\.5-pro/, 'Gelişmiş · ücretsiz kotada sınırlı'],
+  [/flash/i, 'Ücretsiz katman · hızlı'],
+  [/gpt-4o-mini/, 'Uygun fiyatlı · ücretli'],
+  [/gpt-4o/, 'Gelişmiş · ücretli'],
+  [/o1/, 'Akıl yürütme · ücretli'],
+  [/claude-3-5-haiku/, 'Hızlı · ücretli'],
+  [/claude/, 'Gelişmiş · ücretli'],
+  [/llama/i, 'Ücretsiz (Groq) · hızlı'],
+  [/mixtral|gemma/i, 'Ücretsiz (Groq)'],
+];
+
+function modelHint(model: string, provider: string): string {
+  if (provider === 'ollama') return 'Yerel · ücretsiz · çevrimdışı';
+  const found = MODEL_HINTS.find(([re]) => re.test(model));
+  return found ? found[1] : '';
+}
+
+interface Quota { model: string; retryAt?: number }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -42,6 +59,7 @@ export function SettingsPage({ onBack }: Props) {
   const [wsCreated, setWsCreated] = useState('');
   const [models, setModels] = useState<string[] | null>(null);
   const [modelsError, setModelsError] = useState('');
+  const [quotas, setQuotas] = useState<Quota[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { vscode.postMessage({ type: 'getSettings' }); }, []);
@@ -53,19 +71,23 @@ export function SettingsPage({ onBack }: Props) {
         setModels(e.data.models as string[]);
         setModelsError((e.data.error as string) ?? '');
       }
+      if (e.data?.type === 'quotaInfo' && e.data.limited) {
+        setQuotas((prev) => {
+          const rest = prev.filter((q) => q.model !== e.data.model);
+          return [...rest, { model: e.data.model, retryAt: e.data.retryAt }];
+        });
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  // API anahtarı girilince sağlayıcının model listesini çek
   useEffect(() => {
     if (cfg.aiProvider !== 'ollama' && !cfg.apiKey) { setModels(null); return; }
     const t = window.setTimeout(() => vscode.postMessage({ type: 'listModels' }), 800);
     return () => window.clearTimeout(t);
   }, [cfg.aiProvider, cfg.apiKey]);
 
-  // Otomatik kaydet — her değişiklikte 600ms debounce
   const set = <K extends keyof TulvezSettings>(key: K, val: TulvezSettings[K]) => {
     setCfg((prev) => {
       const next = { ...prev, [key]: val };
@@ -85,9 +107,10 @@ export function SettingsPage({ onBack }: Props) {
     setWsName('');
   };
 
+  const modelList = models && models.length > 0 ? models : [];
+
   return (
     <div className="settings-page">
-      {/* Topbar: geri butonu üstte, Ayarlar başlığı altında */}
       <div className="settings-topbar">
         <button className="settings-back-btn" type="button" onClick={onBack}>
           <ChevronLeft size={14} strokeWidth={2.5} />
@@ -97,155 +120,167 @@ export function SettingsPage({ onBack }: Props) {
 
       <div className="settings-body">
 
-        {/* AI Sağlayıcı */}
-        <SectionTitle icon={<Zap size={12} />} label="AI Sağlayıcı" />
-        <div className="provider-grid">
-          {PROVIDERS.map((p) => (
-            <button key={p.id} type="button"
-              className={`provider-card ${cfg.aiProvider === p.id ? 'active' : ''}`}
-              style={{ '--p-color': p.color } as React.CSSProperties}
-              onClick={() => { set('aiProvider', p.id); set('model', p.models[0]); }}>
-              <span className="provider-dot" />
-              <div>
-                <div className="provider-name">{p.label}</div>
-                <div className="provider-models">{p.hint}</div>
-              </div>
-              {cfg.aiProvider === p.id && <Check size={12} className="provider-check" />}
-            </button>
-          ))}
+        <div className="s-card">
+          <SectionTitle icon={<Zap size={12} />} label="AI Sağlayıcı" />
+          <div className="provider-grid">
+            {PROVIDERS.map((p) => (
+              <button key={p.id} type="button"
+                className={`provider-card ${cfg.aiProvider === p.id ? 'active' : ''}`}
+                style={{ '--p-color': p.color } as React.CSSProperties}
+                onClick={() => { set('aiProvider', p.id); set('model', ''); }}>
+                <span className="provider-dot" />
+                <div>
+                  <div className="provider-name">{p.label}</div>
+                  <div className="provider-models">{p.hint}</div>
+                </div>
+                {cfg.aiProvider === p.id && <Check size={12} className="provider-check" />}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Model seçimi — anahtar girilmeden listelenmez */}
-        {(() => {
-          if (cfg.aiProvider !== 'ollama' && !cfg.apiKey) {
-            return (
-              <>
-                <SectionTitle icon={<Zap size={12} />} label="Model" />
-                <div className="s-hint">Modelleri görmek için önce API anahtarınızı girin.</div>
-              </>
-            );
-          }
-          const p = PROVIDERS.find((p) => p.id === cfg.aiProvider);
-          const list = models && models.length > 0 ? models : (p?.models ?? []);
-          return (
+        <div className="s-card">
+          <SectionTitle icon={<Zap size={12} />} label="Model" />
+          {cfg.aiProvider !== 'ollama' && !cfg.apiKey ? (
+            <div className="s-hint">Modelleri görmek için önce API anahtarınızı girin.</div>
+          ) : (
             <>
-              <SectionTitle icon={<Zap size={12} />} label="Model" />
               {modelsError && <div className="s-hint">Model listesi alınamadı: {modelsError}</div>}
               <div className="provider-grid">
-                {list.map((m) => (
+                {modelList.map((m) => (
                   <button key={m} type="button"
                     className={`provider-card ${cfg.model === m ? 'active' : ''}`}
-                    style={{ '--p-color': p?.color } as React.CSSProperties}
+                    style={{ '--p-color': PROVIDERS.find((p) => p.id === cfg.aiProvider)?.color } as React.CSSProperties}
                     onClick={() => set('model', m)}>
                     <span className="provider-dot" />
-                    <div className="provider-name">{m}</div>
+                    <div>
+                      <div className="provider-name">{m}</div>
+                      <div className="model-hint">{modelHint(m, cfg.aiProvider)}</div>
+                    </div>
                     {cfg.model === m && <Check size={12} className="provider-check" />}
                   </button>
                 ))}
+                {modelList.length === 0 && !modelsError && <div className="s-hint">Model listesi yükleniyor…</div>}
               </div>
               <button className="ws-create-btn" type="button" style={{ alignSelf: 'flex-start' }}
                 onClick={() => vscode.postMessage({ type: 'listModels' })}>
                 Modelleri yenile
               </button>
             </>
-          );
-        })()}
+          )}
+        </div>
 
-        {/* Ollama URL */}
-        {cfg.aiProvider === 'ollama' && (
-          <>
-            <SectionTitle icon={<Terminal size={12} />} label="Ollama Sunucu" />
-            <div className="s-hint">Ollama'nın çalıştığı adres. Varsayılan: http://localhost:11434</div>
-            <input className="ws-input" type="text"
-              value={cfg.ollamaUrl}
-              placeholder="http://localhost:11434"
-              onChange={(e) => set('ollamaUrl', e.target.value)} />
-          </>
+        {quotas.length > 0 && (
+          <div className="s-card">
+            <SectionTitle icon={<Terminal size={12} />} label="Kota / Limit Bilgisi" />
+            {quotas.map((q) => (
+              <div className="quota-row" key={q.model}>
+                <span className="quota-dot" />
+                <span>{q.model}</span>
+                <span className="quota-time">
+                  {q.retryAt ? `Sıfırlanma: ${new Date(q.retryAt).toLocaleString('tr-TR')}` : 'Günlük kota doldu'}
+                </span>
+              </div>
+            ))}
+            <div className="s-hint">Kalan kotayı sağlayıcının panelinden takip edebilirsiniz.</div>
+          </div>
         )}
 
-        {/* API Anahtarı — Ollama'da gerekmez */}
+        {cfg.aiProvider === 'ollama' && (
+          <div className="s-card">
+            <SectionTitle icon={<Terminal size={12} />} label="Ollama Sunucu" />
+            <div className="s-hint">Ollama'nın çalıştığı adres.</div>
+            <input className="ws-input" type="text"
+              value={cfg.ollamaUrl} placeholder="http://localhost:11434"
+              onChange={(e) => set('ollamaUrl', e.target.value)} />
+          </div>
+        )}
+
         {cfg.aiProvider !== 'ollama' && (
-          <>
+          <div className="s-card">
             <SectionTitle icon={<Lock size={12} />} label="API Anahtarı (BYOK)" />
-            <div className="s-hint">Anahtarınız VS Code SecretStorage'da şifreli saklanır.</div>
-        <div className="api-key-wrap">
-          <input className="api-key-input"
-            type={showKey ? 'text' : 'password'}
-            value={cfg.apiKey}
-            placeholder={cfg.aiProvider === 'openai' ? 'sk-...' : cfg.aiProvider === 'gemini' ? 'AIza...' : cfg.aiProvider === 'groq' ? 'gsk_...' : 'sk-ant-...'}
-            onChange={(e) => set('apiKey', e.target.value)}
-            autoComplete="off" spellCheck={false} />
-          <button className="api-key-toggle" type="button"
-            onClick={() => setShowKey((v) => !v)} title={showKey ? 'Gizle' : 'Göster'}>
-            {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
-          </button>
-        </div>
+            <div className="s-hint">Anahtarınız VS Code SecretStorage'da şifreli saklanır. Tulvez sunucularına gönderilmez.</div>
+            <div className="api-key-wrap">
+              <input className="api-key-input"
+                type={showKey ? 'text' : 'password'}
+                value={cfg.apiKey}
+                placeholder={cfg.aiProvider === 'openai' ? 'sk-...' : cfg.aiProvider === 'gemini' ? 'AIza...' : cfg.aiProvider === 'groq' ? 'gsk_...' : 'sk-ant-...'}
+                onChange={(e) => set('apiKey', e.target.value)}
+                autoComplete="off" spellCheck={false} />
+              <button className="api-key-toggle" type="button"
+                onClick={() => setShowKey((v) => !v)} title={showKey ? 'Gizle' : 'Göster'}>
+                {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
             {cfg.apiKey && (
               <div className="api-key-status">
                 <span className="api-key-dot" />Anahtar girildi — otomatik kaydedildi
               </div>
             )}
-          </>
-        )}
-
-        {/* Komutlar */}
-        <SectionTitle icon={<Terminal size={12} />} label="Komutlar" />
-        <div className="s-section">
-          <div className="s-row">
-            <div>
-              <div className="s-row-label">Komut çalıştırmaya izin ver</div>
-              <div className="s-row-hint">Terminal komutları çalıştırılabilir</div>
-            </div>
-            <Toggle checked={cfg.allowShellCommands} onChange={(v) => set('allowShellCommands', v)} />
-          </div>
-          <div className="s-row">
-            <div>
-              <div className="s-row-label">Otomatik onayla</div>
-              <div className="s-row-hint">Her komut için onay sormaz</div>
-            </div>
-            <Toggle checked={cfg.autoApproveCommands} onChange={(v) => set('autoApproveCommands', v)} />
-          </div>
-        </div>
-
-        {/* Gizlilik */}
-        <SectionTitle icon={<Shield size={12} />} label="Gizlilik" />
-        <div className="s-section">
-          <div className="s-row">
-            <div>
-              <div className="s-row-label">Kod bağlamı gönder</div>
-              <div className="s-row-hint">AI'ya aktif dosya içeriği eklenir</div>
-            </div>
-            <Toggle checked={cfg.sendCodeContext} onChange={(v) => set('sendCodeContext', v)} />
-          </div>
-          <div className="s-row">
-            <div>
-              <div className="s-row-label">Anonim kullanım verisi</div>
-              <div className="s-row-hint">Henüz aktif değil</div>
-            </div>
-            <Toggle checked={cfg.telemetry} onChange={(v) => set('telemetry', v)} />
-          </div>
-        </div>
-        <div className="privacy-note">
-          <Lock size={11} />
-          <p>API anahtarınız yalnızca VS Code SecretStorage'da saklanır. Kodunuz, siz açıkça izin vermedikçe Tulvez sunucularına gönderilmez.</p>
-        </div>
-
-        {/* Çalışma Alanı */}
-        <SectionTitle icon={<FolderOpen size={12} />} label="Çalışma Alanı" />
-        <div className="s-hint">Proje adı girin, VS Code yeni klasörü açar.</div>
-        <div className="ws-create-row">
-          <input className="ws-input" type="text" placeholder="proje-adı"
-            value={wsName} onChange={(e) => setWsName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') createWorkspace(); }} />
-          <button className="ws-create-btn" type="button" onClick={createWorkspace} disabled={!wsName.trim()}>
-            Oluştur
-          </button>
-        </div>
-        {wsCreated && (
-          <div className="api-key-status">
-            <span className="api-key-dot" />"{wsCreated}" oluşturuldu
           </div>
         )}
+
+        <div className="s-card">
+          <SectionTitle icon={<Terminal size={12} />} label="Komutlar" />
+          <div className="s-section">
+            <div className="s-row">
+              <div>
+                <div className="s-row-label">Komut çalıştırmaya izin ver</div>
+                <div className="s-row-hint">Terminal komutları çalıştırılabilir</div>
+              </div>
+              <Toggle checked={cfg.allowShellCommands} onChange={(v) => set('allowShellCommands', v)} />
+            </div>
+            <div className="s-row">
+              <div>
+                <div className="s-row-label">Otomatik onayla</div>
+                <div className="s-row-hint">Her komut için onay sormaz</div>
+              </div>
+              <Toggle checked={cfg.autoApproveCommands} onChange={(v) => set('autoApproveCommands', v)} />
+            </div>
+          </div>
+        </div>
+
+        <div className="s-card">
+          <SectionTitle icon={<Shield size={12} />} label="Gizlilik" />
+          <div className="s-section">
+            <div className="s-row">
+              <div>
+                <div className="s-row-label">Kod bağlamı gönder</div>
+                <div className="s-row-hint">AI'ya aktif dosya içeriği eklenir</div>
+              </div>
+              <Toggle checked={cfg.sendCodeContext} onChange={(v) => set('sendCodeContext', v)} />
+            </div>
+            <div className="s-row">
+              <div>
+                <div className="s-row-label">Anonim kullanım verisi</div>
+                <div className="s-row-hint">Henüz aktif değil</div>
+              </div>
+              <Toggle checked={cfg.telemetry} onChange={(v) => set('telemetry', v)} />
+            </div>
+          </div>
+          <div className="privacy-note">
+            <Lock size={11} />
+            <p>API anahtarınız yalnızca VS Code SecretStorage'da saklanır. Kodunuz, siz açıkça izin vermedikçe Tulvez sunucularına gönderilmez.</p>
+          </div>
+        </div>
+
+        <div className="s-card">
+          <SectionTitle icon={<FolderOpen size={12} />} label="Çalışma Alanı" />
+          <div className="s-hint">Proje adı girin, VS Code yeni klasörü açar.</div>
+          <div className="ws-create-row">
+            <input className="ws-input" type="text" placeholder="proje-adı"
+              value={wsName} onChange={(e) => setWsName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') createWorkspace(); }} />
+            <button className="ws-create-btn" type="button" onClick={createWorkspace} disabled={!wsName.trim()}>
+              Oluştur
+            </button>
+          </div>
+          {wsCreated && (
+            <div className="api-key-status">
+              <span className="api-key-dot" />"{wsCreated}" oluşturuldu
+            </div>
+          )}
+        </div>
 
       </div>
     </div>

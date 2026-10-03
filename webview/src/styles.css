@@ -361,6 +361,7 @@ img { -webkit-user-drag: none; user-select: none; }
 /* Dropdown */
 .dropdown-content {
   z-index: 50; min-width: 180px; padding: 4px;
+  max-height: 260px; overflow-y: auto;
   border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border));
   border-radius: var(--radius);
   background: var(--vscode-menu-background, var(--vscode-editor-background));
@@ -421,6 +422,16 @@ img { -webkit-user-drag: none; user-select: none; }
 .s-section-title:first-child { margin-top: 0; }
 .s-section-title svg { color: var(--tulvez-green); }
 .s-hint { font-size: 12px; color: var(--vscode-descriptionForeground); line-height: 1.5; }
+.s-card {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px; border: 1px solid var(--vscode-panel-border); border-radius: var(--radius);
+  background: var(--vscode-editor-background);
+}
+.s-card .provider-card, .s-card .api-key-wrap, .s-card .ws-input { background: var(--vscode-sideBar-background); }
+.model-hint { font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 1px; }
+.quota-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--vscode-foreground); }
+.quota-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mode-ask); flex-shrink: 0; }
+.quota-time { font-size: 11px; color: var(--vscode-descriptionForeground); margin-left: auto; }
 
 /* Provider cards */
 .provider-grid { display: flex; flex-direction: column; gap: 5px; }
@@ -531,9 +542,19 @@ img { -webkit-user-drag: none; user-select: none; }
 .history-item {
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 8px 14px; text-align: left;
-  transition: background 0.1s;
+  transition: background 0.1s; cursor: default;
 }
 .history-item:hover { background: var(--vscode-list-hoverBackground); }
+.history-item-main {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; text-align: left;
+}
+.history-delete {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 24px; height: 24px; border-radius: 5px;
+  color: var(--vscode-descriptionForeground); opacity: 0; transition: opacity 0.1s, background 0.1s;
+}
+.history-item:hover .history-delete { opacity: 0.7; }
+.history-delete:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground); color: var(--vscode-errorForeground, #f48771); }
 .history-mode-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .mode-dot-ask   { background: var(--mode-ask); }
 .mode-dot-plan  { background: var(--mode-plan); }

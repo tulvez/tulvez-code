@@ -8,7 +8,7 @@ import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, FolderOpen, GitBranch, Hammer,
   MessageSquare, Send, Settings, Sparkles, SquarePen,
-  Terminal, ThumbsDown, ThumbsUp, X, Zap,
+  Terminal, ThumbsDown, ThumbsUp, Trash2, X, Zap,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -143,7 +143,24 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
   const [waiting, setWaiting] = useState(false);
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    try {
+      const raw = localStorage.getItem('tulvez.sessions');
+      return raw ? (JSON.parse(raw) as ChatSession[]) : [];
+    } catch { return []; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('tulvez.sessions', JSON.stringify(sessions.slice(0, 20))); } catch { /* quota */ }
+  }, [sessions]);
+
+  const deleteSession = (id: number) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    if (sessionIdRef.current === id) {
+      sessionIdRef.current = Date.now();
+      setMessages([]);
+    }
+  };
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [provider, setProvider] = useState('');
   const [settings, setSettings] = useState<TulvezSettings | null>(null);
@@ -370,13 +387,16 @@ export function App(): JSX.Element {
               {sessions.length === 0 ? (
                 <div className="history-empty"><Clock size={20} /><p>Henüz geçmiş yok</p></div>
               ) : sessions.map((s) => (
-                <button key={s.id} type="button" className="history-item" onClick={() => restoreSession(s)}>
+                <div key={s.id} className="history-item">
                   <span className={`history-mode-dot mode-dot-${s.mode}`} />
-                  <div className="history-item-body">
+                  <button type="button" className="history-item-main" onClick={() => restoreSession(s)}>
                     <span className="history-item-title">{s.title}</span>
                     <span className="history-item-meta">{s.messages.length} mesaj · {new Date(s.ts).toLocaleDateString('tr-TR')}</span>
-                  </div>
-                </button>
+                  </button>
+                  <button type="button" className="history-delete" title="Kalıcı sil" onClick={() => deleteSession(s.id)}>
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               ))}
             </div>
           </div>

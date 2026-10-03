@@ -31,4 +31,5 @@ export type HostToWebviewMessage =
   | { type: 'settingsData'; settings: TulvezSettings }
   | { type: 'toolRequest'; id: string; tool: string; args: string }
   | { type: 'toolCall'; tool: string; summary: string }
-  | { type: 'modelsList'; models: string[]; error?: string };
+  | { type: 'modelsList'; models: string[]; error?: string }
+  | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean };
