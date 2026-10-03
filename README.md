@@ -57,3 +57,7 @@ npx @vscode/vsce publish -p $VSCE_PAT   # Marketplace'e gönder
 ## Lisans
 
 MIT — [LICENSE](LICENSE)
+
+## Katkı
+
+Katkılar fork + PR modeliyle alınır; PR'lar bakımcı onayından sonra merge edilir. Detay: [CONTRIBUTING.md](CONTRIBUTING.md)
