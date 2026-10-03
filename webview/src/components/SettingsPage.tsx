@@ -40,6 +40,8 @@ export function SettingsPage({ onBack }: Props) {
   const [showKey, setShowKey] = useState(false);
   const [wsName, setWsName] = useState('');
   const [wsCreated, setWsCreated] = useState('');
+  const [models, setModels] = useState<string[] | null>(null);
+  const [modelsError, setModelsError] = useState('');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { vscode.postMessage({ type: 'getSettings' }); }, []);
@@ -47,10 +49,21 @@ export function SettingsPage({ onBack }: Props) {
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'settingsData') setCfg(e.data.settings as TulvezSettings);
+      if (e.data?.type === 'modelsList') {
+        setModels(e.data.models as string[]);
+        setModelsError((e.data.error as string) ?? '');
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
+
+  // API anahtarı girilince sağlayıcının model listesini çek
+  useEffect(() => {
+    if (cfg.aiProvider !== 'ollama' && !cfg.apiKey) { setModels(null); return; }
+    const t = window.setTimeout(() => vscode.postMessage({ type: 'listModels' }), 800);
+    return () => window.clearTimeout(t);
+  }, [cfg.aiProvider, cfg.apiKey]);
 
   // Otomatik kaydet — her değişiklikte 600ms debounce
   const set = <K extends keyof TulvezSettings>(key: K, val: TulvezSettings[K]) => {
@@ -102,18 +115,27 @@ export function SettingsPage({ onBack }: Props) {
           ))}
         </div>
 
-        {/* Model seçimi */}
+        {/* Model seçimi — anahtar girilmeden listelenmez */}
         {(() => {
+          if (cfg.aiProvider !== 'ollama' && !cfg.apiKey) {
+            return (
+              <>
+                <SectionTitle icon={<Zap size={12} />} label="Model" />
+                <div className="s-hint">Modelleri görmek için önce API anahtarınızı girin.</div>
+              </>
+            );
+          }
           const p = PROVIDERS.find((p) => p.id === cfg.aiProvider);
-          if (!p) return null;
+          const list = models && models.length > 0 ? models : (p?.models ?? []);
           return (
             <>
               <SectionTitle icon={<Zap size={12} />} label="Model" />
+              {modelsError && <div className="s-hint">Model listesi alınamadı: {modelsError}</div>}
               <div className="provider-grid">
-                {p.models.map((m) => (
+                {list.map((m) => (
                   <button key={m} type="button"
                     className={`provider-card ${cfg.model === m ? 'active' : ''}`}
-                    style={{ '--p-color': p.color } as React.CSSProperties}
+                    style={{ '--p-color': p?.color } as React.CSSProperties}
                     onClick={() => set('model', m)}>
                     <span className="provider-dot" />
                     <div className="provider-name">{m}</div>
@@ -121,6 +143,10 @@ export function SettingsPage({ onBack }: Props) {
                   </button>
                 ))}
               </div>
+              <button className="ws-create-btn" type="button" style={{ alignSelf: 'flex-start' }}
+                onClick={() => vscode.postMessage({ type: 'listModels' })}>
+                Modelleri yenile
+              </button>
             </>
           );
         })()}

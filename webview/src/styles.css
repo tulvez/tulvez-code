@@ -130,6 +130,16 @@ img { -webkit-user-drag: none; user-select: none; }
 .quick-action-btn:hover { background: var(--vscode-list-hoverBackground); border-color: var(--vscode-focusBorder, #007fd4); }
 .quick-action-btn svg { color: var(--vscode-descriptionForeground); flex-shrink: 0; }
 
+/* Setup card */
+.setup-card {
+  display: flex; flex-direction: column; gap: 8px;
+  width: 100%; max-width: 260px; margin-bottom: 14px; padding: 14px;
+  border: 1px solid var(--vscode-panel-border); border-radius: 8px;
+  background: var(--vscode-editor-background); text-align: left;
+}
+.setup-card-title { font-size: 12px; font-weight: 600; color: var(--vscode-foreground); }
+.setup-provider { appearance: none; cursor: pointer; }
+
 /* Messages */
 .message-list { display: flex; flex-direction: column; padding: 8px 0 16px; }
 .message-turn { padding: 6px 14px; }

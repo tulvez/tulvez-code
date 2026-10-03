@@ -4,7 +4,7 @@ import {
 } from './components/ui/dropdown-menu';
 import { SettingsPage } from './components/SettingsPage';
 import { vscode } from './services/vscode';
-import type { HostToWebviewMessage } from './types';
+import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, GitBranch, Hammer,
   MessageSquare, Send, Settings, Sparkles, SquarePen,
@@ -152,6 +152,9 @@ export function App(): JSX.Element {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [provider, setProvider] = useState('');
+  const [settings, setSettings] = useState<TulvezSettings | null>(null);
+  const [setupProvider, setSetupProvider] = useState<TulvezSettings['aiProvider']>('gemini');
+  const [setupKey, setSetupKey] = useState('');
 
   const sessionIdRef = useRef(1);
   const pendingRun = useRef<string | null>(null);
@@ -173,6 +176,7 @@ export function App(): JSX.Element {
       } else if (msg.type === 'settingsData') {
         setProvider(msg.settings.aiProvider);
         setHasApiKey(msg.settings.aiProvider === 'ollama' || !!msg.settings.apiKey);
+        setSettings(msg.settings);
       } else if (msg.type === 'assistantChunk') {
         if (streamingIdRef.current === null) {
           const id = nextId.current++;
@@ -377,10 +381,41 @@ export function App(): JSX.Element {
                   <p className="empty-title">Tulvez Code</p>
                   <p className="empty-subtitle">Kodunuz hakkında soru sorun veya bir işlem seçin.</p>
                   {hasApiKey === false && (
-                    <button type="button" className="quick-action-btn" style={{ maxWidth: 250, marginBottom: 10, justifyContent: 'center', borderColor: 'var(--mode-ask-border)', color: 'var(--mode-ask)' }}
-                      onClick={() => setPage('settings')}>
-                      API anahtarı gerekli — Ayarlar'ı aç
-                    </button>
+                    <div className="setup-card">
+                      <p className="setup-card-title">Başlamak için API anahtarınızı girin</p>
+                      <select
+                        className="ws-input setup-provider"
+                        value={setupProvider}
+                        onChange={(e) => setSetupProvider(e.target.value as TulvezSettings['aiProvider'])}
+                      >
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="gemini">Google Gemini</option>
+                        <option value="groq">Groq</option>
+                        <option value="ollama">Ollama (anahtarsız)</option>
+                      </select>
+                      {setupProvider !== 'ollama' && (
+                        <input
+                          className="ws-input"
+                          type="password"
+                          placeholder="API anahtarı (BYOK — sadece VS Code'da saklanır)"
+                          value={setupKey}
+                          onChange={(e) => setSetupKey(e.target.value)}
+                          autoComplete="off"
+                        />
+                      )}
+                      <button className="ws-create-btn" type="button"
+                        disabled={setupProvider !== 'ollama' && !setupKey.trim()}
+                        onClick={() => {
+                          if (!settings) return;
+                          const next = { ...settings, aiProvider: setupProvider, model: '', apiKey: setupKey.trim() };
+                          vscode.postMessage({ type: 'saveSettings', settings: next });
+                          setSettings(next);
+                          setHasApiKey(true);
+                        }}>
+                        Kaydet
+                      </button>
+                    </div>
                   )}
                   <div className="quick-actions">
                     {QUICK_ACTIONS.map((a) => (

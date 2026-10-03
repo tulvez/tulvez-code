@@ -1,5 +1,6 @@
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
+import OpenAI from 'openai';
 import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from './services/messages';
 import { runAgent } from './services/agent';
 
@@ -111,6 +112,38 @@ export function activate(context: vscode.ExtensionContext): void {
 
     if (message.type === 'expandSidebar') {
       vscode.window.showInformationMessage('Sidebar kenarını sürükleyerek genişletin.');
+      return;
+    }
+
+    if (message.type === 'listModels') {
+      const settings = await readSettings();
+      try {
+        let models: string[] = [];
+        const provider = settings.aiProvider;
+        if (provider === 'openai' || provider === 'groq') {
+          const baseURL = provider === 'groq' ? 'https://api.groq.com/openai/v1' : undefined;
+          const client = new OpenAI({ apiKey: settings.apiKey, ...(baseURL ? { baseURL } : {}) });
+          const list = await client.models.list();
+          models = list.data.map((m) => m.id).sort();
+        } else if (provider === 'gemini') {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${settings.apiKey}`);
+          const json = await res.json() as { models?: { name: string }[] };
+          models = (json.models ?? []).map((m) => m.name.replace(/^models\//, '')).sort();
+        } else if (provider === 'anthropic') {
+          const res = await fetch('https://api.anthropic.com/v1/models', {
+            headers: { 'x-api-key': settings.apiKey, 'anthropic-version': '2023-06-01' },
+          });
+          const json = await res.json() as { data?: { id: string }[] };
+          models = (json.data ?? []).map((m) => m.id).sort();
+        } else if (provider === 'ollama') {
+          const res = await fetch(`${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/api/tags`);
+          const json = await res.json() as { models?: { name: string }[] };
+          models = (json.models ?? []).map((m) => m.name).sort();
+        }
+        await webview.postMessage({ type: 'modelsList', models } satisfies HostToWebviewMessage);
+      } catch (err) {
+        await webview.postMessage({ type: 'modelsList', models: [], error: err instanceof Error ? err.message : String(err) } satisfies HostToWebviewMessage);
+      }
       return;
     }
 
