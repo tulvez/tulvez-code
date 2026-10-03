@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { vscode } from '../services/vscode';
 import type { TulvezSettings } from '../types';
 import { Check, ChevronLeft, Eye, EyeOff, FolderOpen, Lock, Shield, Terminal, Zap } from 'lucide-react';
@@ -31,8 +31,9 @@ function SectionTitle({ icon, label }: { icon: React.ReactNode; label: string })
 export function SettingsPage({ onBack }: Props) {
   const [cfg, setCfg] = useState<TulvezSettings>(DEFAULT);
   const [showKey, setShowKey] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [wsName, setWsName] = useState('');
+  const [wsCreated, setWsCreated] = useState('');
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { vscode.postMessage({ type: 'getSettings' }); }, []);
 
@@ -44,33 +45,32 @@ export function SettingsPage({ onBack }: Props) {
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  const set = <K extends keyof TulvezSettings>(key: K, val: TulvezSettings[K]) =>
-    setCfg((prev) => ({ ...prev, [key]: val }));
-
-  const save = () => {
-    vscode.postMessage({ type: 'saveSettings', settings: cfg });
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2000);
+  // Otomatik kaydet — her değişiklikte 600ms debounce
+  const set = <K extends keyof TulvezSettings>(key: K, val: TulvezSettings[K]) => {
+    const next = { ...cfg, [key]: val };
+    setCfg(next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      vscode.postMessage({ type: 'saveSettings', settings: next });
+    }, 600);
   };
 
   const createWorkspace = () => {
     const name = wsName.trim();
     if (!name) return;
-    vscode.postMessage({ type: 'sendMessage', text: `Yeni çalışma alanı oluştur: ${name}` });
+    vscode.postMessage({ type: 'createWorkspace', name });
+    setWsCreated(name);
     setWsName('');
-    onBack();
   };
 
   return (
     <div className="settings-page">
+      {/* Topbar: geri butonu üstte, Ayarlar başlığı altında */}
       <div className="settings-topbar">
-        <button className="settings-back" type="button" onClick={onBack}>
-          <ChevronLeft size={14} strokeWidth={2} /><span>Geri</span>
+        <button className="settings-back-btn" type="button" onClick={onBack}>
+          <ChevronLeft size={14} strokeWidth={2.5} />
         </button>
         <span className="settings-topbar-title">Ayarlar</span>
-        <button className="settings-save-btn" type="button" onClick={save}>
-          {saved ? <><Check size={11} /> Kaydedildi</> : 'Kaydet'}
-        </button>
       </div>
 
       <div className="settings-body">
@@ -110,7 +110,7 @@ export function SettingsPage({ onBack }: Props) {
         </div>
         {cfg.apiKey && (
           <div className="api-key-status">
-            <span className="api-key-dot" />Anahtar girildi — kaydetmeyi unutmayın
+            <span className="api-key-dot" />Anahtar girildi — otomatik kaydedildi
           </div>
         )}
 
@@ -158,7 +158,7 @@ export function SettingsPage({ onBack }: Props) {
 
         {/* Çalışma Alanı */}
         <SectionTitle icon={<FolderOpen size={12} />} label="Çalışma Alanı" />
-        <div className="s-hint">Proje adı girin, Tulvez Code klasör yapısını oluşturur.</div>
+        <div className="s-hint">Proje adı girin, VS Code yeni klasörü açar.</div>
         <div className="ws-create-row">
           <input className="ws-input" type="text" placeholder="proje-adı"
             value={wsName} onChange={(e) => setWsName(e.target.value)}
@@ -167,6 +167,11 @@ export function SettingsPage({ onBack }: Props) {
             Oluştur
           </button>
         </div>
+        {wsCreated && (
+          <div className="api-key-status">
+            <span className="api-key-dot" />"{wsCreated}" oluşturuldu
+          </div>
+        )}
 
       </div>
     </div>

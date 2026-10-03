@@ -13,7 +13,8 @@ export type WebviewToHostMessage =
   | { type: 'expandSidebar' }
   | { type: 'runCommand'; command: string }
   | { type: 'getSettings' }
-  | { type: 'saveSettings'; settings: TulvezSettings };
+  | { type: 'saveSettings'; settings: TulvezSettings }
+  | { type: 'createWorkspace'; name: string };
 
 export type HostToWebviewMessage =
   | { type: 'initialized'; workspaceName: string; logoUri: string }

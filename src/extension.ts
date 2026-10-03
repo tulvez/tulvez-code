@@ -84,7 +84,17 @@ export function activate(context: vscode.ExtensionContext): void {
 
     if (message.type === 'saveSettings') {
       await saveSettings(message.settings);
-      vscode.window.showInformationMessage('Tulvez Code: Ayarlar kaydedildi.');
+      return;
+    }
+
+    if (message.type === 'createWorkspace') {
+      const name = message.name.trim();
+      if (!name) return;
+      const parentUri = vscode.workspace.workspaceFolders?.[0]?.uri
+        ?? vscode.Uri.file(require('os').homedir());
+      const newUri = vscode.Uri.joinPath(parentUri, name);
+      await vscode.workspace.fs.createDirectory(newUri);
+      await vscode.commands.executeCommand('vscode.openFolder', newUri, { forceNewWindow: false });
       return;
     }
 

@@ -6,7 +6,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage } from './types';
 import {
-  Check, ChevronDown, CirclePlus, Copy, GitBranch, Hammer,
+  Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, GitBranch, Hammer,
   MessageSquare, Send, Settings, Sparkles, SquarePen,
   Terminal, ThumbsDown, ThumbsUp, X, Zap,
 } from 'lucide-react';
@@ -15,35 +15,37 @@ import './styles.css';
 const MIN_WIDTH = 220;
 
 type AgentMode = 'ask' | 'plan' | 'build';
+type Page = 'chat' | 'settings' | 'history';
 interface ChatMessage { id: number; role: 'user' | 'assistant' | 'command'; text: string; exitCode?: number; }
+interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
 interface RunConfirm { command: string; }
 
-const MODES: { id: AgentMode; label: string; icon: React.ReactNode; hint: string; color: string }[] = [
-  { id: 'ask',   label: 'Ask',   icon: <MessageSquare size={12} />, hint: 'Soru sor, açıkla',  color: 'var(--mode-ask)' },
-  { id: 'plan',  label: 'Plan',  icon: <Sparkles size={12} />,      hint: 'Adım adım planla', color: 'var(--mode-plan)' },
-  { id: 'build', label: 'Build', icon: <Hammer size={12} />,        hint: 'Kod yaz, uygula',  color: 'var(--mode-build)' },
+const MODES: { id: AgentMode; label: string; icon: React.ReactNode; hint: string; color: string; placeholder: string }[] = [
+  { id: 'ask',   label: 'Ask',   icon: <MessageSquare size={12} />, hint: 'Soru sor, açıkla',  color: 'var(--mode-ask)',   placeholder: "Tulvez Code'a sorun..." },
+  { id: 'plan',  label: 'Plan',  icon: <Sparkles size={12} />,      hint: 'Adım adım planla', color: 'var(--mode-plan)',  placeholder: 'Ne planlayalım?' },
+  { id: 'build', label: 'Build', icon: <Hammer size={12} />,        hint: 'Kod yaz, uygula',  color: 'var(--mode-build)', placeholder: 'Ne inşa edelim?' },
 ];
 
 const SLASH_COMMANDS = [
-  { cmd: '/run',    hint: 'Terminal komutu çalıştır' },
-  { cmd: '/review', hint: 'Kod incelemesi yap' },
-  { cmd: '/commit', hint: 'Commit mesajı oluştur' },
-  { cmd: '/diff',   hint: 'Git değişikliklerini göster' },
-  { cmd: '/explain',hint: 'Seçili kodu açıkla' },
+  { cmd: '/run',     hint: 'Terminal komutu çalıştır' },
+  { cmd: '/review',  hint: 'Kod incelemesi yap' },
+  { cmd: '/commit',  hint: 'Commit mesajı oluştur' },
+  { cmd: '/diff',    hint: 'Git değişikliklerini göster' },
+  { cmd: '/explain', hint: 'Seçili kodu açıkla' },
 ];
 
 const QUICK_ACTIONS = [
-  { icon: <MessageSquare size={13} />, label: 'Dosyayı açıkla',           prompt: 'Bu dosyayı açıklar mısın?' },
-  { icon: <GitBranch size={13} />,     label: 'Git değişikliklerini incele', prompt: 'Git değişikliklerimi incele' },
-  { icon: <Terminal size={13} />,      label: 'Komut çalıştır',            prompt: '/run git status' },
-  { icon: <Sparkles size={13} />,      label: 'Commit mesajı oluştur',     prompt: 'Commit mesajı oluştur' },
+  { icon: <MessageSquare size={13} />, label: 'Dosyayı açıkla',              prompt: 'Bu dosyayı açıklar mısın?' },
+  { icon: <GitBranch size={13} />,     label: 'Git değişikliklerini incele',  prompt: 'Git değişikliklerimi incele' },
+  { icon: <Terminal size={13} />,      label: 'Komut çalıştır',               prompt: '/run git status' },
+  { icon: <Sparkles size={13} />,      label: 'Commit mesajı oluştur',        prompt: 'Commit mesajı oluştur' },
 ];
 
 const SKILLS = [
-  { label: 'Çalışma alanını analiz et', prompt: 'Çalışma alanımı analiz et' },
+  { label: 'Çalışma alanını analiz et',   prompt: 'Çalışma alanımı analiz et' },
   { label: 'Git değişikliklerini incele', prompt: 'Git değişikliklerimi incele' },
-  { label: 'Commit mesajı oluştur', prompt: 'Commit mesajı oluştur' },
-  { label: 'Kod incelemesi yap', prompt: 'Kodumu incele ve geri bildirim ver' },
+  { label: 'Commit mesajı oluştur',       prompt: 'Commit mesajı oluştur' },
+  { label: 'Kod incelemesi yap',          prompt: 'Kodumu incele ve geri bildirim ver' },
 ];
 
 const MODELS = ['Otomatik', 'GPT-4o', 'Gemini 1.5', 'Claude 3.5'];
@@ -58,29 +60,35 @@ function TooNarrow() {
   );
 }
 
-function useTyping(full: string, speed = 8) {
-  const [displayed, setDisplayed] = useState('');
-  const [done, setDone] = useState(false);
+function useTyping(full: string, active: boolean, speed = 8) {
+  const [displayed, setDisplayed] = useState(active ? '' : full);
+  const [done, setDone] = useState(!active);
   useEffect(() => {
+    if (!active) { setDisplayed(full); setDone(true); return; }
     setDisplayed('');
     setDone(false);
     if (!full) return;
     let i = 0;
     const tick = () => {
-      i += 3; // 3 karakter birden — daha hızlı
+      i += 3;
       setDisplayed(full.slice(0, i));
       if (i < full.length) window.setTimeout(tick, speed);
       else { setDisplayed(full); setDone(true); }
     };
     window.setTimeout(tick, speed);
-  }, [full, speed]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [full]);
   return { displayed, done };
 }
 
-function AssistantBubble({ text, onCopy, onRunHint, copied }: {
-  text: string; onCopy: () => void; onRunHint: () => void; copied: boolean;
+// Son eklenen assistant mesajının id'sini takip etmek için modül-level ref
+let lastAnimatedId = -1;
+
+function AssistantBubble({ text, msgId, onCopy, onRunHint, copied, mode }: {
+  text: string; msgId: number; onCopy: () => void; onRunHint: () => void; copied: boolean; mode: AgentMode;
 }) {
-  const { displayed, done } = useTyping(text);
+  const shouldAnimate = msgId === lastAnimatedId;
+  const { displayed, done } = useTyping(text, shouldAnimate);
   return (
     <>
       <div className="turn-body">
@@ -111,8 +119,10 @@ export function App(): JSX.Element {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [width, setWidth] = useState(window.innerWidth);
   const [runConfirm, setRunConfirm] = useState<RunConfirm | null>(null);
-  const [page, setPage] = useState<'chat' | 'settings'>('chat');
+  const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const sessionIdRef = useRef(1);
   const pendingRun = useRef<string | null>(null);
   const nextId = useRef(1);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -126,7 +136,9 @@ export function App(): JSX.Element {
         setWorkspaceName(msg.workspaceName);
         setLogoUri(msg.logoUri);
       } else if (msg.type === 'assistantMessage') {
-        setMessages((prev) => [...prev, { id: nextId.current++, role: 'assistant', text: msg.text }]);
+        const id = nextId.current++;
+        lastAnimatedId = id;
+        setMessages((prev) => [...prev, { id, role: 'assistant', text: msg.text }]);
       } else if (msg.type === 'commandResult') {
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'command',
@@ -204,6 +216,32 @@ export function App(): JSX.Element {
     window.setTimeout(() => setCopiedId(null), 1500);
   };
 
+  const saveCurrentSession = (msgs: ChatMessage[]) => {
+    if (msgs.length === 0) return;
+    const title = msgs.find((m) => m.role === 'user')?.text.slice(0, 40) ?? 'Sohbet';
+    setSessions((prev) => {
+      const existing = prev.findIndex((s) => s.id === sessionIdRef.current);
+      const session: ChatSession = { id: sessionIdRef.current, title, messages: msgs, mode, ts: Date.now() };
+      if (existing >= 0) { const next = [...prev]; next[existing] = session; return next; }
+      return [session, ...prev];
+    });
+  };
+
+  const newChat = () => {
+    saveCurrentSession(messages);
+    sessionIdRef.current = Date.now();
+    setMessages([]);
+    setRunConfirm(null);
+  };
+
+  const restoreSession = (s: ChatSession) => {
+    saveCurrentSession(messages);
+    sessionIdRef.current = s.id;
+    setMessages(s.messages);
+    setMode(s.mode);
+    setPage('chat');
+  };
+
   const modeClass = `composer mode-${mode}`;
   const currentMode = MODES.find((m) => m.id === mode)!;
 
@@ -212,6 +250,26 @@ export function App(): JSX.Element {
       <div className="shell-content">
         {width < MIN_WIDTH ? <TooNarrow /> : page === 'settings' ? (
           <SettingsPage onBack={() => setPage('chat')} />
+        ) : page === 'history' ? (
+          <div className="history-page">
+            <div className="history-topbar">
+              <button className="icon-btn" type="button" onClick={() => setPage('chat')}><ChevronLeft size={15} strokeWidth={2} /></button>
+              <span className="history-title">Sohbet Geçmişi</span>
+            </div>
+            <div className="history-list">
+              {sessions.length === 0 ? (
+                <div className="history-empty"><Clock size={20} /><p>Henüz geçmiş yok</p></div>
+              ) : sessions.map((s) => (
+                <button key={s.id} type="button" className="history-item" onClick={() => restoreSession(s)}>
+                  <span className={`history-mode-dot mode-dot-${s.mode}`} />
+                  <div className="history-item-body">
+                    <span className="history-item-title">{s.title}</span>
+                    <span className="history-item-meta">{s.messages.length} mesaj · {new Date(s.ts).toLocaleDateString('tr-TR')}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         ) : (
           <>
             {/* Header */}
@@ -222,7 +280,10 @@ export function App(): JSX.Element {
               </div>
               {workspaceName && <span className="header-workspace" title={workspaceName}>{workspaceName}</span>}
               <div className="header-actions">
-                <button className="icon-btn" type="button" title="Yeni sohbet" onClick={() => { setMessages([]); setRunConfirm(null); }}>
+                <button className="icon-btn" type="button" title="Geçmiş" onClick={() => setPage('history')}>
+                  <Clock size={15} strokeWidth={1.8} />
+                </button>
+                <button className="icon-btn" type="button" title="Yeni sohbet" onClick={newChat}>
                   <SquarePen size={15} strokeWidth={1.8} />
                 </button>
                 <button className="icon-btn" type="button" title="Ayarlar" onClick={() => setPage('settings')}>
@@ -265,13 +326,18 @@ export function App(): JSX.Element {
                       <div key={msg.id} className={`message-turn ${msg.role}`}>
                         {msg.role === 'assistant' && (
                           <div className="turn-header">
-                            <span className="turn-avatar assistant"><Sparkles size={10} strokeWidth={2} /></span>
+                            <span className={`turn-avatar assistant mode-avatar-${mode}`}><Sparkles size={10} strokeWidth={2} /></span>
                           </div>
                         )}
                         {msg.role === 'assistant' ? (
-                          <AssistantBubble text={msg.text} copied={copiedId === msg.id}
+                          <AssistantBubble
+                            text={msg.text}
+                            msgId={msg.id}
+                            mode={mode}
+                            copied={copiedId === msg.id}
                             onCopy={() => void copy(msg)}
-                            onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }} />
+                            onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}
+                          />
                         ) : (
                           <div className="turn-body">{msg.text}</div>
                         )}
@@ -319,7 +385,6 @@ export function App(): JSX.Element {
 
             {/* Composer */}
             <div className="composer-wrap">
-              {/* Mod seçici dropdown */}
               <div className="mode-bar">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -350,7 +415,7 @@ export function App(): JSX.Element {
                   ref={textareaRef}
                   className="composer-input"
                   value={input}
-                  placeholder={mode === 'build' ? 'Ne inşa edelim?' : mode === 'plan' ? 'Ne planlayalım?' : 'Tulvez Code ile inşa edin...'}
+                  placeholder={currentMode.placeholder}
                   rows={1}
                   onChange={(e) => { handleInputChange(e.target.value); autoResize(); }}
                   onKeyDown={(e) => {
