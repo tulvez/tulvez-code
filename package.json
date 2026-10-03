@@ -46,16 +46,27 @@
       "properties": {
         "tulvez.aiProvider": {
           "type": "string",
-          "enum": [
-            "openai",
-            "gemini",
-            "anthropic"
-          ],
+            "enum": [
+              "openai",
+              "gemini",
+              "anthropic",
+              "groq",
+              "ollama"
+            ],
           "default": "openai",
           "description": "Kullanılacak yapay zeka sağlayıcısı."
         },
-        "tulvez.allowShellCommands": {
-          "type": "boolean",
+        "tulvez.model": {
+          "type": "string",
+          "default": "",
+          "description": "Kullanılacak model adı (boşsa sağlayıcının varsayılanı)."
+        },
+        "tulvez.ollamaUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Ollama sunucu adresi."
+        },
+        "tulvez.allowShellCommands": {          "type": "boolean",
           "default": false,
           "description": "Tulvez Code'un terminal komutları çalıştırmasına izin ver."
         },

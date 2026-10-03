@@ -11,7 +11,9 @@ export interface TulvezSettings {
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
-  | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build' }
+  | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[] }
+  | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain'; mode: 'ask' | 'plan' | 'build' }
+  | { type: 'toolApproval'; id: string; approved: boolean }
   | { type: 'expandSidebar' }
   | { type: 'runCommand'; command: string; autoApprove?: boolean }
   | { type: 'getSettings' }
@@ -24,4 +26,6 @@ export type HostToWebviewMessage =
   | { type: 'assistantChunk'; text: string }
   | { type: 'assistantDone'; inputTokens: number; outputTokens: number; costUsd: number }
   | { type: 'commandResult'; output: string; exitCode: number }
-  | { type: 'settingsData'; settings: TulvezSettings };
+  | { type: 'settingsData'; settings: TulvezSettings }
+  | { type: 'toolRequest'; id: string; tool: string; args: string }
+  | { type: 'toolCall'; tool: string; summary: string };

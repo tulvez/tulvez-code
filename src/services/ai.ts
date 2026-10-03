@@ -5,7 +5,7 @@ import type { TulvezSettings } from './messages';
 
 export type AgentMode = 'ask' | 'plan' | 'build';
 
-const SYSTEM_PROMPTS: Record<AgentMode, string> = {
+export const SYSTEM_PROMPTS: Record<AgentMode, string> = {
   ask: ' Kullanıcının sorularını açık, net ve Türkçe olarak yanıtla. Kod örnekleri gerektiğinde ekle.',
   plan: ' Kullanıcının isteğini adım adım planla. Önce genel yaklaşımı açıkla, sonra somut adımları listele. Henüz kod yazma, sadece planla.',
   build: ' Kullanıcının isteğini direkt çalışan kodla karşıla. Açıklamayı kısa tut, kodu ön plana çıkar. TypeScript/modern JS tercih et.',
@@ -30,7 +30,7 @@ const COST_TABLE: Record<string, { in: number; out: number }> = {
   'gemma2-9b-it':            { in: 0.0000002,  out: 0.0000002  },
 };
 
-function calcCost(model: string, inTokens: number, outTokens: number): number {
+export function calcCost(model: string, inTokens: number, outTokens: number): number {
   const t = COST_TABLE[model];
   if (!t) return 0;
   return t.in * inTokens + t.out * outTokens;
@@ -42,26 +42,29 @@ export interface StreamCallbacks {
   onError: (err: string) => void;
 }
 
+export interface ChatTurn { role: 'user' | 'assistant'; text: string }
+
 export async function streamAI(
   settings: TulvezSettings,
   userMessage: string,
   mode: AgentMode,
   callbacks: StreamCallbacks,
+  history: ChatTurn[] = [],
 ): Promise<void> {
   const systemPrompt = SYSTEM_PROMPTS[mode];
   const model = settings.model;
 
   try {
     if (settings.aiProvider === 'openai') {
-      await streamOpenAI(settings.apiKey, model || 'gpt-4o-mini', systemPrompt, userMessage, callbacks);
+      await streamOpenAI(settings.apiKey, model || 'gpt-4o-mini', systemPrompt, userMessage, callbacks, undefined, history);
     } else if (settings.aiProvider === 'anthropic') {
-      await streamAnthropic(settings.apiKey, model || 'claude-3-5-haiku-20241022', systemPrompt, userMessage, callbacks);
+      await streamAnthropic(settings.apiKey, model || 'claude-3-5-haiku-20241022', systemPrompt, userMessage, callbacks, history);
     } else if (settings.aiProvider === 'gemini') {
-      await streamGemini(settings.apiKey, model || 'gemini-1.5-flash', systemPrompt, userMessage, callbacks);
+      await streamGemini(settings.apiKey, model || 'gemini-1.5-flash', systemPrompt, userMessage, callbacks, history);
     } else if (settings.aiProvider === 'groq') {
-      await streamOpenAI(settings.apiKey, model || 'llama-3.3-70b-versatile', systemPrompt, userMessage, callbacks, 'https://api.groq.com/openai/v1');
+      await streamOpenAI(settings.apiKey, model || 'llama-3.3-70b-versatile', systemPrompt, userMessage, callbacks, 'https://api.groq.com/openai/v1', history);
     } else if (settings.aiProvider === 'ollama') {
-      await streamOllama(settings.ollamaUrl || 'http://localhost:11434', model || 'llama3', systemPrompt, userMessage, callbacks);
+      await streamOllama(settings.ollamaUrl || 'http://localhost:11434', model || 'llama3', systemPrompt, userMessage, callbacks, history);
     } else {
       callbacks.onError('Bilinmeyen sağlayıcı. Ayarlar\'dan bir sağlayıcı seçin.');
     }
@@ -72,7 +75,7 @@ export async function streamAI(
 
 async function streamOpenAI(
   apiKey: string, model: string, system: string, user: string, cb: StreamCallbacks,
-  baseURL?: string,
+  baseURL?: string, history: ChatTurn[] = [],
 ): Promise<void> {
   if (!apiKey) { cb.onError(`${baseURL ? 'Groq' : 'OpenAI'} API anahtarı eksik. Ayarlar'dan ekleyin.`); return; }
   const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
@@ -85,6 +88,7 @@ async function streamOpenAI(
     stream_options: { include_usage: true },
     messages: [
       { role: 'system', content: system },
+      ...history.map((t) => ({ role: t.role, content: t.text })),
       { role: 'user', content: user },
     ],
   });
@@ -103,6 +107,7 @@ async function streamOpenAI(
 
 async function streamAnthropic(
   apiKey: string, model: string, system: string, user: string, cb: StreamCallbacks,
+  history: ChatTurn[] = [],
 ): Promise<void> {
   if (!apiKey) { cb.onError('Anthropic API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
   const client = new Anthropic({ apiKey });
@@ -113,7 +118,10 @@ async function streamAnthropic(
     model,
     max_tokens: 4096,
     system,
-    messages: [{ role: 'user', content: user }],
+    messages: [
+      ...history.map((t) => ({ role: t.role, content: t.text })),
+      { role: 'user' as const, content: user },
+    ],
   });
 
   for await (const event of stream) {
@@ -133,12 +141,16 @@ async function streamAnthropic(
 
 async function streamGemini(
   apiKey: string, model: string, system: string, user: string, cb: StreamCallbacks,
+  history: ChatTurn[] = [],
 ): Promise<void> {
   if (!apiKey) { cb.onError('Gemini API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
   const genAI = new GoogleGenerativeAI(apiKey);
   const genModel = genAI.getGenerativeModel({ model, systemInstruction: system });
+  const chat = genModel.startChat({
+    history: history.map((t) => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] })),
+  });
 
-  const result = await genModel.generateContentStream(user);
+  const result = await chat.sendMessageStream(user);
   let outputTokens = 0;
 
   for await (const chunk of result.stream) {
@@ -156,6 +168,7 @@ async function streamGemini(
 
 async function streamOllama(
   baseUrl: string, model: string, system: string, user: string, cb: StreamCallbacks,
+  history: ChatTurn[] = [],
 ): Promise<void> {
   const url = `${baseUrl.replace(/\/$/, '')}/api/chat`;
   const res = await fetch(url, {
@@ -166,6 +179,7 @@ async function streamOllama(
       stream: true,
       messages: [
         { role: 'system', content: system },
+        ...history.map((t) => ({ role: t.role, content: t.text })),
         { role: 'user', content: user },
       ],
     }),

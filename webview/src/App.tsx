@@ -19,7 +19,7 @@ type Page = 'chat' | 'settings' | 'history';
 
 interface ChatMessage {
   id: number;
-  role: 'user' | 'assistant' | 'command';
+  role: 'user' | 'assistant' | 'command' | 'tool';
   text: string;
   exitCode?: number;
   mode?: AgentMode;
@@ -27,6 +27,7 @@ interface ChatMessage {
   inputTokens?: number;
   outputTokens?: number;
   costUsd?: number;
+  toolName?: string;
 }
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
 interface RunConfirm { command: string; }
@@ -145,6 +146,7 @@ export function App(): JSX.Element {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [width, setWidth] = useState(window.innerWidth);
   const [runConfirm, setRunConfirm] = useState<RunConfirm | null>(null);
+  const [toolApproval, setToolApproval] = useState<{ id: string; tool: string; args: string } | null>(null);
   const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -195,6 +197,12 @@ export function App(): JSX.Element {
           id: nextId.current++, role: 'command',
           text: msg.output || '(çıktı yok)', exitCode: msg.exitCode,
         }]);
+      } else if (msg.type === 'toolCall') {
+        setMessages((prev) => [...prev, {
+          id: nextId.current++, role: 'tool', text: msg.summary, toolName: msg.tool,
+        }]);
+      } else if (msg.type === 'toolRequest') {
+        setToolApproval({ id: msg.id, tool: msg.tool, args: msg.args });
       }
     };
     window.addEventListener('message', handler);
@@ -232,6 +240,15 @@ export function App(): JSX.Element {
     if (!text) return;
     setSlashOpen(false);
 
+    const slashMatch = /^\/(commit|review|diff|explain)\s*$/i.exec(text);
+    if (slashMatch) {
+      setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
+      vscode.postMessage({ type: 'slash', name: slashMatch[1].toLowerCase() as 'commit' | 'review' | 'diff' | 'explain', mode });
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      return;
+    }
+
     const runMatch = /^\/run\s+(.+)$/i.exec(text);
     if (runMatch) {
       setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
@@ -243,7 +260,11 @@ export function App(): JSX.Element {
     }
 
     setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
-    vscode.postMessage({ type: 'sendMessage', text, mode });
+    const history = messages
+      .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim() && !m.text.startsWith('❌'))
+      .map((m) => ({ role: m.role as 'user' | 'assistant', text: m.text }))
+      .slice(-20);
+    vscode.postMessage({ type: 'sendMessage', text, mode, history });
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
@@ -371,6 +392,14 @@ export function App(): JSX.Element {
                         <pre className="command-output">{msg.text}</pre>
                       </div>
                     );
+                    if (msg.role === 'tool') return (
+                      <div key={msg.id} className="message-turn command">
+                        <div className="command-header">
+                          <Zap size={11} /><span>{msg.toolName ?? 'araç'}</span>
+                        </div>
+                        <pre className="command-output">{msg.text}</pre>
+                      </div>
+                    );
                     return (
                       <div key={msg.id} className={`message-turn ${msg.role}`}>
                         {msg.role === 'assistant' && (
@@ -417,6 +446,24 @@ export function App(): JSX.Element {
                   </button>
                   <button className="rcb rcb-deny" type="button" onClick={() => setRunConfirm(null)}>
                     İptal
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {toolApproval && (
+              <div className="run-confirm-bar">
+                <div className="run-confirm-bar-top">
+                  <Zap size={11} /><span>Araç izni isteği: {toolApproval.tool}</span>
+                  <button className="run-confirm-close" type="button" onClick={() => { vscode.postMessage({ type: 'toolApproval', id: toolApproval.id, approved: false }); setToolApproval(null); }}><X size={11} /></button>
+                </div>
+                <code className="run-confirm-cmd">{toolApproval.args}</code>
+                <div className="run-confirm-actions">
+                  <button className="rcb rcb-approve" type="button" onClick={() => { vscode.postMessage({ type: 'toolApproval', id: toolApproval.id, approved: true }); setToolApproval(null); }}>
+                    <Check size={11} /> Onayla
+                  </button>
+                  <button className="rcb rcb-deny" type="button" onClick={() => { vscode.postMessage({ type: 'toolApproval', id: toolApproval.id, approved: false }); setToolApproval(null); }}>
+                    Reddet
                   </button>
                 </div>
               </div>
