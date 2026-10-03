@@ -18,6 +18,8 @@ const PROVIDERS = [
     models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'] },
   { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 1.5 Pro · Flash · 2.0', color: '#4285f4',
     models: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'] },
+  { id: 'groq' as const,     label: 'Groq',          hint: 'Llama 3.3 · Mixtral · Çok Hızlı', color: '#f97316',
+    models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'] },
   { id: 'ollama' as const,    label: 'Ollama',        hint: 'Yerel · Ücretsiz · Gizli',     color: '#a78bfa',
     models: ['llama3', 'llama3.1', 'codellama', 'mistral', 'deepseek-coder'] },
 ];
@@ -142,7 +144,7 @@ export function SettingsPage({ onBack }: Props) {
           <input className="api-key-input"
             type={showKey ? 'text' : 'password'}
             value={cfg.apiKey}
-            placeholder={cfg.aiProvider === 'openai' ? 'sk-...' : cfg.aiProvider === 'gemini' ? 'AIza...' : 'sk-ant-...'}
+            placeholder={cfg.aiProvider === 'openai' ? 'sk-...' : cfg.aiProvider === 'gemini' ? 'AIza...' : cfg.aiProvider === 'groq' ? 'gsk_...' : 'sk-ant-...'}
             onChange={(e) => set('apiKey', e.target.value)}
             autoComplete="off" spellCheck={false} />
           <button className="api-key-toggle" type="button"

@@ -1,5 +1,5 @@
 export interface TulvezSettings {
-  aiProvider: 'openai' | 'gemini' | 'anthropic' | 'ollama';
+  aiProvider: 'openai' | 'gemini' | 'anthropic' | 'ollama' | 'groq';
   model: string;
   apiKey: string;
   ollamaUrl: string;

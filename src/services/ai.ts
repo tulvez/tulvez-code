@@ -24,6 +24,10 @@ const COST_TABLE: Record<string, { in: number; out: number }> = {
   'gemini-1.5-pro':    { in: 0.00000125, out: 0.000005 },
   'gemini-1.5-flash':  { in: 0.000000075, out: 0.0000003 },
   'gemini-2.0-flash':  { in: 0.0000001,  out: 0.0000004 },
+  'llama-3.3-70b-versatile': { in: 0.00000059, out: 0.00000079 },
+  'llama-3.1-8b-instant':    { in: 0.00000005, out: 0.00000008 },
+  'mixtral-8x7b-32768':      { in: 0.00000024, out: 0.00000024 },
+  'gemma2-9b-it':            { in: 0.0000002,  out: 0.0000002  },
 };
 
 function calcCost(model: string, inTokens: number, outTokens: number): number {
@@ -54,6 +58,8 @@ export async function streamAI(
       await streamAnthropic(settings.apiKey, model || 'claude-3-5-haiku-20241022', systemPrompt, userMessage, callbacks);
     } else if (settings.aiProvider === 'gemini') {
       await streamGemini(settings.apiKey, model || 'gemini-1.5-flash', systemPrompt, userMessage, callbacks);
+    } else if (settings.aiProvider === 'groq') {
+      await streamOpenAI(settings.apiKey, model || 'llama-3.3-70b-versatile', systemPrompt, userMessage, callbacks, 'https://api.groq.com/openai/v1');
     } else if (settings.aiProvider === 'ollama') {
       await streamOllama(settings.ollamaUrl || 'http://localhost:11434', model || 'llama3', systemPrompt, userMessage, callbacks);
     } else {
@@ -66,9 +72,10 @@ export async function streamAI(
 
 async function streamOpenAI(
   apiKey: string, model: string, system: string, user: string, cb: StreamCallbacks,
+  baseURL?: string,
 ): Promise<void> {
-  if (!apiKey) { cb.onError('OpenAI API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
-  const client = new OpenAI({ apiKey });
+  if (!apiKey) { cb.onError(`${baseURL ? 'Groq' : 'OpenAI'} API anahtarı eksik. Ayarlar'dan ekleyin.`); return; }
+  const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
   let inputTokens = 0;
   let outputTokens = 0;
 
