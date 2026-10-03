@@ -68,6 +68,10 @@ export async function streamAI(
       await streamOpenAI(settings.apiKey, model || 'llama-3.3-70b-versatile', systemPrompt, userMessage, callbacks, 'https://api.groq.com/openai/v1', history);
     } else if (settings.aiProvider === 'ollama') {
       await streamOllama(settings.ollamaUrl || 'http://localhost:11434', model || 'llama3', systemPrompt, userMessage, callbacks, history);
+    } else if (settings.aiProvider === 'opencode') {
+      await streamOpenAI(settings.apiKey, model || 'claude-sonnet-4-5', systemPrompt, userMessage, callbacks, 'https://opencode.ai/zen/v1', history);
+    } else if (settings.aiProvider === 'custom') {
+      await streamOpenAI(settings.apiKey, model || 'gpt-4o-mini', systemPrompt, userMessage, callbacks, settings.baseUrl, history);
     } else {
       callbacks.onError('Bilinmeyen sağlayıcı. Ayarlar\'dan bir sağlayıcı seçin.');
     }

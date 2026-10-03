@@ -25,10 +25,17 @@ function contextWindow(model: string): number {
   return 128000;
 }
 
-const SUPPORTED_TOOLS = ['openai', 'groq', 'anthropic', 'gemini', 'ollama'] as const;
+const SUPPORTED_TOOLS = ['openai', 'groq', 'anthropic', 'gemini', 'ollama', 'opencode', 'custom'] as const;
 
 let toolReqCounter = 0;
 const nextToolReqId = () => `tool-${Date.now()}-${toolReqCounter++}`;
+
+function defaultModelFor(provider: string): string {
+  if (provider === 'groq') return 'llama-3.3-70b-versatile';
+  if (provider === 'ollama') return 'llama3';
+  if (provider === 'opencode') return 'claude-sonnet-4-5';
+  return 'gpt-4o-mini';
+}
 
 function toolSummary(name: string, args: Record<string, unknown>): string {
   if (name === 'run_command') return String(args.command ?? '');
@@ -83,6 +90,8 @@ export async function runAgent(
       } else {
         const baseURL =
           settings.aiProvider === 'groq' ? 'https://api.groq.com/openai/v1'
+          : settings.aiProvider === 'opencode' ? 'https://opencode.ai/zen/v1'
+          : settings.aiProvider === 'custom' ? (settings.baseUrl || '').replace(/\/$/, '')
           : settings.aiProvider === 'ollama' ? `${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`
           : undefined;
         await runOpenAICompatible(settings, systemPrompt, userMessage, history, cb, baseURL, allowedTools);
@@ -135,7 +144,11 @@ async function runOpenAICompatible(
     cb.onError('API anahtarı eksik. Ayarlar\'dan ekleyin.');
     return;
   }
-  const model = settings.model || (settings.aiProvider === 'groq' ? 'llama-3.3-70b-versatile' : isOllama ? 'llama3' : 'gpt-4o-mini');
+  if (settings.aiProvider === 'custom' && !settings.baseUrl) {
+    cb.onError('Base URL boş. Ayarlar\'dan OpenAI uyumlu endpoint adresini girin.');
+    return;
+  }
+  const model = settings.model || defaultModelFor(settings.aiProvider);
   const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },

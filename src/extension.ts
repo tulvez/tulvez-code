@@ -44,6 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
       model: cfg.get('model') ?? '',
       apiKey,
       ollamaUrl: cfg.get('ollamaUrl') ?? 'http://localhost:11434',
+      baseUrl: cfg.get('baseUrl') ?? 'https://opencode.ai/zen/v1',
       autoApproveCommands: cfg.get('autoApproveCommands') ?? false,
       allowShellCommands: cfg.get('allowShellCommands') ?? false,
       telemetry: cfg.get('telemetry') ?? false,
@@ -57,6 +58,7 @@ export function activate(context: vscode.ExtensionContext): void {
     await cfg.update('aiProvider', settings.aiProvider, vscode.ConfigurationTarget.Global);
     await cfg.update('model', settings.model, vscode.ConfigurationTarget.Global);
     await cfg.update('ollamaUrl', settings.ollamaUrl, vscode.ConfigurationTarget.Global);
+    await cfg.update('baseUrl', settings.baseUrl, vscode.ConfigurationTarget.Global);
     await cfg.update('autoApproveCommands', settings.autoApproveCommands, vscode.ConfigurationTarget.Global);
     await cfg.update('allowShellCommands', settings.allowShellCommands, vscode.ConfigurationTarget.Global);
     await cfg.update('telemetry', settings.telemetry, vscode.ConfigurationTarget.Global);
@@ -150,11 +152,21 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         let models: string[] = [];
         const provider = settings.aiProvider;
-        if (provider === 'openai' || provider === 'groq') {
-          const baseURL = provider === 'groq' ? 'https://api.groq.com/openai/v1' : undefined;
-          const client = new OpenAI({ apiKey: settings.apiKey, ...(baseURL ? { baseURL } : {}) });
-          const list = await client.models.list();
-          models = list.data.map((m) => m.id).sort();
+        if (provider === 'openai' || provider === 'groq' || provider === 'opencode' || provider === 'custom') {
+          const baseURL =
+            provider === 'groq' ? 'https://api.groq.com/openai/v1'
+            : provider === 'opencode' ? 'https://opencode.ai/zen/v1'
+            : provider === 'custom' ? (settings.baseUrl || '').replace(/\/$/, '')
+            : undefined;
+          if (baseURL) {
+            const client = new OpenAI({ apiKey: settings.apiKey, baseURL });
+            const list = await client.models.list();
+            models = list.data.map((m) => m.id).sort();
+          } else {
+            const client = new OpenAI({ apiKey: settings.apiKey });
+            const list = await client.models.list();
+            models = list.data.map((m) => m.id).sort();
+          }
         } else if (provider === 'gemini') {
           const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${settings.apiKey}`);
           const json = await res.json() as { models?: { name: string }[] };

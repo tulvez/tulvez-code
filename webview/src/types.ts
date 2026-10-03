@@ -1,8 +1,9 @@
 export interface TulvezSettings {
-  aiProvider: 'openai' | 'gemini' | 'anthropic' | 'ollama' | 'groq';
+  aiProvider: 'openai' | 'gemini' | 'anthropic' | 'ollama' | 'groq' | 'opencode' | 'custom';
   model: string;
   apiKey: string;
   ollamaUrl: string;
+  baseUrl: string;
   autoApproveCommands: boolean;
   allowShellCommands: boolean;
   telemetry: boolean;

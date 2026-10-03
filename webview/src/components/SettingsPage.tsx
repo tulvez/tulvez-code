@@ -7,6 +7,7 @@ interface Props { onBack: () => void; }
 
 const DEFAULT: TulvezSettings = {
   aiProvider: 'openai', model: 'gpt-4o-mini', apiKey: '', ollamaUrl: 'http://localhost:11434',
+  baseUrl: 'https://opencode.ai/zen/v1',
   autoApproveCommands: false, allowShellCommands: false,
   telemetry: false, sendCodeContext: false, showAiEdits: true,
 };
@@ -16,6 +17,8 @@ const PROVIDERS = [
   { id: 'anthropic' as const, label: 'Anthropic',     hint: 'Claude 3.5 Sonnet · Haiku',    color: '#d97706' },
   { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 2.5 Pro · Flash · Flash-Lite', color: '#4285f4' },
   { id: 'groq' as const,     label: 'Groq',          hint: 'Llama 3.3 · Mixtral · Çok Hızlı', color: '#f97316' },
+  { id: 'opencode' as const, label: 'OpenCode Zen',  hint: 'Claude · GPT · Gemini · Grok tek gateway', color: '#7c3aed' },
+  { id: 'custom' as const,   label: 'Özel (OpenAI uyumlu)', hint: 'OpenRouter · LM Studio · vLLM · herhangi bir endpoint', color: '#64748b' },
   { id: 'ollama' as const,    label: 'Ollama',        hint: 'Yerel · Ücretsiz · Gizli',     color: '#a78bfa' },
 ];
 
@@ -183,6 +186,23 @@ export function SettingsPage({ onBack }: Props) {
               </div>
             ))}
             <div className="s-hint">Kalan kotayı sağlayıcının panelinden takip edebilirsiniz.</div>
+          </div>
+        )}
+
+        {cfg.aiProvider === 'custom' && (
+          <div className="s-card">
+            <SectionTitle icon={<Terminal size={12} />} label="Endpoint (Base URL)" />
+            <div className="s-hint">OpenAI uyumlu API adresi. Örnekler: https://opencode.ai/zen/v1, https://openrouter.ai/api/v1, http://localhost:1234/v1</div>
+            <input className="ws-input" type="text"
+              value={cfg.baseUrl} placeholder="https://..."
+              onChange={(e) => set('baseUrl', e.target.value)} />
+          </div>
+        )}
+
+        {cfg.aiProvider === 'opencode' && (
+          <div className="s-card">
+            <SectionTitle icon={<Lock size={12} />} label="OpenCode Zen" />
+            <div className="s-hint">opencode.ai üzerinden kendi bakiyenle kullan. Anahtarını opencode.ai/zen panelinden al, buraya yapıştır. Modeller hesabındaki gerçek listeden gelir.</div>
           </div>
         )}
 

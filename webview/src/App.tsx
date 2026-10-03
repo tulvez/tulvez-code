@@ -200,6 +200,7 @@ export function App(): JSX.Element {
   const [setupKey, setSetupKey] = useState('');
   const [setupStep, setSetupStep] = useState(0);
   const [setupModel, setSetupModel] = useState('');
+  const [setupBaseUrl, setSetupBaseUrl] = useState('');
   const [liveModels, setLiveModels] = useState<string[]>([]);
 
   const sessionIdRef = useRef(1);
@@ -486,6 +487,8 @@ export function App(): JSX.Element {
                             onChange={(e) => setSetupProvider(e.target.value as TulvezSettings['aiProvider'])}
                           >
                             <option value="gemini">Google Gemini (ücretsiz katman)</option>
+                            <option value="opencode">OpenCode Zen (kendi bakiyen)</option>
+                            <option value="custom">Özel (OpenAI uyumlu)</option>
                             <option value="openai">OpenAI</option>
                             <option value="anthropic">Anthropic</option>
                             <option value="groq">Groq (çok hızlı)</option>
@@ -493,7 +496,7 @@ export function App(): JSX.Element {
                           </select>
                           <button className="ws-create-btn" type="button" onClick={() => {
                             if (setupProvider === 'ollama' && settings) {
-                              const next = { ...settings, aiProvider: 'ollama' as const, model: '', apiKey: '' };
+                              const next = { ...settings, aiProvider: 'ollama' as const, model: '', apiKey: '', baseUrl: setupBaseUrl || settings.baseUrl };
                               vscode.postMessage({ type: 'saveSettings', settings: next });
                               vscode.postMessage({ type: 'listModels' });
                               setSettings(next);
@@ -517,13 +520,25 @@ export function App(): JSX.Element {
                             onChange={(e) => setSetupKey(e.target.value)}
                             autoComplete="off"
                           />
+                          {setupProvider === 'custom' && (
+                            <input
+                              className="ws-input"
+                              type="text"
+                              placeholder="Base URL (örn. https://openrouter.ai/api/v1)"
+                              value={setupBaseUrl}
+                              onChange={(e) => setSetupBaseUrl(e.target.value)}
+                            />
+                          )}
                           <div className="setup-row">
                             <button className="ws-create-btn" type="button" style={{ background: 'transparent', border: '1px solid var(--vscode-panel-border)' }}
                               onClick={() => setSetupStep(0)}>Geri</button>
                             <button className="ws-create-btn" type="button" disabled={!setupKey.trim()}
                               onClick={() => {
                                 if (!settings) return;
-                                const next = { ...settings, aiProvider: setupProvider, model: '', apiKey: setupKey.trim() };
+                                const next = {
+                                  ...settings, aiProvider: setupProvider, model: '',
+                                  apiKey: setupKey.trim(), baseUrl: setupBaseUrl.trim() || settings.baseUrl,
+                                };
                                 vscode.postMessage({ type: 'saveSettings', settings: next });
                                 vscode.postMessage({ type: 'listModels' });
                                 setSettings(next);
@@ -560,7 +575,10 @@ export function App(): JSX.Element {
                             <button className="ws-create-btn" type="button"
                               onClick={() => {
                                 if (!settings) return;
-                                const next = { ...settings, aiProvider: setupProvider, apiKey: setupKey.trim(), model: setupModel };
+                                const next = {
+                                  ...settings, aiProvider: setupProvider, apiKey: setupKey.trim(),
+                                  baseUrl: setupBaseUrl.trim() || settings.baseUrl, model: setupModel,
+                                };
                                 vscode.postMessage({ type: 'saveSettings', settings: next });
                                 setSettings(next);
                                 if (setupModel) setModel(setupModel);

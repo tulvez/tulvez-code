@@ -65,11 +65,13 @@
         "tulvez.aiProvider": {
           "type": "string",
           "enum": [
-            "openai",
-            "gemini",
-            "anthropic",
-            "groq",
-            "ollama"
+"openai",
+              "gemini",
+              "anthropic",
+              "groq",
+              "opencode",
+              "custom",
+              "ollama"
           ],
           "default": "openai",
           "description": "Kullanılacak yapay zeka sağlayıcısı."
@@ -83,6 +85,11 @@
           "type": "string",
           "default": "http://localhost:11434",
           "description": "Ollama sunucu adresi."
+        },
+        "tulvez.baseUrl": {
+          "type": "string",
+          "default": "https://opencode.ai/zen/v1",
+          "description": "OpenAI uyumlu özel sağlayıcılar için endpoint (OpenCode Zen, OpenRouter, LM Studio vb.)."
         },
         "tulvez.showAiEdits": {
           "type": "boolean",
