@@ -153,8 +153,10 @@ img { -webkit-user-drag: none; user-select: none; }
   font-size: 13px; line-height: 1.55;
   white-space: pre-wrap; word-break: break-word;
 }
-.message-turn.assistant { padding: 8px 14px 4px; transition: background 0.1s; }
-.message-turn.assistant:hover { background: var(--vscode-list-hoverBackground); }
+.message-turn.assistant { padding: 8px 14px 4px; transition: background 0.1s; border-radius: 8px; }
+.message-turn.assistant:hover { background: var(--vscode-list-hoverBackground); outline: 1px solid var(--vscode-panel-border); }
+.message-turn.user:hover .turn-body { background: rgba(255,255,255,0.1); }
+.message-turn.user .turn-body:focus { outline: 1px solid var(--vscode-focusBorder, #007fd4); }
 .turn-header { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
 .turn-avatar {
   display: grid; place-items: center;
