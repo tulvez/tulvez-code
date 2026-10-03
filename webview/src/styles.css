@@ -2,6 +2,9 @@
   color-scheme: dark;
   font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-size: var(--vscode-font-size, 13px);
+  --tulvez-green: #4ade80;
+  --tulvez-green-dim: #4ade8022;
+  --tulvez-green-border: #4ade8055;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -45,8 +48,8 @@ button { cursor: pointer; border: none; background: none; }
   width: 18px;
   height: 18px;
   border-radius: 4px;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background: var(--tulvez-green);
+  color: #0a1a0f;
   font-size: 10px;
   font-weight: 800;
   flex-shrink: 0;
@@ -87,19 +90,27 @@ button { cursor: pointer; border: none; background: none; }
 }
 .icon-btn:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground); }
 
-/* ── Chat scroll area ───────────────────────────────────── */
+/* ── Scrollbar ──────────────────────────────────────────── */
 .chat-area {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s;
+}
+.chat-area:hover {
   scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
-.chat-area::-webkit-scrollbar { width: 6px; }
+.chat-area::-webkit-scrollbar { width: 3px; }
 .chat-area::-webkit-scrollbar-track { background: transparent; }
 .chat-area::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+  transition: background 0.3s;
+}
+.chat-area:hover::-webkit-scrollbar-thumb {
   background: var(--vscode-scrollbarSlider-background);
-  border-radius: 3px;
 }
 .chat-area::-webkit-scrollbar-thumb:hover {
   background: var(--vscode-scrollbarSlider-hoverBackground);
@@ -123,9 +134,9 @@ button { cursor: pointer; border: none; background: none; }
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  border: 1px solid var(--vscode-panel-border);
-  background: var(--vscode-editor-background);
-  color: var(--vscode-button-background);
+  border: 1px solid var(--tulvez-green-border);
+  background: var(--tulvez-green-dim);
+  color: var(--tulvez-green);
   margin-bottom: 12px;
 }
 
@@ -167,9 +178,11 @@ button { cursor: pointer; border: none; background: none; }
 }
 .quick-action-btn:hover {
   background: var(--vscode-list-hoverBackground);
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--tulvez-green-border);
+  color: var(--tulvez-green);
 }
-.quick-action-btn svg { color: var(--vscode-descriptionForeground); flex-shrink: 0; }
+.quick-action-btn svg { color: var(--vscode-descriptionForeground); flex-shrink: 0; transition: color 0.1s; }
+.quick-action-btn:hover svg { color: var(--tulvez-green); }
 
 /* ── Message list ───────────────────────────────────────── */
 .message-list {
@@ -200,15 +213,15 @@ button { cursor: pointer; border: none; background: none; }
   flex-shrink: 0;
 }
 .turn-avatar.user {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background: var(--tulvez-green);
+  color: #0a1a0f;
   font-size: 9px;
   font-weight: 700;
 }
 .turn-avatar.assistant {
-  background: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-panel-border);
-  color: var(--vscode-button-background);
+  background: var(--tulvez-green-dim);
+  border: 1px solid var(--tulvez-green-border);
+  color: var(--tulvez-green);
 }
 
 .turn-name {
@@ -265,7 +278,8 @@ button { cursor: pointer; border: none; background: none; }
   transition: border-color 0.15s;
 }
 .composer:focus-within {
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--tulvez-green);
+  box-shadow: 0 0 0 1px var(--tulvez-green-border);
 }
 
 .composer-input {
@@ -288,8 +302,8 @@ button { cursor: pointer; border: none; background: none; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 8px 6px;
-  gap: 6px;
+  padding: 4px 6px 6px;
+  gap: 4px;
 }
 
 .composer-left {
@@ -302,7 +316,7 @@ button { cursor: pointer; border: none; background: none; }
 .composer-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -329,18 +343,23 @@ button { cursor: pointer; border: none; background: none; }
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 4px;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  transition: background 0.1s, opacity 0.1s;
+  border-radius: 50%;
+  background: var(--tulvez-green);
+  color: #0a1a0f;
+  transition: background 0.15s, transform 0.1s, opacity 0.1s;
+  flex-shrink: 0;
 }
-.send-btn:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
-.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.send-btn:hover:not(:disabled) {
+  background: #6ee89a;
+  transform: scale(1.06);
+}
+.send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .hint {
   font-size: 10px;
   color: var(--vscode-descriptionForeground);
-  opacity: 0.6;
+  opacity: 0.5;
+  user-select: none;
 }
 
 /* ── Dropdown ───────────────────────────────────────────── */
@@ -373,6 +392,7 @@ button { cursor: pointer; border: none; background: none; }
 }
 
 /* ── Scrollbar global ───────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 2px; }
+*:hover::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background); }

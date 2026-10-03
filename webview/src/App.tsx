@@ -10,10 +10,10 @@ import type { HostToWebviewMessage } from './types';
 import {
   Check,
   ChevronDown,
+  CirclePlus,
   Copy,
   GitBranch,
   MessageSquare,
-  Paperclip,
   Send,
   Sparkles,
   SquarePen,
@@ -176,7 +176,7 @@ export function App(): JSX.Element {
             ref={textareaRef}
             className="composer-input"
             value={input}
-            placeholder="Tulvez AI ile sohbet edin..."
+            placeholder="Tulvez Code ile inşa edin..."
             rows={1}
             onChange={(e) => { setInput(e.target.value); autoResize(); }}
             onKeyDown={(e) => {
@@ -185,25 +185,9 @@ export function App(): JSX.Element {
           />
           <div className="composer-footer">
             <div className="composer-left">
-              <button className="composer-btn icon-only" type="button" title="Dosya ekle">
-                <Paperclip size={13} strokeWidth={1.8} />
+              <button className="composer-btn icon-only" type="button" title="Ekle">
+                <CirclePlus size={15} strokeWidth={1.8} />
               </button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="composer-btn" type="button">
-                    <Sparkles size={12} strokeWidth={1.8} />
-                    Beceriler
-                    <ChevronDown size={10} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="dropdown-content">
-                  {SKILLS.map((s) => (
-                    <DropdownMenuItem key={s} className="dropdown-item" onSelect={() => setInput(s)}>
-                      {s}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="composer-btn" type="button">
@@ -221,7 +205,22 @@ export function App(): JSX.Element {
               </DropdownMenu>
             </div>
             <div className="composer-right">
-              <span className="hint">⏎ gönder</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="composer-btn" type="button">
+                    <Sparkles size={12} strokeWidth={1.8} />
+                    Beceriler
+                    <ChevronDown size={10} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="dropdown-content">
+                  {SKILLS.map((s) => (
+                    <DropdownMenuItem key={s} className="dropdown-item" onSelect={() => setInput(s)}>
+                      {s}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <button className="send-btn" type="submit" title="Gönder" disabled={!input.trim()}>
                 <Send size={13} strokeWidth={2} />
               </button>
