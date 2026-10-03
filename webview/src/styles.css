@@ -539,7 +539,7 @@ button { cursor: pointer; border: none; background: none; }
   color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
 }
 
-/* ── Scrollbar global ───────────────────────────────────── */
+/* ── Scrollbar global/* -- Too narrow overlay -------------------------------- */
 ::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: transparent; border-radius: 2px; }
