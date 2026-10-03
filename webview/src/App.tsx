@@ -79,11 +79,16 @@ function TooNarrow() {
 function useTyping(full: string, active: boolean, speed = 8) {
   const [index, setIndex] = useState(active ? 0 : full.length);
   const done = index >= full.length;
+  const TAIL = 24;
 
   useEffect(() => {
     if (!active) return;
+    // Akış hızlıysa yazma efekti geride kalmasın: metnin sonuna kadar anında yetiş.
+    const near = Math.max(0, full.length - TAIL);
+    setIndex((i) => (i < near ? near : i));
+    if (full.length <= TAIL) return;
     const id = window.setInterval(() => {
-      setIndex((i) => (i >= full.length ? i : i + 3));
+      setIndex((i) => (i >= full.length ? i : Math.min(full.length, i + 4)));
     }, speed);
     return () => window.clearInterval(id);
   }, [full, active, speed]);
@@ -124,7 +129,7 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
     <>
       <div className="turn-body">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
-        {!done && !stopped && <span className="thinking-inline">Düşünüyor…</span>}
+        {!done && !stopped && displayed.length === 0 && <span className="thinking-inline">Düşünüyor…</span>}
       </div>
       {stopped && <div className="stopped-label">Yanıt durduruldu</div>}
       {done && inputTokens !== undefined && outputTokens !== undefined && costUsd !== undefined && (

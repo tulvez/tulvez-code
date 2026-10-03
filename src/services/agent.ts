@@ -186,10 +186,13 @@ async function runOpenAICompatible(
     }, { signal });
 
     let content = '';
+    let truncated = false;
     const partial = new Map<number, { id: string; name: string; args: string }>();
 
     for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta;
+      const choice = chunk.choices[0];
+      if (choice?.finish_reason === 'length') truncated = true;
+      const delta = choice?.delta;
       if (delta?.content) {
         content += delta.content;
         cb.onChunk(delta.content);
@@ -209,7 +212,12 @@ async function runOpenAICompatible(
       }
     }
 
-    if (partial.size === 0) break;
+    if (partial.size === 0) {
+      if (truncated) {
+        cb.onChunk('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmesi için "devam" yazabilirsin._');
+      }
+      break;
+    }
 
     messages.push({
       role: 'assistant',
