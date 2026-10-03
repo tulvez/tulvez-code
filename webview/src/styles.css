@@ -272,10 +272,10 @@ button { cursor: pointer; border: none; background: none; }
 }
 
 .composer {
-  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 6px;
-  background: var(--vscode-input-background);
-  transition: border-color 0.15s;
+  background: rgba(255,255,255,0.06);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .composer:focus-within {
   border-color: var(--tulvez-green);
