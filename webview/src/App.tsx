@@ -6,7 +6,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
-  Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, FolderOpen, GitBranch, Hammer,
+  Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, FolderOpen, GitBranch, GitCommit, Hammer,
   MessageSquare, Send, Settings, Sparkles, Square, SquarePen,
   Terminal, ThumbsDown, ThumbsUp, Trash2, X, Zap,
 } from 'lucide-react';
@@ -191,6 +191,7 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
   const [waiting, setWaiting] = useState(false);
+  const [commitCard, setCommitCard] = useState<{ text: string; staged: boolean } | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     try {
@@ -301,6 +302,14 @@ export function App(): JSX.Element {
           setMessages((prev) => prev.map((m) => (m.id === sid ? { ...m, stopped: true } : m)));
           streamingIdRef.current = null;
         }
+      } else if (msg.type === 'commitMessage') {
+        setCommitCard({ text: msg.text, staged: msg.staged });
+      } else if (msg.type === 'commitResult') {
+        setMessages((prev) => [...prev, {
+          id: nextId.current++, role: 'command',
+          text: msg.output, exitCode: msg.exitCode,
+        }]);
+        if (msg.exitCode === 0) setCommitCard(null);
       } else if (msg.type === 'systemNotice') {
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'tool', text: msg.text, toolName: 'tulvez',
@@ -503,6 +512,15 @@ export function App(): JSX.Element {
               </div>
               {workspaceName && <span className="header-workspace" title={workspaceName}>{workspaceName}</span>}
               <div className="header-actions">
+                <button className="icon-btn" type="button" title="Commit mesajı hazırla"
+                  onClick={() => {
+                    setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text: '/commit' }]);
+                    vscode.postMessage({ type: 'slash', name: 'commit', mode });
+                    setWaiting(true);
+                    setStreaming(true);
+                  }}>
+                  <GitCommit size={15} strokeWidth={1.8} />
+                </button>
                 <button className="icon-btn" type="button" title="Klasör aç" onClick={() => vscode.postMessage({ type: 'openFolder' })}>
                   <FolderOpen size={15} strokeWidth={1.8} />
                 </button>
@@ -754,6 +772,31 @@ onClick={() => {
                   <button className="rcb rcb-deny" type="button" onClick={() => setRunConfirm(null)}>
                     İptal
                   </button>
+                </div>
+              </div>
+            )}
+
+            {commitCard && (
+              <div className="commit-card">
+                <div className="commit-card-head">
+                  <GitCommit size={12} />
+                  <span>Commit mesajı{commitCard.staged ? '' : ' (aşamalı değil)'}</span>
+                  <button className="run-confirm-close" type="button" onClick={() => setCommitCard(null)}><X size={11} /></button>
+                </div>
+                <code className="commit-card-msg">{commitCard.text}</code>
+                <div className="run-confirm-actions">
+                  <button className="rcb rcb-approve" type="button"
+                    onClick={() => {
+                      vscode.postMessage({ type: 'applyCommit', message: commitCard.text });
+                      setCommitCard(null);
+                    }}>
+                    <Check size={11} /> Commit at
+                  </button>
+                  <button className="rcb rcb-always" type="button"
+                    onClick={() => { void navigator.clipboard.writeText(commitCard.text); }}>
+                    Kopyala
+                  </button>
+                  <button className="rcb rcb-deny" type="button" onClick={() => setCommitCard(null)}>Kapat</button>
                 </div>
               </div>
             )}

@@ -22,8 +22,9 @@ export type WebviewToHostMessage =
   | { type: 'getSkills' }
   | { type: 'openFolder' }
   | { type: 'toolApproval'; id: string; approved: boolean }
-  | { type: 'listModels' }
+| { type: 'listModels' }
   | { type: 'cancelStream' }
+  | { type: 'applyCommit'; message: string }
   | { type: 'expandSidebar' }
   | { type: 'runCommand'; command: string; autoApprove?: boolean }
   | { type: 'getSettings' }
@@ -38,6 +39,8 @@ export type HostToWebviewMessage =
   | { type: 'assistantReasoning'; text: string }
   | { type: 'assistantDone'; inputTokens: number; outputTokens: number; costUsd: number; contextWindow?: number; model?: string }
   | { type: 'commandResult'; output: string; exitCode: number }
+  | { type: 'commitResult'; output: string; exitCode: number }
+  | { type: 'commitMessage'; text: string; staged: boolean }
   | { type: 'settingsData'; settings: TulvezSettings }
   | { type: 'toolRequest'; id: string; tool: string; args: string }
   | { type: 'toolCall'; tool: string; summary: string }
