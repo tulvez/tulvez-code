@@ -166,13 +166,18 @@ export async function runAgent(
       });
 
       let sawText = false;
+      let streamError: { message: string } | null = null;
       for await (const part of result.fullStream) {
         if (part.type === 'text-delta') {
           if (part.text) { sawText = true; cb.onChunk(part.text); }
         } else if (part.type === 'reasoning-delta') {
           if (part.text) cb.onReasoning?.(part.text);
+        } else if (part.type === 'error') {
+          streamError = { message: (part.error as { message?: string })?.message ?? String(part.error) };
         }
       }
+
+      if (streamError) throw new Error(streamError.message);
 
       const usage = await result.usage;
       const finishReason = await result.finishReason;
@@ -209,11 +214,15 @@ export async function runAgent(
 
 function isRetryable(message: string): boolean {
   const m = message.toLowerCase();
+  // Günlük kota tükendiyse tekrar denemenin anlamı yok (saatlerce sürebilir)
+  if (m.includes('exceeded your current quota') || m.includes('quota exceeded') || m.includes('billing')) {
+    return false;
+  }
   return (
     m.includes('429') || m.includes('503') || m.includes('502') || m.includes('500') ||
-    m.includes('quota') || m.includes('high demand') || m.includes('overloaded') ||
+    m.includes('overloaded') || m.includes('high demand') ||
     m.includes('econnreset') || m.includes('etimedout') || m.includes('socket hang up') ||
-    m.includes('fetch failed') || m.includes('network')
+    m.includes('fetch failed') || m.includes('network') || m.includes('rate limit')
   );
 }
 

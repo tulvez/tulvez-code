@@ -490,12 +490,19 @@ function safeCommand<T>(command: string, ...args: unknown[]): Promise<T> {
 
 function friendlyError(err: string): string {
   const m = err.toLowerCase();
-  if (m.includes('429') || m.includes('quota exceeded') || m.includes('quota')) {
-    const retry = /retry in (\d+)h(\d+)m/.exec(err);
-    const wait = retry ? ` Yaklaşık ${retry[1]} saat ${retry[2]} dakika sonra tekrar dene.` : '';
-    return `Sağlayıcı kotası doldu.${wait} Ücretsiz katmanda bu sınıra ulaştıysan başka bir model seçebilirsin.`;
+
+  if (m.includes('no output generated')) {
+    return 'Sağlayıcı boş yanıt döndürdü. Bu genelde kota, geçici yoğunluk veya model hatasıdır. Model değiştirip tekrar deneyebilirsin.';
   }
-  if (m.includes('503') || m.includes('high demand')) {
+  if (m.includes('exceeded your current quota') || m.includes('quota exceeded') || m.includes('billing')) {
+    const retry = /retry in (\d+)h(\d+)m/.exec(err);
+    const wait = retry ? ` Yaklaşık ${retry[1]} saat ${retry[2]} dakika sonra sıfırlanır.` : '';
+    return `Sağlayıcının ücretsiz kotası tükendi.${wait} Ücretli plana geçebilir, başka bir model/anahtar seçebilir veya Ollama kullanabilirsin.`;
+  }
+  if (m.includes('429')) {
+    return 'Çok fazla istek gönderildi. Birkaç saniye bekleyip tekrar dene.';
+  }
+  if (m.includes('503') || m.includes('overloaded') || m.includes('high demand')) {
     return 'Model şu anda aşırı yoğun (sağlayıcı tarafı). Birkaç dakika sonra tekrar dene veya başka bir model seç.';
   }
   if (m.includes('failed to parse stream')) {
@@ -504,11 +511,17 @@ function friendlyError(err: string): string {
   if (m.includes('zaman aşımına uğradı')) {
     return 'Cevap akışı zaman aşımına uğradı. Ağ bağlantını kontrol edip tekrar dene.';
   }
-  if (m.includes('fetch failed') || m.includes('econnreset') || m.includes('network')) {
+  if (m.includes('fetch failed') || m.includes('econnreset') || m.includes('network') || m.includes('enotfound')) {
     return 'Sağlayıcıya ulaşılamadı. İnternet bağlantını kontrol et veya Ollama kullanıyorsan sunucunun açık olduğundan emin ol.';
   }
-  if (m.includes('api key') || m.includes('api anahtarı')) {
+  if (m.includes('api key') || m.includes('api anahtarı') || m.includes('unauthorized') || m.includes('401')) {
     return 'API anahtarı eksik veya geçersiz. Ayarlar\'dan anahtarını kontrol et.';
   }
-  return err;
+  if (m.includes('model') && (m.includes('not found') || m.includes('404'))) {
+    return 'Seçili model bulunamadı. Ayarlar → Model listesinden geçerli bir model seç.';
+  }
+  if (m.includes('tool') && m.includes('not supported')) {
+    return 'Bu model araç (tool) çağrısını desteklemiyor. Araç kullanabilen bir model seç (ör. Claude Sonnet, GPT-4o, Gemini 2.5 Flash).';
+  }
+  return err.length > 400 ? `${err.slice(0, 400)}…` : err;
 }
