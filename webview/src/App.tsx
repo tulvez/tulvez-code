@@ -78,26 +78,31 @@ function TooNarrow() {
 }
 
 function useTyping(full: string, active: boolean, speed = 8) {
-  const [index, setIndex] = useState(active ? 0 : full.length);
-  const done = index >= full.length;
-  const TAIL = 24;
+  const [index, setIndex] = useState(full.length);
+  const lastFull = useRef(full);
 
+  // Metin gerçekten büyüdüyse (yeni parça geldi) kuyruğu sona çek.
   useEffect(() => {
-    if (!active) return;
-    // Akış hızlıysa yazma efekti geride kalmasın: metnin sonuna kadar anında yetiş.
-    const near = Math.max(0, full.length - TAIL);
+    const grew = full.length > lastFull.current.length;
+    lastFull.current = full;
+    if (!full) {
+      setIndex(0);
+      return;
+    }
+    if (!active || grew) {
+      setIndex(full.length);
+      return;
+    }
+    const near = Math.max(0, full.length - 24);
     setIndex((i) => (i < near ? near : i));
-    if (full.length <= TAIL) return;
+    if (full.length <= 24) return;
     const id = window.setInterval(() => {
       setIndex((i) => (i >= full.length ? i : Math.min(full.length, i + 4)));
     }, speed);
     return () => window.clearInterval(id);
   }, [full, active, speed]);
 
-  // Metin geldiyse yazma efekti tamamlanmış sayılır: "Düşünüyor" rozeti takılı kalmasın.
-  const settled = full.length > 0 || done;
-
-  return { displayed: full.slice(0, index), done: done || settled };
+  return { displayed: full.slice(0, index), done: index >= full.length };
 }
 
 function UsageBadge({ inputTokens, outputTokens, costUsd, model }: { inputTokens: number; outputTokens: number; costUsd: number; model?: string }) {
@@ -123,15 +128,14 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
   inputTokens?: number; outputTokens?: number; costUsd?: number; model?: string; stopped?: boolean;
   reasoning?: string; showThinking: boolean; live?: boolean; onAnimationEnd?: () => void;
 }) {
-  const { displayed, done: typed } = useTyping(text, animate);
-  // Gerçek akış durumu: akış açıkken metin gelmemişse düşünüyoruz.
-  const busy = !!live && !typed && !stopped && !inputTokens;
-  const done = typed || (!live && text.length > 0);
+  const { displayed, done } = useTyping(text, animate);
+  // Gerçek akış durumu: akış açıkken cevap metni henüz gelmediyse düşünüyoruz.
+  const waiting = !!live && !text.trim() && !stopped;
+  const busy = waiting || (!!live && !done && !stopped && !text.trim());
 
   useEffect(() => {
     if (done && animate) onAnimationEnd?.();
   }, [done, animate, onAnimationEnd]);
-
   return (
     <>
       {reasoning && reasoning.trim() && showThinking && (
@@ -734,7 +738,7 @@ onClick={() => {
                             stopped={msg.stopped}
                             reasoning={msg.reasoning}
                             showThinking={settings?.showThinking ?? true}
-                            live={streamingIdRef.current === msg.id && streaming}
+                            live={streaming && streamingIdRef.current === msg.id}
                             onAnimationEnd={() => animatedIdsRef.current.add(msg.id)}
                             onCopy={() => void copy(msg)}
                             onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}

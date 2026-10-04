@@ -6,5 +6,6 @@ export default defineConfig({
     environment: 'node',
     globals: false,
     setupFiles: ['src/test/setup.ts'],
+    environmentMatchGlobs: [['src/test/typing.test.ts', 'jsdom']],
   },
 });
