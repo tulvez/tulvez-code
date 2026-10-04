@@ -150,12 +150,10 @@ let diffProvider: DiffProvider | null = null;
 
 export function getDiffContentProvider(): DiffProvider {
   if (!diffProvider) {
-    const Ctor = (vscode as unknown as {
-      TextDocumentContentProvider: new (opts: { scheme: string }) => DiffProvider;
-    }).TextDocumentContentProvider;
-    diffProvider = new Ctor({ scheme: 'tulvez-before' });
-    diffProvider.provideTextDocumentContent = (uri: vscode.Uri): string =>
-      preEditSnapshot.get(decodeURIComponent(uri.path.replace(/^\//, ''))) ?? '';
+    diffProvider = {
+      provideTextDocumentContent: (uri: vscode.Uri): string =>
+        preEditSnapshot.get(decodeURIComponent(uri.path.replace(/^\//, ''))) ?? '',
+    };
   }
   return diffProvider;
 }
