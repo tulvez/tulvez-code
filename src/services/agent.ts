@@ -136,7 +136,7 @@ export async function runAgent(
   const messages: ModelMessage[] = [
     ...history.map<ModelMessage>((t) => ({
       role: t.role === 'assistant' ? 'assistant' : 'user',
-      content: t.text,
+      content: [{ type: 'text', text: t.text }],
     })),
     { role: 'user', content: userMessage },
   ];

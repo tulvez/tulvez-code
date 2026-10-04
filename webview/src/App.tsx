@@ -7,8 +7,8 @@ import { vscode } from './services/vscode';
 import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, FolderOpen, GitBranch, GitCommit, Hammer,
-  MessageSquare, Send, Settings, Sparkles, Square, SquarePen,
-  Terminal, ThumbsDown, ThumbsUp, Trash2, X, Zap, ChevronRight,
+  MessageSquare, Search, Send, Settings, Sparkles, Square, SquarePen,
+  Terminal, Trash2, X, Zap, ChevronRight,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -67,6 +67,52 @@ const SKILLS = [
   { label: 'Kod incelemesi yap',          prompt: 'Kodumu incele ve geri bildirim ver' },
 ];
 
+function ModelPicker({ model, models, onSelect }: { model: string; models: string[]; onSelect: (m: string) => void }) {
+  const [search, setSearch] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const filtered = search.trim()
+    ? models.filter((m) => m.toLowerCase().includes(search.toLowerCase()))
+    : models;
+  const displayLabel = model === 'Varsayılan' ? 'Model' : model;
+
+  return (
+    <DropdownMenu onOpenChange={(open) => { if (open) { setSearch(''); setTimeout(() => inputRef.current?.focus(), 50); } }}>
+      <DropdownMenuTrigger asChild>
+        <button className="composer-btn model-btn" type="button" title={model === 'Varsayılan' ? 'Model: varsayılan' : model}>
+          <span className="model-btn-label">{displayLabel}</span>
+          <ChevronDown size={10} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="dropdown-content model-dropdown">
+        <div className="model-search-wrap">
+          <Search size={12} className="model-search-icon" />
+          <input
+            ref={inputRef}
+            className="model-search-input"
+            type="text"
+            placeholder="Ara… (flash, :free, gpt)"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+        </div>
+        <div className="model-list-scroll">
+          {['Varsayılan', ...filtered].map((m) => (
+            <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => onSelect(m)}>
+              <span className="model-item-name" title={m}>{m}</span>
+              {model === m && <Check size={11} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+            </DropdownMenuItem>
+          ))}
+          {filtered.length === 0 && (
+            <div className="model-no-result">Eşleşen model yok</div>
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+
 function TooNarrow() {
   return (
     <div className="too-narrow">
@@ -123,13 +169,12 @@ function UsageBadge({ inputTokens, outputTokens, costUsd, model }: { inputTokens
   );
 }
 
-function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, stopped, reasoning, showThinking, live, onAnimationEnd }: {
-  text: string; onCopy: () => void; onRunHint: () => void; copied: boolean; animate: boolean;
+function AssistantBubble({ text, onCopy, copied, animate, inputTokens, outputTokens, costUsd, model, stopped, reasoning, showThinking, live, onAnimationEnd }: {
+  text: string; onCopy: () => void; copied: boolean; animate: boolean;
   inputTokens?: number; outputTokens?: number; costUsd?: number; model?: string; stopped?: boolean;
   reasoning?: string; showThinking: boolean; live?: boolean; onAnimationEnd?: () => void;
 }) {
   const { displayed, done } = useTyping(text, animate);
-  // Gerçek akış durumu: akış açıkken cevap metni henüz gelmediyse düşünüyoruz.
   const waiting = !!live && !text.trim() && !stopped;
   const busy = waiting || (!!live && !done && !stopped && !text.trim());
 
@@ -152,14 +197,9 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
       {done && inputTokens !== undefined && outputTokens !== undefined && costUsd !== undefined && (
         <UsageBadge inputTokens={inputTokens} outputTokens={outputTokens} costUsd={costUsd} model={model} />
       )}
-      <div className="turn-actions">
+      <div className="turn-actions-always">
         <button className="turn-action-btn" type="button" title="Kopyala" onClick={onCopy}>
           {copied ? <Check size={12} /> : <Copy size={12} />}
-        </button>
-        <button className="turn-action-btn" type="button" title="Beğen"><ThumbsUp size={12} /></button>
-        <button className="turn-action-btn" type="button" title="Beğenme"><ThumbsDown size={12} /></button>
-        <button className="turn-action-btn run-hint" type="button" title="Komut çalıştır" onClick={onRunHint}>
-          <Terminal size={12} />
         </button>
       </div>
     </>
@@ -368,20 +408,24 @@ export function App(): JSX.Element {
     return () => ro.disconnect();
   }, []);
 
-  // Otomatik kaydırma: kullanıcı zaten en altta ise (ya da yakınsa) yeni içeriği takip et.
-  // Kullanıcı yukarı kaydırdıysa akış bitene kadar onu zorla aşağı çekme.
+  // Scroll: kullanıcı en alttaysa yeni mesajları takip et.
+  // Streaming sırasında yukarı kaydırırsa zorla aşağı çekme.
   const [sticky, setSticky] = useState(false);
   const [lastStreamingId, setLastStreamingId] = useState<number | null>(null);
   const stickToBottom = useRef(true);
   const prevStreamingId = useRef<number | null>(null);
+  const userScrolledUp = useRef(false);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = (): void => {
       const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-      const atBottom = distance < 90;
+      const atBottom = distance < 80;
       stickToBottom.current = atBottom;
+      // Kullanıcı yukarı kaydırdıysa streaming sırasında zorla aşağı çekme
+      if (!atBottom) userScrolledUp.current = true;
+      if (atBottom) userScrolledUp.current = false;
       setSticky(!atBottom);
     };
     el.addEventListener('scroll', onScroll, { passive: true });
@@ -392,7 +436,13 @@ export function App(): JSX.Element {
     const el = scrollRef.current;
     if (!el) return;
     const current = streamingIdRef.current;
-    if (current !== null && stickToBottom.current) {
+    // Kullanıcı yukarı kaydırdıysa streaming sırasında scroll yapma
+    if (userScrolledUp.current && current !== null) {
+      prevStreamingId.current = current;
+      setLastStreamingId(current);
+      return;
+    }
+    if (stickToBottom.current) {
       const continuous = prevStreamingId.current === current;
       el.scrollTo({ top: el.scrollHeight, behavior: continuous ? 'auto' : 'smooth' });
     }
@@ -400,12 +450,14 @@ export function App(): JSX.Element {
     setLastStreamingId(current);
   }, [messages, waiting, runConfirm, toolApproval, commitCard, streaming]);
 
+  // Yeni mesaj gönderilince (streaming başlayınca) scroll kilidi sıfırla
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    if (!streaming) return;
+    userScrolledUp.current = false;
     stickToBottom.current = true;
     setSticky(false);
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [streaming]);
 
   const jumpToBottom = (): void => {
@@ -556,7 +608,7 @@ export function App(): JSX.Element {
     <div className="shell" ref={shellRef}>
       <div className="shell-content">
         {width < MIN_WIDTH ? <TooNarrow /> : page === 'settings' ? (
-          <SettingsPage onBack={() => setPage('chat')} />
+          <SettingsPage onBack={() => setPage('chat')} onModelChange={(m) => setModel(m)} />
         ) : page === 'history' ? (
           <div className="history-page">
             <div className="history-topbar">
@@ -587,7 +639,6 @@ export function App(): JSX.Element {
                 {logoUri ? <img src={logoUri} className="brand-logo" alt="Tulvez" /> : <span className="brand-icon">T</span>}
                 <span className="brand-name">Tulvez Code</span>
               </div>
-              {workspaceName && <span className="header-workspace" title={workspaceName}>{workspaceName}</span>}
               <div className="header-actions">
                 <button className="icon-btn" type="button" title="Commit mesajı hazırla"
                   onClick={() => {
@@ -811,7 +862,6 @@ vscode.postMessage({ type: 'listModels' });
                             live={streaming && streamingIdRef.current === msg.id}
                             onAnimationEnd={() => animatedIdsRef.current.add(msg.id)}
                             onCopy={() => void copy(msg)}
-                            onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}
                           />
                         ) : (
                           <div className="turn-body">{msg.text}</div>
@@ -834,9 +884,15 @@ vscode.postMessage({ type: 'listModels' });
                   </div>
                 </div>
               )}
+            {messages.length > 0 && sticky && (
+              <button className="jump-bottom" type="button" title="En alta git" onClick={jumpToBottom}>
+                <ChevronDown size={14} />
+                {streaming && <span>Yanıt devam ediyor</span>}
+              </button>
+            )}
             </div>
 
-        {runConfirm && (
+            {runConfirm && (
               <div className="run-confirm-bar">
                 <div className="run-confirm-bar-top">
                   <Terminal size={11} /><span>Komut çalıştırma izni</span>
@@ -912,13 +968,6 @@ vscode.postMessage({ type: 'listModels' });
               </div>
             )}
 
-            {sticky && (
-              <button className="jump-bottom" type="button" title="En alta git" onClick={jumpToBottom}>
-                <ChevronDown size={14} />
-                {lastStreamingId !== null && <span>Yanıt devam ediyor</span>}
-              </button>
-            )}
-
             {messages.length > 0 && (
               <div className="stats-bar">
                 <span>{totalTokens.toLocaleString('tr-TR')} token</span>
@@ -961,7 +1010,7 @@ vscode.postMessage({ type: 'listModels' });
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <form className={modeClass} onSubmit={(e) => { e.preventDefault(); send(); }}>
+              <form className={modeClass} style={{ '--m-color': currentMode.color } as React.CSSProperties} onSubmit={(e) => { e.preventDefault(); send(); }}>
                 <textarea
                   ref={textareaRef}
                   className="composer-input"
@@ -979,36 +1028,13 @@ vscode.postMessage({ type: 'listModels' });
                     <button className="composer-btn icon-only" type="button" title="Ekle">
                       <CirclePlus size={15} strokeWidth={1.8} />
                     </button>
-<DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="composer-btn" type="button" title={model === 'Varsayılan' ? 'Model: varsayılan' : `Model: ${model}`}>
-                          {model === 'Varsayılan' ? 'Model' : model}
-                          <ChevronDown size={10} />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="dropdown-content">
-                        {['Varsayılan', ...liveModels].map((m) => (
-                          <DropdownMenuItem key={m} className="dropdown-item" onSelect={() => setModel(m)}>{m}</DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+<ModelPicker
+                      model={model}
+                      models={liveModels}
+                      onSelect={setModel}
+                    />
                   </div>
                   <div className="composer-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="composer-btn" type="button">
-                          <Sparkles size={12} strokeWidth={1.8} />Beceriler<ChevronDown size={10} />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="dropdown-content">
-                        {SKILLS.map((s) => (
-                          <DropdownMenuItem key={s.label} className="dropdown-item"
-                            onSelect={() => { setInput(s.prompt); window.setTimeout(() => textareaRef.current?.focus(), 50); }}>
-                            {s.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                     {streaming ? (
                       <button className="send-btn stop-btn" type="button" title="Durdur" onClick={() => vscode.postMessage({ type: 'cancelStream' })}>
                         <Square size={11} strokeWidth={2.5} />

@@ -1,70 +1,115 @@
 # Tulvez Code
 
-Tulvez Code, VS Code için gizlilik odaklı, BYOK (kendi anahtarını getir) mimarisine sahip yapay zeka kodlama asistanıdır.
+Gizlilik odaklı, BYOK yapay zeka kodlama asistanı — VS Code için.
+
+> 🇬🇧 [English below](#english)
+
+---
 
 ## Özellikler
 
-- **Ask / Plan / Build** modları: sadece soru cevaplama, plan üretme ve aktif kod yazma
-- **Çoklu sağlayıcı**: OpenAI, Anthropic, Google Gemini, Groq, Ollama (yerel)
-- **Araç döngüsü**: `read_file`, `write_file`, `edit_file`, `list_files`, `run_command` ile gerçek kod değişikliği ve terminal çalıştırma
-- **Onay mekanizması**: dosya yazma/düzenleme otomatik, `run_command` onay ister (Ayarlar üzerinden değiştirilebilir)
-- **Git kısayolları**: `/commit`, `/review`, `/diff`, `/explain`, `/run`
-- **Markdown render**, thinking animasyonu, token/maliyet/bağlam istatistikleri
-- **Kota bilgisi**: sağlayıcının model bazlı limit verileri ve sıfırlanma zamanı
-- **BYOK + SecretStorage**: API anahtarın yalnızca VS Code'un şifreli saklayıcısında durur; Tulvez sunucusuna gönderilmez
+- **Ask / Plan / Build modları** — Soru sor, adım adım plan üret veya Tulvez'in kodu doğrudan yazmasını sağla
+- **Çoklu sağlayıcı** — OpenAI, Anthropic, Google Gemini, Groq, Ollama (yerel/çevrimdışı)
+- **Gerçek araç kullanımı** — `read_file`, `write_file`, `edit_file`, `list_files`, `run_command` ile dosyalarına gerçekten dokunur
+- **Onay akışı** — Dosya düzenlemeleri otomatik uygulanır; terminal komutları onay ister (ayarlanabilir)
+- **Git kısayolları** — `/commit`, `/review`, `/diff`, `/explain`
+- **Markdown render**, düşünüş animasyonu, token / maliyet / bağlam istatistikleri
+- **Tam BYOK** — API anahtarın yalnızca VS Code'un şifreli `SecretStorage`'ında saklanır. Tulvez sunucusuna hiçbir şey gönderilmez.
+
+## Desteklenen Sağlayıcılar
+
+| Sağlayıcı | Notlar |
+|---|---|
+| Google Gemini | Ücretsiz katman mevcut |
+| OpenAI | GPT-4o, o1, o3… |
+| Anthropic | Claude 3.5 / 3.7… |
+| Groq | Çok hızlı çıkarım |
+| Ollama | Yerel, API anahtarı gerekmez |
+| Özel (OpenAI uyumlu) | OpenRouter, LM Studio, vLLM, Jan… |
 
 ## Kurulum
 
-Marketplace yayınından sonra:
+1. Marketplace'ten **Tulvez Code**'u yükle
+2. Activity Bar'daki Tulvez Code ikonuna tıkla
+3. Ayarlar sekmesinden API anahtarını gir (veya ilk açılışta karşılama kartından)
+4. Sağlayıcı ve modeli seç — hazır
 
-1. VS Code → Eklentiler → "Tulvez Code" ara → Yükle
-2. Sol kenardaki Tulvez Code ikonuna tıkla
-3. API anahtarını Ayarlar sekmesinden veya boş ekrandaki karttan ekle
-4. Sağlayıcı ve modeli seç; listede sadece hesabındaki gerçek modeller görünür
+## Slash Komutları
 
-## Kullanım
-
-- Sohbetten kod yazdırma: Build modu → "main.py oluştur, içine print yaz"
-- Git: `/commit` ile değişikliklerden commit mesajı, `/review` ile kod incelemesi, `/diff` ile özet
-- `/explain`: editörde seçili kodu açıklar
-
-## Geliştirme
-
-```bash
-npm install
-npm run check   # tip kontrolü
-npm run build   # extension + webview bundle
-npm run watch:extension  # veya watch:webview
-```
-
-VS Code içinde `F5` ile Extension Development Host açılır.
-
-## Paketleme / yayınlama
-
-```bash
-npx @vscode/vsce package          # VSIX üret
-npx @vscode/vsce publish -p $VSCE_PAT   # Marketplace'e gönder
-```
-
-`v*` etiketi (tag) atınca GitHub Actions otomatik derleyip Marketplace'e yayınlar. Detaylar `.github/workflows/publish.yml` dosyasında. `VSCE_PAT` adlı bir repository secret'ı gereklidir (Marketplace bir Azure DevOps Personal Access Token ister).
-
-## Skills (code_skills.md)
-
-Ajanın kimliği ve yetenekleri çalışma alanındaki `code_skills.md` dosyasından okunur — kodda gömülü
-değildir, böylece fork'lar kendi karakterlerini yazabilir. Dosyada `### başlık` ile tanımlanan
-skill'ler `/skill <başlık>` komutuyla çalıştırılır. Dosya yoksa Ayarlar → Skills bölümünden tek
-tıkla oluşturulabilir.
+| Komut | Açıklama |
+|---|---|
+| `/commit` | Staged değişikliklerden commit mesajı üret |
+| `/review` | Aktif dosyayı AI ile incele |
+| `/diff` | Mevcut git diff'i özetle |
+| `/explain` | Seçili kodu açıkla |
+| `/run <komut>` | Onaylı terminal komutu çalıştır |
 
 ## Gizlilik
 
-- API anahtarları VS Code `SecretStorage`'da saklanır.
-- Kod, istek sırasında seçilen sağlayıcının API'sine gider; Tulvez'ın kendi sunucusu yoktur.
-- `sendCodeContext` kapalıysa aktif dosya içeriği otomatik eklenmez.
+- API anahtarları VS Code `SecretStorage`'da şifreli saklanır — makinenden çıkmaz.
+- Kodun **doğrudan** seçtiğin sağlayıcıya gönderilir. Tulvez'in arka uç sunucusu yoktur.
+- `tulvez.sendCodeContext` kapatılırsa aktif dosya isteklere eklenmez.
+
+## Gereksinimler
+
+- VS Code `^1.85.0`
+- Seçilen sağlayıcı için API anahtarı (veya yerel Ollama)
+
+## Eklenti Ayarları
+
+| Ayar | Varsayılan | Açıklama |
+|---|---|---|
+| `tulvez.aiProvider` | `openai` | AI sağlayıcısı |
+| `tulvez.model` | _(sağlayıcı varsayılanı)_ | Model adı |
+| `tulvez.sendCodeContext` | `false` | Aktif dosyayı isteklere ekle |
+| `tulvez.allowShellCommands` | `false` | Terminal komutlarına izin ver |
+| `tulvez.autoApproveCommands` | `false` | Komutları otomatik onayla |
+| `tulvez.showThinking` | `true` | Model düşünüşünü göster |
 
 ## Lisans
 
 MIT — [LICENSE](LICENSE)
 
-## Katkı
+---
 
-Katkılar fork + PR modeliyle alınır; PR'lar bakımcı onayından sonra merge edilir. Detay: [CONTRIBUTING.md](CONTRIBUTING.md)
+## English
+
+Privacy-focused, BYOK AI coding assistant for VS Code.
+
+### Features
+
+- **Ask / Plan / Build modes** — Ask questions, generate step-by-step plans, or let Tulvez actively write and edit your code
+- **Multi-provider** — OpenAI, Anthropic, Google Gemini, Groq, Ollama (local/offline)
+- **Real tool use** — `read_file`, `write_file`, `edit_file`, `list_files`, `run_command` — Tulvez actually touches your files
+- **Approval flow** — File edits are applied automatically; terminal commands require your confirmation (configurable)
+- **Git shortcuts** — `/commit`, `/review`, `/diff`, `/explain`
+- **Markdown rendering**, reasoning animation, token / cost / context-window stats
+- **100% BYOK** — Your API key lives only in VS Code's encrypted `SecretStorage`. Nothing is sent to Tulvez servers.
+
+### Supported Providers
+
+| Provider | Notes |
+|---|---|
+| Google Gemini | Free tier available |
+| OpenAI | GPT-4o, o1, o3… |
+| Anthropic | Claude 3.5 / 3.7… |
+| Groq | Very fast inference |
+| Ollama | Local, no API key needed |
+| Custom (OpenAI-compatible) | OpenRouter, LM Studio, vLLM, Jan… |
+
+### Getting Started
+
+1. Install **Tulvez Code** from the Marketplace
+2. Click the Tulvez Code icon in the Activity Bar
+3. Enter your API key in the Settings tab (or the welcome card on first launch)
+4. Pick your provider and model — done
+
+### Privacy
+
+- API keys are stored in VS Code `SecretStorage` — encrypted, never leaves your machine.
+- Your code is sent **directly** to the provider you choose. Tulvez has no backend.
+- Turn off `tulvez.sendCodeContext` to stop the active file from being included in requests.
+
+### License
+
+MIT — see [LICENSE](LICENSE)

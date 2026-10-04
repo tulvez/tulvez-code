@@ -26,7 +26,15 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#181818",
+    "theme": "dark"
+  },
   "categories": [
+    "AI",
+    "Machine Learning",
+    "Programming Languages",
     "Other"
   ],
   "activationEvents": [
