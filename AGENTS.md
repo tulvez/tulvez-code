@@ -5,7 +5,8 @@ Bu dosya, Tulvez Code'un bu depoyu kendi araçlarıyla çalışması için gerek
 ## Komutlar
 
 ```bash
-npm run check            # hem extension hem webview için TypeScript kontrolü
+npm run check            # tip kontrolü (extension + webview + testler)
+npm test                 # vitest ile otomatik testler
 npm run build            # extension (esbuild) + webview (vite) derlemesi
 npm run watch:extension  # extension izleme
 npm run watch:webview    # webview izleme

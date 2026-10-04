@@ -133,11 +133,13 @@
     "build": "npm run build:extension && npm run build:webview",
     "build:extension": "esbuild src/extension.ts --bundle --platform=node --external:vscode --format=cjs --outfile=dist/extension.js",
     "build:webview": "vite build",
-    "check": "tsc --noEmit && tsc -p webview/tsconfig.json --noEmit",
+    "check": "tsc --noEmit && tsc -p webview/tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "package": "npm run build",
     "watch:extension": "esbuild src/extension.ts --bundle --platform=node --external:vscode --format=cjs --outfile=dist/extension.js --watch",
     "watch:webview": "vite build --watch",
-    "dev": "npm run build && \"%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\bin\\code.cmd\" --extensionDevelopmentPath=\"%CD%\" --new-window --skip-welcome"
+    "dev": "npm run build && \"%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\bin\\code.cmd\" --extensionDevelopmentPath=\"%CD%\" --new-window --skip-welcome",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
@@ -149,7 +151,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.6.3",
-    "vite": "^5.4.10"
+    "vite": "^5.4.10",
+    "vitest": "^2.1.9"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.71",
