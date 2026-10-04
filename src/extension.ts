@@ -93,6 +93,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   let activeAbort: AbortController | null = null;
   let lastEditedFile: string | null = null;
+  let lastAssistantText = '';
+  let pendingCommitText = '';
 
   const runAgentFor = async (
     webview: vscode.Webview,
@@ -100,12 +102,17 @@ export function activate(context: vscode.ExtensionContext): void {
     prompt: string,
     mode: 'ask' | 'plan' | 'build',
     history: { role: 'user' | 'assistant'; text: string }[],
+    opts: { commitMessage?: { staged: boolean } } = {},
   ): Promise<void> => {
+    const commitMessage = opts.commitMessage;
     activeAbort?.abort();
     activeAbort = new AbortController();
     const signal = activeAbort.signal;
     await runAgent(settings, prompt, mode, history, {
-      onChunk: (chunk) => void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage),
+      onChunk: (chunk) => {
+        lastAssistantText += chunk;
+        void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage);
+      },
       onReasoning: (chunk) => void webview.postMessage({ type: 'assistantReasoning', text: chunk } satisfies HostToWebviewMessage),
       onToolCall: (tool, summary) => {
         lastEditedFile = tool === 'write_file' || tool === 'replace_in_file' ? summary : lastEditedFile;
@@ -118,6 +125,16 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
       onDone: (usage) => {
         activeAbort = null;
+        if (commitMessage) {
+          pendingCommitText = lastAssistantText.trim();
+          void webview.postMessage({
+            type: 'commitMessage',
+            text: pendingCommitText,
+            staged: commitMessage.staged,
+          } satisfies HostToWebviewMessage);
+          lastAssistantText = '';
+          pendingCommitText = '';
+        }
         if (lastEditedFile) {
           const target = lastEditedFile;
           lastEditedFile = null;
@@ -161,6 +178,23 @@ export function activate(context: vscode.ExtensionContext): void {
     webview: vscode.Webview,
     message: WebviewToHostMessage,
   ): Promise<void> => {
+    if (message.type === 'applyCommit') {
+      const msg = message.message.trim();
+      if (!msg) return;
+      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const result = await new Promise<{ output: string; exitCode: number }>((resolve) => {
+        cp.exec(`git commit -m ${JSON.stringify(msg)}`, { cwd }, (err, stdout, stderr) => {
+          resolve({ output: `${stdout || ''}${stderr || ''}`.trim() || err?.message || '', exitCode: err?.code ?? 0 });
+        });
+      });
+      await webview.postMessage({
+        type: 'commitResult',
+        output: result.exitCode === 0 ? result.output || 'Commit oluşturuldu.' : `Commit başarısız: ${result.output}`,
+        exitCode: result.exitCode,
+      } satisfies HostToWebviewMessage);
+      return;
+    }
+
     if (message.type === 'cancelStream') {
       activeAbort?.abort();
       activeAbort = null;
@@ -279,12 +313,15 @@ export function activate(context: vscode.ExtensionContext): void {
       let prompt = '';
       if (message.name === 'commit') {
         let diff = await git('diff --cached');
+        const staged = !!diff;
         if (!diff) diff = await git('diff');
         if (!diff) {
           await webview.postMessage({ type: 'error', message: 'Commitlenecek değişiklik yok. Önce git add çalıştırın.' } satisfies HostToWebviewMessage);
           return;
         }
-        prompt = `Aşağıdaki değişiklikler için conventional commit formatında, Türkçe, tek satırlık kısa bir commit mesajı üret. Ek açıklama ekleme, sadece mesajı ver:\n\n${diff.slice(0, 12000)}`;
+        prompt = `Aşağıdaki değişiklikler için conventional commit formatında, Türkçe, tek satırlık kısa bir commit mesajı üret. Sadece mesaj metnini yaz, başlık/açıklama listesi yok, tırnak yok:\n\n${diff.slice(0, 12000)}`;
+        await runAgentFor(webview, settings, prompt, mode, [], { commitMessage: { staged } });
+        return;
       } else if (message.name === 'review') {
         let diff = await git('diff --cached');
         if (!diff) diff = await git('diff');
