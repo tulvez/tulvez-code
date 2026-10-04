@@ -368,9 +368,53 @@ export function App(): JSX.Element {
     return () => ro.disconnect();
   }, []);
 
+  // Otomatik kaydırma: kullanıcı zaten en altta ise (ya da yakınsa) yeni içeriği takip et.
+  // Kullanıcı yukarı kaydırdıysa akış bitene kadar onu zorla aşağı çekme.
+  const [sticky, setSticky] = useState(false);
+  const [lastStreamingId, setLastStreamingId] = useState<number | null>(null);
+  const stickToBottom = useRef(true);
+  const prevStreamingId = useRef<number | null>(null);
+
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, runConfirm]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = (): void => {
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const atBottom = distance < 90;
+      stickToBottom.current = atBottom;
+      setSticky(!atBottom);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const current = streamingIdRef.current;
+    if (current !== null && stickToBottom.current) {
+      const continuous = prevStreamingId.current === current;
+      el.scrollTo({ top: el.scrollHeight, behavior: continuous ? 'auto' : 'smooth' });
+    }
+    prevStreamingId.current = current;
+    setLastStreamingId(current);
+  }, [messages, waiting, runConfirm, toolApproval, commitCard, streaming]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottom.current = true;
+    setSticky(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [streaming]);
+
+  const jumpToBottom = (): void => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottom.current = true;
+    setSticky(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  };
 
   const autoResize = () => {
     const el = textareaRef.current;
@@ -863,6 +907,13 @@ onClick={() => {
                   </button>
                 ))}
               </div>
+            )}
+
+            {sticky && (
+              <button className="jump-bottom" type="button" title="En alta git" onClick={jumpToBottom}>
+                <ChevronDown size={14} />
+                {lastStreamingId !== null && <span>Yanıt devam ediyor</span>}
+              </button>
             )}
 
             {messages.length > 0 && (
