@@ -118,12 +118,15 @@ function UsageBadge({ inputTokens, outputTokens, costUsd, model }: { inputTokens
   );
 }
 
-function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, stopped, reasoning, showThinking, onAnimationEnd }: {
+function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens, outputTokens, costUsd, model, stopped, reasoning, showThinking, live, onAnimationEnd }: {
   text: string; onCopy: () => void; onRunHint: () => void; copied: boolean; animate: boolean;
   inputTokens?: number; outputTokens?: number; costUsd?: number; model?: string; stopped?: boolean;
-  reasoning?: string; showThinking: boolean; onAnimationEnd?: () => void;
+  reasoning?: string; showThinking: boolean; live?: boolean; onAnimationEnd?: () => void;
 }) {
-  const { displayed, done } = useTyping(text, animate);
+  const { displayed, done: typed } = useTyping(text, animate);
+  // Gerçek akış durumu: akış açıkken metin gelmemişse düşünüyoruz.
+  const busy = !!live && !typed && !stopped && !inputTokens;
+  const done = typed || (!live && text.length > 0);
 
   useEffect(() => {
     if (done && animate) onAnimationEnd?.();
@@ -132,14 +135,14 @@ function AssistantBubble({ text, onCopy, onRunHint, copied, animate, inputTokens
   return (
     <>
       {reasoning && reasoning.trim() && showThinking && (
-        <details className="reasoning" open={done ? undefined : true}>
+        <details className="reasoning" open={busy || undefined}>
           <summary>Düşünüş ({reasoning.length} karakter)</summary>
           <div className="reasoning-body">{reasoning}</div>
         </details>
       )}
       <div className="turn-body">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
-        {!done && !stopped && displayed.length === 0 && <span className="thinking-inline">Düşünüyor…</span>}
+        {busy && <span className="thinking-inline">Düşünüyor…</span>}
       </div>
       {stopped && <div className="stopped-label">Yanıt durduruldu</div>}
       {done && inputTokens !== undefined && outputTokens !== undefined && costUsd !== undefined && (
@@ -731,6 +734,7 @@ onClick={() => {
                             stopped={msg.stopped}
                             reasoning={msg.reasoning}
                             showThinking={settings?.showThinking ?? true}
+                            live={streamingIdRef.current === msg.id && streaming}
                             onAnimationEnd={() => animatedIdsRef.current.add(msg.id)}
                             onCopy={() => void copy(msg)}
                             onRunHint={() => { setInput('/run '); textareaRef.current?.focus(); }}

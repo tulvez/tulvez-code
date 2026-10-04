@@ -236,7 +236,10 @@ img { -webkit-user-drag: none; user-select: none; }
 .reasoning-body {
   margin-top: 6px; color: var(--vscode-descriptionForeground);
   white-space: pre-wrap; line-height: 1.5; font-size: 12px;
+  max-height: 190px; overflow-y: auto;
+  animation: reasonIn 0.15s var(--ease);
 }
+@keyframes reasonIn { from { opacity: 0.5; } to { opacity: 1; } }
 
 /* Thinking indicator */
 .thinking-inline {
