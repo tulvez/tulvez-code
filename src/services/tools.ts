@@ -2,130 +2,101 @@ import * as cp from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { z } from 'zod';
 
 export interface ToolDefinition {
   name: string;
   description: string;
-  parameters: Record<string, unknown>;
+  schema: z.ZodType;
   requiresApproval: boolean;
   readOnly: boolean;
 }
 
+
+
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'read_file',
-    description: 'Çalışma alanındaki bir dosyanın içeriğini okur.',
+    description: 'Çalışma alanındaki bir dosyanın içeriğini satır numaralarıyla okur.',
     requiresApproval: false,
     readOnly: true,
-    parameters: {
-      type: 'object',
-      properties: { path: { type: 'string', description: 'Dosya yolu (çalışma alanına göre)' } },
-      required: ['path'],
-    },
-  },
-  {
-    name: 'write_file',
-    description: 'Bir dosyaya içerik yazar (yoksa oluşturur).',
-    requiresApproval: false,
-    readOnly: false,
-    parameters: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: 'Dosya yolu' },
-        content: { type: 'string', description: 'Yazılacak içerik' },
-      },
-      required: ['path', 'content'],
-    },
-  },
-  {
-    name: 'edit_file',
-    description: 'Bir dosyada eski metni yenisiyle değiştirir.',
-    requiresApproval: false,
-    readOnly: false,
-    parameters: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: 'Dosya yolu' },
-        old_string: { type: 'string', description: 'Değiştirilecek mevcut metin' },
-        new_string: { type: 'string', description: 'Yeni metin' },
-      },
-      required: ['path', 'old_string', 'new_string'],
-    },
+    schema: z.object({ path: z.string().describe('Dosya yolu (çalışma alanına göre)') }),
   },
   {
     name: 'read_files',
     description: 'Birden fazla dosyayı aynı anda okur (bağlam için verimli).',
     requiresApproval: false,
     readOnly: true,
-    parameters: {
-      type: 'object',
-      properties: { paths: { type: 'array', items: { type: 'string' }, description: 'Dosya yolları' } },
-      required: ['paths'],
-    },
+    schema: z.object({ paths: z.array(z.string()).describe('Dosya yolları') }),
   },
   {
     name: 'grep_files',
     description: 'Çalışma alanında regex ile arama yapar; dosya:satır eşleşmeleri döner.',
     requiresApproval: false,
     readOnly: true,
-    parameters: {
-      type: 'object',
-      properties: {
-        pattern: { type: 'string', description: 'Regex deseni' },
-        include: { type: 'string', description: 'İsteğe bağlı dosya uzantısı filtresi (örn: ts)' },
-        max_results: { type: 'number', description: 'En fazla sonuç sayısı (varsayılan 100)' },
-      },
-      required: ['pattern'],
-    },
+    schema: z.object({
+      pattern: z.string().describe('Regex deseni'),
+      include: z.string().optional().describe('Dosya uzantısı filtresi (örn: ts)'),
+      max_results: z.number().optional().describe('En fazla sonuç sayısı (varsayılan 100)'),
+    }),
   },
   {
     name: 'list_dir',
     description: 'Bir klasörün ağacını (derinlik sınırlı) listeler.',
     requiresApproval: false,
     readOnly: true,
-    parameters: {
-      type: 'object',
-      properties: { directory: { type: 'string', description: 'Klasör yolu' }, depth: { type: 'number', description: 'Derinlik (varsayılan 2)' } },
-    },
+    schema: z.object({
+      directory: z.string().optional().describe('Klasör yolu'),
+      depth: z.number().optional().describe('Derinlik (varsayılan 2)'),
+    }),
+  },
+  {
+    name: 'list_files',
+    description: 'Bir klasördeki dosyaları tek seviye listeler.',
+    requiresApproval: false,
+    readOnly: true,
+    schema: z.object({ directory: z.string().optional().describe('Klasör yolu (varsayılan: kök)') }),
+  },
+  {
+    name: 'write_file',
+    description: 'Bir dosyaya içerik yazar (yoksa oluşturur).',
+    requiresApproval: false,
+    readOnly: false,
+    schema: z.object({
+      path: z.string().describe('Dosya yolu'),
+      content: z.string().describe('Yazılacak içerik'),
+    }),
+  },
+  {
+    name: 'edit_file',
+    description: 'Bir dosyada eski metni yenisiyle değiştirir.',
+    requiresApproval: false,
+    readOnly: false,
+    schema: z.object({
+      path: z.string().describe('Dosya yolu'),
+      old_string: z.string().describe('Değiştirilecek mevcut metin'),
+      new_string: z.string().describe('Yeni metin'),
+    }),
   },
   {
     name: 'replace_in_file',
     description: 'Bir dosyada metni değiştirir; eski metin tam ve tekil eşleşmek zorundadır, aksi halde hata döner.',
     requiresApproval: false,
     readOnly: false,
-    parameters: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: 'Dosya yolu' },
-        old_string: { type: 'string', description: 'Değiştirilecek mevcut metin (tam ve tekil olmalı)' },
-        new_string: { type: 'string', description: 'Yeni metin' },
-      },
-      required: ['path', 'old_string', 'new_string'],
-    },
-  },
-  {
-    name: 'list_files',
-    description: 'Bir klasördeki dosyaları listeler.',
-    requiresApproval: false,
-    readOnly: true,
-    parameters: {
-      type: 'object',
-      properties: { directory: { type: 'string', description: 'Klasör yolu (varsayılan: kök)' } },
-    },
+    schema: z.object({
+      path: z.string().describe('Dosya yolu'),
+      old_string: z.string().describe('Değiştirilecek mevcut metin (tam ve tekil olmalı)'),
+      new_string: z.string().describe('Yeni metin'),
+    }),
   },
   {
     name: 'run_command',
     description: 'Çalışma alanında terminal komutu çalıştırır.',
     requiresApproval: true,
     readOnly: false,
-    parameters: {
-      type: 'object',
-      properties: { command: { type: 'string', description: 'Çalıştırılacak komut' } },
-      required: ['command'],
-    },
+    schema: z.object({ command: z.string().describe('Çalıştırılacak komut') }),
   },
 ];
-
 function workspaceRoot(): string {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
 }
@@ -357,3 +328,4 @@ export async function executeTool(
     return `Araç hatası (${name}): ${err instanceof Error ? err.message : String(err)}`;
   }
 }
+

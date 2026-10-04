@@ -1,27 +1,11 @@
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI, type Part } from '@google/generative-ai';
+import { stepCountIs, streamText, type ModelMessage, type ToolSet } from 'ai';
 import type { TulvezSettings } from './messages';
-import { calcCost, buildPrompt, type AgentMode, type ChatTurn } from './ai';
+import { calcCost } from './cost';
+import { buildPrompt } from './ai';
+import type { AgentMode, ChatTurn } from './types';
 import { TOOL_DEFINITIONS, executeTool } from './tools';
 import { buildRepoMap } from './repomap';
-
-let repoMapCache: { text: string; fileCount: number; builtAt: number } | null = null;
-
-export function invalidateRepoMap(): void {
-  repoMapCache = null;
-}
-
-async function repoMapFor(): Promise<string> {
-  if (repoMapCache && Date.now() - repoMapCache.builtAt < 60_000) return repoMapCache.text;
-  try {
-    const map = await buildRepoMap();
-    repoMapCache = { text: map.text, fileCount: map.fileCount, builtAt: Date.now() };
-    return map.text;
-  } catch {
-    return '';
-  }
-}
+import { resolveModel } from './providers';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -33,28 +17,35 @@ export interface AgentCallbacks {
   onError: (err: string) => void;
 }
 
-class CancelledError extends Error {
-  constructor() {
-    super('TulvezIsCancelled');
+let repoMapCache: { text: string; builtAt: number } | null = null;
+
+export function invalidateRepoMap(): void {
+  repoMapCache = null;
+}
+
+async function repoMapFor(): Promise<string> {
+  if (repoMapCache && Date.now() - repoMapCache.builtAt < 60_000) return repoMapCache.text;
+  try {
+    const map = await buildRepoMap();
+    repoMapCache = { text: map.text, builtAt: Date.now() };
+    return map.text;
+  } catch {
+    return '';
   }
 }
 
 function contextWindow(model: string): number {
   if (model.includes('gemini')) return 1048576;
   if (model.includes('claude')) return 200000;
-  if (model.includes('o1')) return 200000;
+  if (model.includes('o1') || model.includes('gpt-5')) return 400000;
   if (model.includes('gpt-4o')) return 128000;
   if (model.includes('gpt-4')) return 8192;
   if (model.includes('llama')) return 128000;
   if (model.includes('mixtral')) return 32768;
-  if (model.includes('gemma')) return 8192;
+  if (model.includes('gemma') || model.includes('qwen')) return 32768;
+  if (model.includes('mimo') || model.includes('ling') || model.includes('nemotron')) return 128000;
   return 128000;
 }
-
-const SUPPORTED_TOOLS = ['openai', 'groq', 'anthropic', 'gemini', 'ollama', 'opencode', 'custom'] as const;
-
-let toolReqCounter = 0;
-const nextToolReqId = () => `tool-${Date.now()}-${toolReqCounter++}`;
 
 function isTrivialRequest(text: string): boolean {
   const t = text.trim().toLowerCase().replace(/[.!?.,]/g, '');
@@ -64,29 +55,46 @@ function isTrivialRequest(text: string): boolean {
   return trivial.includes(t);
 }
 
-function defaultModelFor(provider: string): string {
-  if (provider === 'groq') return 'llama-3.3-70b-versatile';
-  if (provider === 'ollama') return 'llama3';
-  if (provider === 'opencode') return 'claude-sonnet-4-5';
-  return 'gpt-4o-mini';
-}
-
 function toolSummary(name: string, args: Record<string, unknown>): string {
   if (name === 'run_command') return String(args.command ?? '');
-  if (name === 'read_file' || name === 'write_file' || name === 'edit_file') return String(args.path ?? '');
-  if (name === 'list_files') return String(args.directory ?? '.');
+  if (name === 'read_file' || name === 'write_file' || name === 'edit_file' || name === 'replace_in_file') {
+    return String(args.path ?? '');
+  }
+  if (name === 'read_files') return (Array.isArray(args.paths) ? (args.paths as string[]) : []).join(', ');
+  if (name === 'grep_files') return `${args.pattern ?? ''}${args.include ? ` (${args.include})` : ''}`;
+  if (name === 'list_files' || name === 'list_dir') return String(args.directory ?? '.');
   return JSON.stringify(args).slice(0, 120);
 }
 
-async function maybeApprove(
+let toolReqCounter = 0;
+const nextToolReqId = () => `tool-${Date.now()}-${toolReqCounter++}`;
+
+/** Araç şemasını AI SDK formatına çevirir ve execute ile birleştirir. */
+function buildToolSet(
   settings: TulvezSettings,
+  defs: typeof TOOL_DEFINITIONS,
   cb: AgentCallbacks,
-  name: string,
-  args: Record<string, unknown>,
-): Promise<boolean> {
-  const def = TOOL_DEFINITIONS.find((t) => t.name === name);
-  if (!def?.requiresApproval || settings.autoApproveCommands) return true;
-  return cb.onToolRequest(nextToolReqId(), name, JSON.stringify(args, null, 2).slice(0, 2000));
+): ToolSet {
+  const tools: ToolSet = {};
+  for (const def of defs) {
+    tools[def.name] = {
+      description: def.description,
+      inputSchema: def.schema as ToolSet[string]['inputSchema'],
+      execute: async (args: Record<string, unknown>) => {
+        cb.onToolCall(def.name, toolSummary(def.name, args));
+        if (def.requiresApproval && !settings.autoApproveCommands) {
+          const allowed = await cb.onToolRequest(
+            nextToolReqId(),
+            def.name,
+            JSON.stringify(args, null, 2).slice(0, 2000),
+          );
+          if (!allowed) return 'Kullanıcı aracı reddetti.';
+        }
+        return executeTool(def.name, args, settings.allowShellCommands);
+      },
+    } as ToolSet[string];
+  }
+  return tools;
 }
 
 export async function runAgent(
@@ -97,16 +105,35 @@ export async function runAgent(
   callbacks: AgentCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  if (!SUPPORTED_TOOLS.includes(settings.aiProvider as (typeof SUPPORTED_TOOLS)[number])) {
-    callbacks.onError('Bu sağlayıcı henüz araç desteklemiyor.');
+  if (settings.aiProvider === 'custom' && !settings.baseUrl) {
+    callbacks.onError('Base URL boş. Ayarlar\'dan OpenAI uyumlu endpoint adresini girin.');
     return;
   }
-  // Selamlaşma ve kısa basit sorularda araç çağırma: model boşuna dosya listelemesin.
+  if (settings.aiProvider !== 'ollama' && !settings.apiKey) {
+    callbacks.onError('API anahtarı eksik. Ayarlar\'dan ekleyin.');
+    return;
+  }
+
   const trivial = isTrivialRequest(userMessage);
   const repoMap = trivial ? '' : await repoMapFor();
-  const systemPrompt = buildPrompt(mode, repoMap);
-  // Ask modunda yalnızca salt-okunur araçlar çalışır; yazma/komut araçları kapalı.
-  const allowedTools = TOOL_DEFINITIONS.filter((t) => (mode !== 'ask' || t.readOnly) && !trivial);
+  const system = buildPrompt(mode, repoMap);
+  const allowed = TOOL_DEFINITIONS.filter((t) => (mode !== 'ask' || t.readOnly) && !trivial);
+
+  let resolved;
+  try {
+    resolved = resolveModel(settings);
+  } catch (err) {
+    callbacks.onError(err instanceof Error ? err.message : String(err));
+    return;
+  }
+
+  const messages: ModelMessage[] = [
+    ...history.map<ModelMessage>((t) => ({
+      role: t.role === 'assistant' ? 'assistant' : 'user',
+      content: t.text,
+    })),
+    { role: 'user', content: userMessage },
+  ];
 
   const maxAttempts = settings.autoApproveCommands ? 1 : 3;
   let chunkSeen = false;
@@ -121,33 +148,52 @@ export async function runAgent(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     chunkSeen = false;
     try {
-      if (settings.aiProvider === 'anthropic') {
-        await runAnthropic(settings, systemPrompt, userMessage, history, cb, allowedTools, signal);
-      } else if (settings.aiProvider === 'gemini') {
-        await runGemini(settings, systemPrompt, userMessage, history, cb, allowedTools, signal);
-      } else {
-        const baseURL =
-          settings.aiProvider === 'groq' ? 'https://api.groq.com/openai/v1'
-          : settings.aiProvider === 'opencode' ? 'https://opencode.ai/zen/v1'
-          : settings.aiProvider === 'custom' ? (settings.baseUrl || '').replace(/\/$/, '')
-          : settings.aiProvider === 'ollama' ? `${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`
-          : undefined;
-        await runOpenAICompatible(settings, systemPrompt, userMessage, history, cb, baseURL, allowedTools, signal);
+      const tools = buildToolSet(settings, allowed, cb);
+      const result = streamText({
+        model: resolved.model,
+        system,
+        messages,
+        tools,
+        stopWhen: stepCountIs(12),
+        abortSignal: signal,
+        maxRetries: 0,
+      });
+
+      let sawText = false;
+      for await (const part of result.fullStream) {
+        if (part.type === 'text-delta') {
+          if (part.text) { sawText = true; cb.onChunk(part.text); }
+        } else if (part.type === 'reasoning-delta') {
+          if (part.text) cb.onReasoning?.(part.text);
+        }
       }
+
+      const usage = await result.usage;
+      const finishReason = await result.finishReason;
+      const text = (await result.text).trim();
+
+      if (!text && !sawText && finishReason !== 'tool-calls') {
+        cb.onChunk('_(Model boş yanıt döndü. Modeli değiştirmeyi veya isteği kısaltmayı dene.)_');
+      } else if (finishReason === 'length') {
+        cb.onChunk('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmek için "devam" yazabilirsin._');
+      }
+
+      cb.onDone({
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        costUsd: calcCost(resolved.id, usage.inputTokens ?? 0, usage.outputTokens ?? 0),
+        contextWindow: contextWindow(resolved.id),
+        model: resolved.id,
+      });
       return;
     } catch (err) {
-      if (err instanceof CancelledError) {
-        callbacks.onCancelled?.();
+      if (signal?.aborted) {
+        cb.onCancelled?.();
         return;
       }
-      const message = err instanceof Error ? err.message : String(err);
-      if (/abort/i.test(message) || signal?.aborted) {
-        callbacks.onCancelled?.();
-        return;
-      }
-      const retryable = isRetryableError(message);
-      if (!retryable || attempt >= maxAttempts || chunkSeen) {
-        callbacks.onError(message);
+      const raw = err instanceof Error ? err.message : String(err);
+      if (!isRetryable(raw) || attempt >= maxAttempts || chunkSeen) {
+        cb.onError(raw);
         return;
       }
       await delay(1200 * attempt * attempt);
@@ -155,269 +201,16 @@ export async function runAgent(
   }
 }
 
-function isRetryableError(message: string): boolean {
+function isRetryable(message: string): boolean {
   const m = message.toLowerCase();
   return (
     m.includes('429') || m.includes('503') || m.includes('502') || m.includes('500') ||
-    m.includes('quota') || m.includes('high demand') || m.includes('failed to parse stream') ||
+    m.includes('quota') || m.includes('high demand') || m.includes('overloaded') ||
     m.includes('econnreset') || m.includes('etimedout') || m.includes('socket hang up') ||
-    m.includes('zaman aşımına uğradı') || m.includes('fetch failed') || m.includes('network')
+    m.includes('fetch failed') || m.includes('network')
   );
 }
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-const openAIToolsFor = (tools: typeof TOOL_DEFINITIONS): OpenAI.Chat.Completions.ChatCompletionTool[] =>
-  tools.map((t) => ({
-    type: 'function',
-    function: { name: t.name, description: t.description, parameters: t.parameters as OpenAI.FunctionDefinition['parameters'] },
-  }));
-
-async function runOpenAICompatible(
-  settings: TulvezSettings,
-  systemPrompt: string,
-  userMessage: string,
-  history: ChatTurn[],
-  cb: AgentCallbacks,
-  baseURL?: string,
-  tools: typeof TOOL_DEFINITIONS = TOOL_DEFINITIONS,
-  signal?: AbortSignal,
-): Promise<void> {
-  const apiKey = settings.aiProvider === 'ollama' ? 'ollama' : settings.apiKey;
-  const isOllama = settings.aiProvider === 'ollama';
-  if (!isOllama && !settings.apiKey) {
-    cb.onError('API anahtarı eksik. Ayarlar\'dan ekleyin.');
-    return;
-  }
-  if (settings.aiProvider === 'custom' && !settings.baseUrl) {
-    cb.onError('Base URL boş. Ayarlar\'dan OpenAI uyumlu endpoint adresini girin.');
-    return;
-  }
-  const model = settings.model || defaultModelFor(settings.aiProvider);
-  const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: 'system', content: systemPrompt },
-    ...history.map((t) => ({ role: t.role, content: t.text }) as OpenAI.Chat.Completions.ChatCompletionMessageParam),
-    { role: 'user', content: userMessage },
-  ];
-  let inputTokens = 0;
-  let outputTokens = 0;
-
-  for (let step = 0; step < 10; step++) {
-    if (signal?.aborted) throw new CancelledError();
-    const stream = await client.chat.completions.create({
-      model,
-      stream: true,
-      stream_options: { include_usage: true },
-      messages,
-      tools: openAIToolsFor(tools),
-    }, { signal });
-
-    let content = '';
-    let reasoning = '';
-    let truncated = false;
-    const partial = new Map<number, { id: string; name: string; args: string }>();
-
-    for await (const chunk of stream) {
-      const choice = chunk.choices[0];
-      if (choice?.finish_reason === 'length') truncated = true;
-      const delta = choice?.delta;
-      if (delta?.content) {
-        content += delta.content;
-        cb.onChunk(delta.content);
-      }
-      const think = (delta as { reasoning_content?: string; reasoning?: string } | undefined)?.reasoning_content
-        ?? (delta as { reasoning?: string } | undefined)?.reasoning;
-      if (think) {
-        reasoning += think;
-        cb.onReasoning?.(think);
-      }
-      if (delta?.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          const cur = partial.get(tc.index) ?? { id: '', name: '', args: '' };
-          if (tc.id) cur.id = tc.id;
-          if (tc.function?.name) cur.name += tc.function.name;
-          if (tc.function?.arguments) cur.args += tc.function.arguments;
-          partial.set(tc.index, cur);
-        }
-      }
-      if (chunk.usage) {
-        inputTokens = chunk.usage.prompt_tokens ?? inputTokens;
-        outputTokens = chunk.usage.completion_tokens ?? outputTokens;
-      }
-    }
-
-    if (partial.size === 0) {
-      if (truncated) {
-        const note = reasoning
-          ? '\n\n_⚠️ Model düşünme sırasında çıktı sınırına dayandı; cevap eksik kaldı. "devam" yazabilir ya da daha kısa bir istek yazabilirsin._'
-          : '\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. "devam" yazabilirsin._';
-        cb.onChunk(note);
-      } else if (!content.trim() && reasoning.trim()) {
-        cb.onChunk('_Model yalnızca düşünme üretti, metin çıktısı boş. Bu modelle daha kısa bir istek dene veya başka bir model seç._');
-      }
-      break;
-    }
-
-    messages.push({
-      role: 'assistant',
-      content: content || null,
-      tool_calls: [...partial.values()].map((t) => ({
-        id: t.id,
-        type: 'function' as const,
-        function: { name: t.name, arguments: t.args },
-      })),
-    });
-
-    for (const t of partial.values()) {
-      let args: Record<string, unknown> = {};
-      try { args = t.args ? JSON.parse(t.args) : {}; } catch { args = {}; }
-      cb.onToolCall(t.name, toolSummary(t.name, args));
-      const allowed = await maybeApprove(settings, cb, t.name, args);
-      const result = allowed
-        ? await executeTool(t.name, args, settings.allowShellCommands)
-        : 'Kullanıcı aracı reddetti.';
-      messages.push({ role: 'tool', tool_call_id: t.id, content: result });
-    }
-  }
-
-  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model), model });
-}
-
-async function runAnthropic(
-  settings: TulvezSettings,
-  systemPrompt: string,
-  userMessage: string,
-  history: ChatTurn[],
-  cb: AgentCallbacks,
-  toolDefs: typeof TOOL_DEFINITIONS = TOOL_DEFINITIONS,
-  signal?: AbortSignal,
-): Promise<void> {
-  if (!settings.apiKey) { cb.onError('Anthropic API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
-  const model = settings.model || 'claude-3-5-haiku-20241022';
-  const client = new Anthropic({ apiKey: settings.apiKey });
-  const messages: Anthropic.MessageParam[] = [
-    ...history.map((t) => ({ role: t.role, content: t.text })),
-    { role: 'user', content: userMessage },
-  ];
-  const tools: Anthropic.Tool[] = toolDefs.map((t) => ({
-    name: t.name,
-    description: t.description,
-    input_schema: t.parameters as Anthropic.Tool.InputSchema,
-  }));
-  let inputTokens = 0;
-  let outputTokens = 0;
-
-  for (let step = 0; step < 10; step++) {
-    if (signal?.aborted) throw new CancelledError();
-    const stream = client.messages.stream({ model, max_tokens: 4096, system: systemPrompt, tools, messages }, { signal });
-    let streamedText = '';
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        streamedText += event.delta.text;
-        cb.onChunk(event.delta.text);
-      }
-      if (event.type === 'message_start' && event.message.usage) inputTokens = event.message.usage.input_tokens;
-      if (event.type === 'message_delta' && event.usage) outputTokens = event.usage.output_tokens;
-    }
-    const final = await stream.finalMessage();
-    inputTokens = final.usage.input_tokens;
-    outputTokens = final.usage.output_tokens;
-
-    const toolUses = final.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
-    if (toolUses.length === 0) break;
-
-    messages.push({ role: 'assistant', content: final.content });
-    const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const tu of toolUses) {
-      const args = (tu.input ?? {}) as Record<string, unknown>;
-      cb.onToolCall(tu.name, toolSummary(tu.name, args));
-      const allowed = await maybeApprove(settings, cb, tu.name, args);
-      const result = allowed
-        ? await executeTool(tu.name, args, settings.allowShellCommands)
-        : 'Kullanıcı aracı reddetti.';
-      results.push({ type: 'tool_result', tool_use_id: tu.id, content: result });
-    }
-    messages.push({ role: 'user', content: results });
-  }
-
-  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model), model });
-}
-
-async function runGemini(
-  settings: TulvezSettings,
-  systemPrompt: string,
-  userMessage: string,
-  history: ChatTurn[],
-  cb: AgentCallbacks,
-  toolDefs: typeof TOOL_DEFINITIONS = TOOL_DEFINITIONS,
-  signal?: AbortSignal,
-): Promise<void> {
-  if (!settings.apiKey) { cb.onError('Gemini API anahtarı eksik. Ayarlar\'dan ekleyin.'); return; }
-  const model = settings.model || 'gemini-2.5-flash';
-  const genAI = new GoogleGenerativeAI(settings.apiKey);
-  const genModel = genAI.getGenerativeModel({
-    model,
-    systemInstruction: systemPrompt,
-    generationConfig: { maxOutputTokens: 8192 },
-    tools: [{
-      functionDeclarations: toolDefs.map((t) => ({
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters as object,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      }) as any),
-    }],
-  });
-  const contents: { role: string; parts: Part[] }[] = [
-    ...history.map((t) => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] as Part[] })),
-    { role: 'user', parts: [{ text: userMessage }] },
-  ];
-  let inputTokens = 0;
-  let outputTokens = 0;
-
-  for (let step = 0; step < 10; step++) {
-    if (signal?.aborted) throw new CancelledError();
-    const result = await genModel.generateContentStream({ contents });
-    const reader = result.stream[Symbol.asyncIterator]();
-    while (true) {
-      if (signal?.aborted) throw new CancelledError();
-      const next = await Promise.race([
-        reader.next(),
-        new Promise<{ done: boolean; value?: undefined }>((_, rej) =>
-          setTimeout(() => rej(new Error('Cevap zaman aşımına uğradı. Bağlantı kesildi olabilir — Tekrar dene.')), 90000),
-        ),
-      ]);
-      if (next.done) break;
-      const text = next.value?.text();
-      if (text) cb.onChunk(text);
-    }
-    const response = await result.response;
-    const usage = response.usageMetadata;
-    inputTokens = usage?.promptTokenCount ?? inputTokens;
-    outputTokens = usage?.candidatesTokenCount ?? outputTokens;
-
-    const calls = response.functionCalls() ?? [];
-    const modelParts = (response.candidates?.[0]?.content?.parts ?? []) as Part[];
-    if (modelParts.length > 0) {
-      contents.push({ role: 'model', parts: modelParts });
-    }
-    if (calls.length === 0) break;
-
-    const parts: Part[] = [];
-    for (const call of calls) {
-      const args = (call.args ?? {}) as Record<string, unknown>;
-      cb.onToolCall(call.name, toolSummary(call.name, args));
-      const allowed = await maybeApprove(settings, cb, call.name, args);
-      const content = allowed
-        ? await executeTool(call.name, args, settings.allowShellCommands)
-        : 'Kullanıcı aracı reddetti.';
-      parts.push({ functionResponse: { name: call.name, response: { result: content } } } as Part);
-    }
-    contents.push({ role: 'user', parts });
-  }
-
-  cb.onDone({ inputTokens, outputTokens, costUsd: calcCost(model, inputTokens, outputTokens), contextWindow: contextWindow(model), model });
 }

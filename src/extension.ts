@@ -1,6 +1,5 @@
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
-import OpenAI from 'openai';
 
 // 3. parti SDK'ların Node deprecation uyarılarını susturur (VS Code terminalinde görünür gürültü)
 process.noDeprecation = true;
@@ -8,6 +7,7 @@ import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from 
 import { runAgent, invalidateRepoMap } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations } from './services/tools';
 import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
+import { listProviderModels } from './services/models';
 
 export function activate(context: vscode.ExtensionContext): void {
   const createWebview = (webview: vscode.Webview): void => {
@@ -205,38 +205,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (message.type === 'listModels') {
       const settings = await readSettings();
       try {
-        let models: string[] = [];
-        const provider = settings.aiProvider;
-        if (provider === 'openai' || provider === 'groq' || provider === 'opencode' || provider === 'custom') {
-          const baseURL =
-            provider === 'groq' ? 'https://api.groq.com/openai/v1'
-            : provider === 'opencode' ? 'https://opencode.ai/zen/v1'
-            : provider === 'custom' ? (settings.baseUrl || '').replace(/\/$/, '')
-            : undefined;
-          if (baseURL) {
-            const client = new OpenAI({ apiKey: settings.apiKey, baseURL });
-            const list = await client.models.list();
-            models = list.data.map((m) => m.id).sort();
-          } else {
-            const client = new OpenAI({ apiKey: settings.apiKey });
-            const list = await client.models.list();
-            models = list.data.map((m) => m.id).sort();
-          }
-        } else if (provider === 'gemini') {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${settings.apiKey}`);
-          const json = await res.json() as { models?: { name: string }[] };
-          models = (json.models ?? []).map((m) => m.name.replace(/^models\//, '')).sort();
-        } else if (provider === 'anthropic') {
-          const res = await fetch('https://api.anthropic.com/v1/models', {
-            headers: { 'x-api-key': settings.apiKey, 'anthropic-version': '2023-06-01' },
-          });
-          const json = await res.json() as { data?: { id: string }[] };
-          models = (json.data ?? []).map((m) => m.id).sort();
-        } else if (provider === 'ollama') {
-          const res = await fetch(`${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/api/tags`);
-          const json = await res.json() as { models?: { name: string }[] };
-          models = (json.models ?? []).map((m) => m.name).sort();
-        }
+        const models = await listProviderModels(settings);
         await webview.postMessage({ type: 'modelsList', models } satisfies HostToWebviewMessage);
       } catch (err) {
         await webview.postMessage({ type: 'modelsList', models: [], error: err instanceof Error ? err.message : String(err) } satisfies HostToWebviewMessage);
