@@ -171,7 +171,22 @@ export function App(): JSX.Element {
   const [workspacePath, setWorkspacePath] = useState('');
   const [logoUri, setLogoUri] = useState('');
   const [input, setInput] = useState('');
-  const [model, setModel] = useState('Varsayılan');
+  const [model, setModelState] = useState<string>(() => {
+    try {
+      return localStorage.getItem('tulvez.model') ?? 'Varsayılan';
+    } catch {
+      return 'Varsayılan';
+    }
+  });
+
+  // Model seçimi kalıcıdır: ayarlara girip çıkınca veya yeniden açılınca korunur.
+  const setModel = (value: string): void => {
+    setModelState(value);
+    try {
+      if (value === 'Varsayılan') localStorage.removeItem('tulvez.model');
+      else localStorage.setItem('tulvez.model', value);
+    } catch { /* kota */ }
+  };
   const [mode, setMode] = useState<AgentMode>(() => {
     try {
       const raw = localStorage.getItem('tulvez.current');
@@ -910,10 +925,12 @@ onClick={() => {
                     <button className="composer-btn icon-only" type="button" title="Ekle">
                       <CirclePlus size={15} strokeWidth={1.8} />
                     </button>
-{settings?.showModels && (
-                    <DropdownMenu>
+<DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button className="composer-btn" type="button">{model}<ChevronDown size={10} /></button>
+                        <button className="composer-btn" type="button" title={model === 'Varsayılan' ? 'Model: varsayılan' : `Model: ${model}`}>
+                          {model === 'Varsayılan' ? 'Model' : model}
+                          <ChevronDown size={10} />
+                        </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="dropdown-content">
                         {['Varsayılan', ...liveModels].map((m) => (
@@ -921,7 +938,6 @@ onClick={() => {
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  )}
                   </div>
                   <div className="composer-right">
                     <DropdownMenu>

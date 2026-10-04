@@ -1,4 +1,5 @@
 import * as cp from 'child_process';
+import * as fsSync from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -80,12 +81,32 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'run_command',
-    description: 'Çalışma alanında terminal komutu çalıştırır.',
+    description: 'Çalışma alanında terminal komutu çalıştırır. Uzun süreli komutlar (sunucu, GUI) otomatik sonlandırılır.',
     requiresApproval: true,
     readOnly: false,
     schema: z.object({ command: z.string().describe('Çalıştırılacak komut') }),
   },
+  {
+    name: 'run_in_background',
+    description: 'Uzun süreli çalışacak bir komutu arka planda başlatır (sunucu, GUI). Hemen döner, süreç arka planda çalışır.',
+    requiresApproval: true,
+    readOnly: false,
+    schema: z.object({
+      command: z.string().describe('Çalıştırılacak komut'),
+      logFile: z.string().optional().describe('Çıktının yazılacağı dosya yolu'),
+    }),
+  },
+  {
+    name: 'stop_background',
+    description: 'Arka planda çalışan bir süreci sonlandırır.',
+    requiresApproval: true,
+    readOnly: false,
+    schema: z.object({ command: z.string().optional().describe('Durdurulacak komut parçası') }),
+  },
 ];
+/** Arka planda başlatılan süreçler (pid → komut). */
+const backgroundProcesses = new Map<number, string>();
+
 function workspaceRoot(): string {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
 }
@@ -179,6 +200,11 @@ function markAiEdit(filePath: string, start: number, end: number): void {
 }
 
 const MAX_READ_CHARS = 50000;
+const MAX_OUTPUT_CHARS = 30000;
+/** Çıktı üretmeyen bir komut (GUI, sunucu) bu süreden sonra sonlandırılır. */
+const MAX_IDLE_SECONDS = 45;
+/** Bir komut en fazla bu kadar süreyle çalışabilir. */
+const MAX_RUN_SECONDS = 180;
 
 /**
  * Bir dosyanın çıktısını token bütçesine göre kırparken, satır ortasında
@@ -402,11 +428,91 @@ export async function executeTool(
         if (!allowShell) return 'Hata: Terminal komutları kapalı. Ayarlar\'dan açın.';
         const cwd = workspaceRoot() || undefined;
         return await new Promise<string>((resolve) => {
-          cp.exec(String(args.command ?? ''), { cwd }, (err, stdout, stderr) => {
-            const out = `${stdout}\n${stderr}`.trim();
-            resolve(err ? `exit ${err.code ?? 1}\n${out || err.message}` : out || '(çıktı yok)');
+          const child = cp.spawn('cmd.exe', ['/d', '/s', '/c', String(args.command ?? '')], {
+            cwd,
+            windowsHide: true,
           });
+
+          let stdout = '';
+          let stderr = '';
+          let finished = false;
+
+          const collect = (): void => {
+            if (finished) return;
+            finished = true;
+            clearInterval(ticker);
+            clearTimeout(hardStop);
+            const out = `${stdout}\n${stderr}`.trim();
+            resolve(out || (code === 0 ? '(çıktı yok)' : `exit ${code}`));
+          };
+
+          let code = 0;
+          child.stdout?.on('data', (d) => {
+            stdout += String(d);
+            if (stdout.length > MAX_OUTPUT_CHARS) {
+              stdout = stdout.slice(0, MAX_OUTPUT_CHARS) + '\n...(çıktı kısaltıldı)';
+              stopProcess();
+            }
+          });
+          child.stderr?.on('data', (d) => { stderr += String(d); });
+          child.on('error', (err) => { stderr += String(err.message); collect(); });
+          child.on('close', (exitCode) => { code = exitCode ?? 0; collect(); });
+
+          // Uzun süreçler (sunucu, GUI) sonsuza kadar çalışır; çıktı üretmeyenleri
+          // 45 saniye sonra sonlandırıp modele "arka planda çalışıyor" bilgisini ver.
+          let idleTicks = 0;
+          const ticker = setInterval(() => {
+            if (stdout.length || stderr.length) idleTicks = 0;
+            else idleTicks++;
+            if (idleTicks * 5 >= MAX_IDLE_SECONDS) {
+              stopProcess();
+              stdout += `\n(komut ${MAX_IDLE_SECONDS} saniye çıktı üretmediği için sonlandırıldı; arka planda çalışıyorsa ayrı terminalden kontrol edebilirsin)`;
+              collect();
+            }
+          }, 5000);
+
+          const hardStop = setTimeout(() => { stopProcess(); collect(); }, MAX_RUN_SECONDS * 1000);
+
+          function stopProcess(): void {
+            if (child.killed) return;
+            try {
+              // Windows'ta alt süreçleri de öldür (cmd -> python -> tkinter)
+              cp.execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: 'ignore' });
+            } catch {
+              try { child.kill('SIGKILL'); } catch { /* yoksay */ }
+            }
+          }
         });
+      }
+      case 'run_in_background': {
+        if (!allowShell) return 'Hata: Terminal komutları kapalı. Ayarlar\'dan açın.';
+        const cwd = workspaceRoot() || undefined;
+        const logFile = args.logFile
+          ? resolvePath(String(args.logFile))
+          : path.join(cwd ?? '.', 'tulvez-bg.log');
+        const out = fsSync.openSync(logFile, 'a');
+        const child = cp.spawn('cmd.exe', ['/d', '/s', '/c', String(args.command ?? '')], {
+          cwd,
+          detached: true,
+          stdio: ['ignore', out, out],
+          windowsHide: true,
+        });
+        child.unref();
+        fsSync.closeSync(out);
+        backgroundProcesses.set(child.pid ?? 0, String(args.command ?? ''));
+        return `Arka planda başlatıldı (pid ${child.pid ?? '?'}). Çıktı: ${logFile}\nDurdurmak için: stop_background`;
+      }
+      case 'stop_background': {
+        const wanted = String(args.command ?? '').toLowerCase();
+        let stopped = 0;
+        for (const pid of backgroundProcesses.keys()) {
+          try {
+            cp.execSync(`taskkill /pid ${pid} /T /F`, { stdio: 'ignore' });
+            stopped++;
+          } catch { /* zaten kapanmış */ }
+          backgroundProcesses.delete(pid);
+        }
+        return stopped ? `${stopped} arka plan süreci sonlandırıldı${wanted ? ` (${wanted})` : ''}` : 'Arka planda çalışan süreç yok.';
       }
       default:
         return `Bilinmeyen araç: ${name}`;

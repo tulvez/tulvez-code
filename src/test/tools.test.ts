@@ -39,7 +39,8 @@ describe('araç tanımları', () => {
 
   it('ask modu için salt-okunur araçlar işaretli', () => {
     for (const tool of TOOL_DEFINITIONS) {
-      if (tool.name === 'write_file' || tool.name === 'edit_file' || tool.name === 'replace_in_file' || tool.name === 'run_command') {
+      if (tool.name === 'write_file' || tool.name === 'edit_file' || tool.name === 'replace_in_file'
+        || tool.name === 'run_command' || tool.name === 'run_in_background' || tool.name === 'stop_background') {
         expect(tool.readOnly, `${tool.name} salt-okunur olmamalı`).toBe(false);
       } else {
         expect(tool.readOnly, `${tool.name} salt-okunur olmalı`).toBe(true);
