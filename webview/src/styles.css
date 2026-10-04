@@ -203,7 +203,7 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 .message-turn.user:hover .turn-body { background: rgba(255,255,255,0.1); }
 .message-turn.assistant { padding: 8px 14px 4px; transition: background 0.1s; border-radius: 8px; }
-.message-turn.assistant:hover { background: var(--vscode-list-hoverBackground); outline: 1px solid var(--vscode-panel-border); }
+.message-turn.assistant:hover { background: var(--vscode-list-hoverBackground); }
 .message-turn.user:hover .turn-body { background: rgba(255,255,255,0.1); }
 .message-turn.user .turn-body:focus { outline: 1px solid var(--vscode-focusBorder, #007fd4); }
 .turn-header { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
@@ -270,6 +270,11 @@ img { -webkit-user-drag: none; user-select: none; }
 /* Command output */
 .message-turn.command { padding: 6px 14px; }
 .command-header { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tool-fold summary { cursor: pointer; list-style: none; user-select: none; }
+.tool-fold summary::-webkit-details-marker { display: none; }
+.tool-fold[open] summary svg:first-child { transform: rotate(90deg); }
+.tool-fold summary svg { transition: transform 0.14s var(--ease); }
+.tool-fold-hint { color: var(--vscode-descriptionForeground); opacity: 0.6; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
 .command-exit-err { margin-left: auto; color: var(--vscode-errorForeground, #f48771); font-size: 11px; }
 .command-output {
   margin: 0; padding: 8px 10px; border-radius: var(--radius);

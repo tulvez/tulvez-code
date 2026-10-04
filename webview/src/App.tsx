@@ -8,7 +8,7 @@ import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   Check, ChevronDown, ChevronLeft, CirclePlus, Clock, Copy, FolderOpen, GitBranch, GitCommit, Hammer,
   MessageSquare, Send, Settings, Sparkles, Square, SquarePen,
-  Terminal, ThumbsDown, ThumbsUp, Trash2, X, Zap,
+  Terminal, ThumbsDown, ThumbsUp, Trash2, X, Zap, ChevronRight,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -770,12 +770,15 @@ onClick={() => {
                       </div>
                     );
                     if (msg.role === 'tool') return (
-                      <div key={msg.id} className="message-turn command">
-                        <div className="command-header">
-                          <Zap size={11} /><span>{msg.toolName ?? 'araç'}</span>
-                        </div>
+                      <details key={msg.id} className="message-turn command tool-fold">
+                        <summary className="command-header">
+                          <ChevronRight size={11} />
+                          <Zap size={11} />
+                          <span>{msg.toolName ?? 'araç'}</span>
+                          <span className="tool-fold-hint">{msg.text.slice(0, 70)}</span>
+                        </summary>
                         <pre className="command-output">{msg.text}</pre>
-                      </div>
+                      </details>
                     );
                     return (
                       <div key={msg.id} className={`message-turn ${msg.role}`}>
