@@ -182,7 +182,15 @@ export function App(): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
       const raw = localStorage.getItem('tulvez.current');
-      return raw ? ((JSON.parse(raw) as { messages?: ChatMessage[] }).messages ?? []) : [];
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as { messages?: ChatMessage[] };
+      if (!Array.isArray(parsed.messages)) return [];
+      // Bozuk kayıtları ele: id'siz, metni olmayan ya da devasa kayıtlar
+      return parsed.messages.filter(
+        (m): m is ChatMessage =>
+          !!m && typeof m === 'object' && typeof m.text === 'string'
+          && Number.isFinite(m.id) && m.text.length < 20000,
+      );
     } catch { return []; }
   });
 
