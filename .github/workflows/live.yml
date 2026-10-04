@@ -1,0 +1,25 @@
+name: Live Providers
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * *'
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Canlı sağlayıcı testleri (anahtarlar yoksa atlanır)
+        run: npm test
+        env:
+          TULVEZ_LIVE_GEMINI: ${{ secrets.TULVEZ_LIVE_GEMINI }}
+          TULVEZ_LIVE_OPENAI: ${{ secrets.TULVEZ_LIVE_OPENAI }}
+          TULVEZ_LIVE_ANTHROPIC: ${{ secrets.TULVEZ_LIVE_ANTHROPIC }}
+          TULVEZ_LIVE_GROQ: ${{ secrets.TULVEZ_LIVE_GROQ }}
+          TULVEZ_LIVE_OPENCODE: ${{ secrets.TULVEZ_LIVE_OPENCODE }}

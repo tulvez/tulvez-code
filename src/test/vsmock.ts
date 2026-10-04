@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import type { TulvezSettings } from '../services/messages';
 
 /** Testlerde `vscode` modülünü taklit eder (gerçek API sadece extension host'ta vardır). */
 export function createVscodeStub(workspaceRoot: string): Record<string, unknown> {
@@ -46,7 +47,7 @@ export function setWorkspaceRoot(root: string): void {
 }
 
 export const baseSettings = {
-  aiProvider: 'gemini' as const,
+  aiProvider: 'gemini' as TulvezSettings['aiProvider'],
   model: 'gemini-2.5-flash',
   apiKey: 'test-key',
   ollamaUrl: 'http://localhost:11434',
