@@ -13,19 +13,19 @@ const DEFAULT: TulvezSettings = {
 };
 
 const PROVIDERS = [
-  { id: 'openai' as const,    label: 'OpenAI',        hint: 'GPT-4o · GPT-4o-mini · o1',    color: '#10a37f' },
-  { id: 'anthropic' as const, label: 'Anthropic',     hint: 'Claude 3.5 Sonnet · Haiku',    color: '#d97706' },
-  { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 2.5 Pro · Flash · Flash-Lite', color: '#4285f4' },
-  { id: 'groq' as const,     label: 'Groq',          hint: 'Llama 3.3 · Mixtral · Çok Hızlı', color: '#f97316' },
-  { id: 'opencode' as const, label: 'OpenCode Zen',  hint: 'Claude · GPT · Gemini · Grok tek gateway', color: '#7c3aed' },
-  { id: 'custom' as const,   label: 'Özel (OpenAI uyumlu)', hint: 'OpenRouter · LM Studio · vLLM · herhangi bir endpoint', color: '#64748b' },
-  { id: 'ollama' as const,    label: 'Ollama',        hint: 'Yerel · Ücretsiz · Gizli',     color: '#a78bfa' },
+  { id: 'openai' as const,    label: 'OpenAI',        hint: 'GPT-4o · GPT-4o-mini · o1', color: '#10a37f' },
+  { id: 'anthropic' as const, label: 'Anthropic',     hint: 'Claude · Sonnet · Haiku', color: '#d97706' },
+  { id: 'gemini' as const,    label: 'Google Gemini', hint: 'Gemini 2.5 · Flash · Pro', color: '#4285f4' },
+  { id: 'groq' as const,     label: 'Groq',          hint: 'Llama · Mixtral · Hızlı', color: '#f97316' },
+  { id: 'opencode' as const, label: 'OpenCode Zen',  hint: 'Claude · GPT · Gemini · Grok', color: '#7c3aed' },
+  { id: 'custom' as const,   label: 'Özel (OpenAI uyumlu)', hint: 'OpenRouter · LM Studio · vLLM', color: '#64748b' },
+  { id: 'ollama' as const,    label: 'Ollama',        hint: 'Yerel · Ücretsiz · Gizli', color: '#a78bfa' },
 ];
 
 const MODEL_HINTS: [RegExp, string][] = [
-  [/gemini-2\.5-flash-lite/, 'Ücretsiz katman · en yüksek limit'],
+  [/gemini-2\.5-flash-lite/, 'Ücretsiz katman · yüksek limit'],
   [/gemini-2\.5-flash/, 'Ücretsiz katman · hızlı'],
-  [/gemini-2\.5-pro/, 'Gelişmiş · ücretsiz kotada sınırlı'],
+  [/gemini-2\.5-pro/, 'Gelişmiş · kotada sınırlı'],
   [/flash/i, 'Ücretsiz katman · hızlı'],
   [/gpt-4o-mini/, 'Uygun fiyatlı · ücretli'],
   [/gpt-4o/, 'Gelişmiş · ücretli'],
@@ -37,7 +37,7 @@ const MODEL_HINTS: [RegExp, string][] = [
 ];
 
 function modelHint(model: string, provider: string): string {
-  if (provider === 'ollama') return 'Yerel · ücretsiz · çevrimdışı';
+  if (provider === 'ollama') return 'Yerel · ücretsiz';
   const found = MODEL_HINTS.find(([re]) => re.test(model));
   return found ? found[1] : '';
 }
@@ -51,8 +51,25 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   );
 }
 
-function SectionTitle({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return <div className="s-section-title">{icon}<span>{label}</span></div>;
+function Section({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+  return (
+    <div className="s-card">
+      <div className="s-section-title">{icon}<span>{label}</span></div>
+      {children}
+    </div>
+  );
+}
+
+function Row({ label, hint, control }: { label: string; hint?: string; control: React.ReactNode }) {
+  return (
+    <div className="s-row">
+      <div>
+        <div className="s-row-label">{label}</div>
+        {hint && <div className="s-row-hint">{hint}</div>}
+      </div>
+      {control}
+    </div>
+  );
 }
 
 export function SettingsPage({ onBack }: Props) {
@@ -71,7 +88,6 @@ export function SettingsPage({ onBack }: Props) {
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'settingsData') {
-        // Kendi kaydettiğimiz ayarın yankısı yazarken girdiğimiz değeri ezmesin
         if (!saveTimer.current) setCfg(e.data.settings as TulvezSettings);
       }
       if (e.data?.type === 'modelsList') {
@@ -132,8 +148,8 @@ export function SettingsPage({ onBack }: Props) {
 
       <div className="settings-body">
 
-        <div className="s-card">
-          <SectionTitle icon={<Zap size={12} />} label="AI Sağlayıcı" />
+        {/* Provider */}
+        <Section icon={<Zap size={12} />} label="AI Sağlayıcı">
           <div className="provider-grid">
             {PROVIDERS.map((p) => (
               <button key={p.id} type="button"
@@ -149,44 +165,44 @@ export function SettingsPage({ onBack }: Props) {
               </button>
             ))}
           </div>
-        </div>
+        </Section>
 
+        {/* Model */}
         {cfg.showModels && (
-        <div className="s-card">
-          <SectionTitle icon={<Zap size={12} />} label="Model" />
-          {cfg.aiProvider !== 'ollama' && !cfg.apiKey ? (
-            <div className="s-hint">Modelleri görmek için önce API anahtarınızı girin.</div>
-          ) : (
-            <>
-              {modelsError && <div className="s-hint">Model listesi alınamadı: {modelsError}</div>}
-              <div className="provider-grid">
-                {modelList.map((m) => (
-                  <button key={m} type="button"
-                    className={`provider-card ${cfg.model === m ? 'active' : ''}`}
-                    style={{ '--p-color': PROVIDERS.find((p) => p.id === cfg.aiProvider)?.color } as React.CSSProperties}
-                    onClick={() => set('model', m)}>
-                    <span className="provider-dot" />
-                    <div>
-                      <div className="provider-name">{m}</div>
-                      <div className="model-hint">{modelHint(m, cfg.aiProvider)}</div>
-                    </div>
-                    {cfg.model === m && <Check size={12} className="provider-check" />}
-                  </button>
-                ))}
-                {modelList.length === 0 && !modelsError && <div className="s-hint">Model listesi yükleniyor…</div>}
-              </div>
-              <button className="ws-create-btn" type="button" style={{ alignSelf: 'flex-start' }}
-                onClick={() => vscode.postMessage({ type: 'listModels' })}>
-                Modelleri yenile
-              </button>
-            </>
-          )}
-        </div>
+          <Section icon={<Zap size={12} />} label="Model">
+            {cfg.aiProvider !== 'ollama' && !cfg.apiKey ? (
+              <div className="s-hint">Modelleri görmek için önce API anahtarını girin.</div>
+            ) : (
+              <>
+                {modelsError && <div className="s-hint">Model listesi alınamadı: {modelsError}</div>}
+                <div className="provider-grid">
+                  {modelList.map((m) => (
+                    <button key={m} type="button"
+                      className={`provider-card ${cfg.model === m ? 'active' : ''}`}
+                      style={{ '--p-color': PROVIDERS.find((p) => p.id === cfg.aiProvider)?.color } as React.CSSProperties}
+                      onClick={() => set('model', m)}>
+                      <span className="provider-dot" />
+                      <div>
+                        <div className="provider-name">{m}</div>
+                        <div className="model-hint">{modelHint(m, cfg.aiProvider)}</div>
+                      </div>
+                      {cfg.model === m && <Check size={12} className="provider-check" />}
+                    </button>
+                  ))}
+                  {modelList.length === 0 && !modelsError && <div className="s-hint">Model listesi yükleniyor…</div>}
+                </div>
+                <button className="ws-create-btn" type="button" style={{ alignSelf: 'flex-start' }}
+                  onClick={() => vscode.postMessage({ type: 'listModels' })}>
+                  Modelleri yenile
+                </button>
+              </>
+            )}
+          </Section>
         )}
 
+        {/* Quotas */}
         {quotas.length > 0 && (
-          <div className="s-card">
-            <SectionTitle icon={<Terminal size={12} />} label="Kota / Limit Bilgisi" />
+          <Section icon={<Terminal size={12} />} label="Kota / Limit">
             {quotas.map((q) => (
               <div className="quota-row" key={q.model}>
                 <span className="quota-dot" />
@@ -197,45 +213,45 @@ export function SettingsPage({ onBack }: Props) {
               </div>
             ))}
             <div className="s-hint">Kalan kotayı sağlayıcının panelinden takip edebilirsiniz.</div>
-          </div>
+          </Section>
         )}
 
+        {/* Custom base URL */}
         {cfg.aiProvider === 'custom' && (
-          <div className="s-card">
-            <SectionTitle icon={<Terminal size={12} />} label="Endpoint (Base URL)" />
-            <div className="s-hint">OpenAI uyumlu API adresi. Örnekler: https://opencode.ai/zen/v1, https://openrouter.ai/api/v1, http://localhost:1234/v1</div>
+          <Section icon={<Terminal size={12} />} label="Endpoint">
+            <div className="s-hint">OpenAI uyumlu API adresi.</div>
             <input className="ws-input" type="text"
-              value={cfg.baseUrl} placeholder="https://..."
+              value={cfg.baseUrl} placeholder="https://…"
               onChange={(e) => set('baseUrl', e.target.value)} />
-          </div>
+          </Section>
         )}
 
+        {/* OpenCode Zen */}
         {cfg.aiProvider === 'opencode' && (
-          <div className="s-card">
-            <SectionTitle icon={<Lock size={12} />} label="OpenCode Zen" />
-            <div className="s-hint">opencode.ai üzerinden kendi bakiyenle kullan. Anahtarını opencode.ai/zen panelinden al, buraya yapıştır. Modeller hesabındaki gerçek listeden gelir.</div>
-          </div>
+          <Section icon={<Lock size={12} />} label="OpenCode Zen">
+            <div className="s-hint">opencode.ai'dan aldığın anahtarını yapıştır.</div>
+          </Section>
         )}
 
+        {/* Ollama URL */}
         {cfg.aiProvider === 'ollama' && (
-          <div className="s-card">
-            <SectionTitle icon={<Terminal size={12} />} label="Ollama Sunucu" />
+          <Section icon={<Terminal size={12} />} label="Ollama Sunucu">
             <div className="s-hint">Ollama'nın çalıştığı adres.</div>
             <input className="ws-input" type="text"
               value={cfg.ollamaUrl} placeholder="http://localhost:11434"
               onChange={(e) => set('ollamaUrl', e.target.value)} />
-          </div>
+          </Section>
         )}
 
+        {/* API Key */}
         {cfg.aiProvider !== 'ollama' && (
-          <div className="s-card">
-            <SectionTitle icon={<Lock size={12} />} label="API Anahtarı (BYOK)" />
-            <div className="s-hint">Anahtarınız VS Code SecretStorage'da şifreli saklanır. Tulvez sunucularına gönderilmez.</div>
+          <Section icon={<Lock size={12} />} label="API Anahtarı">
+            <div className="s-hint">Anahtarınız yalnızca VS Code SecretStorage'da saklanır.</div>
             <div className="api-key-wrap">
               <input className="api-key-input"
                 type={showKey ? 'text' : 'password'}
                 value={cfg.apiKey}
-                placeholder={cfg.aiProvider === 'openai' ? 'sk-...' : cfg.aiProvider === 'gemini' ? 'AIza...' : cfg.aiProvider === 'groq' ? 'gsk_...' : 'sk-ant-...'}
+                placeholder={cfg.aiProvider === 'openai' ? 'sk-…' : cfg.aiProvider === 'gemini' ? 'AIza…' : cfg.aiProvider === 'groq' ? 'gsk_…' : 'sk-ant-…'}
                 onChange={(e) => set('apiKey', e.target.value)}
                 autoComplete="off" spellCheck={false} />
               <button className="api-key-toggle" type="button"
@@ -248,58 +264,37 @@ export function SettingsPage({ onBack }: Props) {
                 <span className="api-key-dot" />Anahtar girildi — otomatik kaydedildi
               </div>
             )}
-          </div>
+          </Section>
         )}
 
-        <div className="s-card">
-          <SectionTitle icon={<Terminal size={12} />} label="Komutlar" />
+        {/* Commands */}
+        <Section icon={<Terminal size={12} />} label="Komutlar">
           <div className="s-section">
-            <div className="s-row">
-              <div>
-                <div className="s-row-label">Komut çalıştırmaya izin ver</div>
-                <div className="s-row-hint">Terminal komutları çalıştırılabilir</div>
-              </div>
-              <Toggle checked={cfg.allowShellCommands} onChange={(v) => set('allowShellCommands', v)} />
-            </div>
-            <div className="s-row">
-              <div>
-                <div className="s-row-label">Otomatik onayla</div>
-                <div className="s-row-hint">Her komut için onay sormaz</div>
-              </div>
-              <Toggle checked={cfg.autoApproveCommands} onChange={(v) => set('autoApproveCommands', v)} />
-            </div>
+            <Row label="Komut çalıştırmaya izin ver" hint="Terminal komutları çalıştırılabilir"
+              control={<Toggle checked={cfg.allowShellCommands} onChange={(v) => set('allowShellCommands', v)} />} />
+            <Row label="Otomatik onayla" hint="Her komut için onay sormaz"
+              control={<Toggle checked={cfg.autoApproveCommands} onChange={(v) => set('autoApproveCommands', v)} />} />
           </div>
-        </div>
+        </Section>
 
-        <div className="s-card">
-          <SectionTitle icon={<Shield size={12} />} label="Gizlilik" />
+        {/* Privacy */}
+        <Section icon={<Shield size={12} />} label="Gizlilik">
           <div className="s-section">
-            <div className="s-row">
-              <div>
-                <div className="s-row-label">Kod bağlamı gönder</div>
-                <div className="s-row-hint">AI'ya aktif dosya içeriği eklenir</div>
-              </div>
-              <Toggle checked={cfg.sendCodeContext} onChange={(v) => set('sendCodeContext', v)} />
-            </div>
-            <div className="s-row">
-              <div>
-                <div className="s-row-label">Anonim kullanım verisi</div>
-                <div className="s-row-hint">Henüz aktif değil</div>
-              </div>
-              <Toggle checked={cfg.telemetry} onChange={(v) => set('telemetry', v)} />
-            </div>
+            <Row label="Kod bağlamı gönder" hint="AI'ya aktif dosya içeriği eklenir"
+              control={<Toggle checked={cfg.sendCodeContext} onChange={(v) => set('sendCodeContext', v)} />} />
+            <Row label="Anonim kullanım verisi" hint="Henüz aktif değil"
+              control={<Toggle checked={cfg.telemetry} onChange={(v) => set('telemetry', v)} />} />
           </div>
           <div className="privacy-note">
             <Lock size={11} />
-            <p>API anahtarınız yalnızca VS Code SecretStorage'da saklanır. Kodunuz, siz açıkça izin vermedikçe Tulvez sunucularına gönderilmez.</p>
+            <p>Anahtarınız yalnızca VS Code SecretStorage'da saklanır. Kodunuz, izin vermedikçe Tulvez sunucularına gönderilmez.</p>
           </div>
-        </div>
+        </Section>
 
-        <div className="s-card">
-          <SectionTitle icon={<Sparkles size={12} />} label="Skills" />
+        {/* Skills */}
+        <Section icon={<Sparkles size={12} />} label="Skills">
           <div className="s-hint">
             Ajanın kimliği ve yetenekleri çalışma alanındaki <code>code_skills.md</code> dosyasından okunur.
-            Dosyayı düzenleyerek ajanın karakterini, kurallarını ve slash komutlarını özelleştirebilirsin.
           </div>
           {skills && (
             <div className="s-hint">
@@ -311,37 +306,22 @@ export function SettingsPage({ onBack }: Props) {
               {skills?.exists ? 'code_skills.md aç' : 'code_skills.md oluştur'}
             </button>
           </div>
-        </div>
+        </Section>
 
-        <div className="s-card">
-          <SectionTitle icon={<Zap size={12} />} label="Arayüz" />
+        {/* Appearance */}
+        <Section icon={<Zap size={12} />} label="Arayüz">
           <div className="s-section">
-            <div className="s-row">
-              <div>
-                <div className="s-row-label">Model seçimini göster</div>
-                <div className="s-row-hint">Kapalıyken sadece varsayılan model kullanılır</div>
-              </div>
-              <Toggle checked={cfg.showModels} onChange={(v) => set('showModels', v)} />
-            </div>
-            <div className="s-row">
-              <div>
-                <div className="s-row-label">Düşünüş metnini göster</div>
-                <div className="s-row-hint">Modelin içsel düşünmesini sohbette listeler</div>
-              </div>
-              <Toggle checked={cfg.showThinking} onChange={(v) => set('showThinking', v)} />
-            </div>
-            <div className="s-row">
-              <div>
-                <div className="s-row-label">AI satırlarını işaretle</div>
-                <div className="s-row-hint">Agent'ın yazdığı satırlar editörde vurgulanır</div>
-              </div>
-              <Toggle checked={cfg.showAiEdits} onChange={(v) => set('showAiEdits', v)} />
-            </div>
+            <Row label="Model seçimini göster" hint="Kapalıyken sadece varsayılan kullanılır"
+              control={<Toggle checked={cfg.showModels} onChange={(v) => set('showModels', v)} />} />
+            <Row label="Düşünüş metnini göster" hint="Modelin içsel düşünmesini listeler"
+              control={<Toggle checked={cfg.showThinking} onChange={(v) => set('showThinking', v)} />} />
+            <Row label="AI satırlarını işaretle" hint="Agent'ın yazdığı satırlar editörde vurgulanır"
+              control={<Toggle checked={cfg.showAiEdits} onChange={(v) => set('showAiEdits', v)} />} />
           </div>
-        </div>
+        </Section>
 
-        <div className="s-card">
-          <SectionTitle icon={<FolderOpen size={12} />} label="Çalışma Alanı" />
+        {/* Workspace */}
+        <Section icon={<FolderOpen size={12} />} label="Çalışma Alanı">
           <div className="s-hint">Proje adı girin, VS Code yeni klasörü açar.</div>
           <div className="ws-create-row">
             <input className="ws-input" type="text" placeholder="proje-adı"
@@ -356,7 +336,7 @@ export function SettingsPage({ onBack }: Props) {
               <span className="api-key-dot" />"{wsCreated}" oluşturuldu
             </div>
           )}
-        </div>
+        </Section>
 
       </div>
     </div>

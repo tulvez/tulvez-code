@@ -277,7 +277,7 @@ export function App(): JSX.Element {
         setProvider(msg.settings.aiProvider);
         setHasApiKey(msg.settings.aiProvider === 'ollama' || !!msg.settings.apiKey);
         setSettings(msg.settings);
-        if (msg.settings.showModels && (msg.settings.aiProvider === 'ollama' || msg.settings.apiKey)) {
+        if (msg.settings.aiProvider === 'ollama' || msg.settings.apiKey) {
           vscode.postMessage({ type: 'listModels' });
         }
       } else if (msg.type === 'assistantReasoning') {
@@ -649,7 +649,7 @@ export function App(): JSX.Element {
                             if (setupProvider === 'ollama' && settings) {
                               const next = { ...settings, aiProvider: 'ollama' as const, model: '', apiKey: '', baseUrl: setupBaseUrl || settings.baseUrl };
                               vscode.postMessage({ type: 'saveSettings', settings: next });
-                              if (settings.showModels) vscode.postMessage({ type: 'listModels' });
+                              vscode.postMessage({ type: 'listModels' });
                               setSettings(next);
                             }
                             setSetupStep(setupProvider === 'ollama' && settings?.showModels ? 2 : (setupProvider === 'ollama' ? 1 : 1));
@@ -697,10 +697,10 @@ onClick={() => {
                                     apiKey: setupKey.trim(), baseUrl: setupBaseUrl.trim() || settings.baseUrl,
                                   };
                                   vscode.postMessage({ type: 'saveSettings', settings: next });
-                                  if (settings.showModels) vscode.postMessage({ type: 'listModels' });
-                                  setSettings(next);
-                                  setHasApiKey(true);
-                                  if (settings.showModels) setSetupStep(2);
+vscode.postMessage({ type: 'listModels' });
+        setSettings(next);
+        setHasApiKey(true);
+        if (settings.showModels) setSetupStep(2);
                                 }}>
                               Kaydet ve devam
                             </button>
@@ -1028,3 +1028,4 @@ onClick={() => {
     </div>
   );
 }
+
