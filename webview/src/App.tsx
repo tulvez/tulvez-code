@@ -94,7 +94,10 @@ function useTyping(full: string, active: boolean, speed = 8) {
     return () => window.clearInterval(id);
   }, [full, active, speed]);
 
-  return { displayed: full.slice(0, index), done };
+  // Metin geldiyse yazma efekti tamamlanmış sayılır: "Düşünüyor" rozeti takılı kalmasın.
+  const settled = full.length > 0 || done;
+
+  return { displayed: full.slice(0, index), done: done || settled };
 }
 
 function UsageBadge({ inputTokens, outputTokens, costUsd, model }: { inputTokens: number; outputTokens: number; costUsd: number; model?: string }) {
