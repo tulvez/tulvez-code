@@ -1,11 +1,12 @@
 import * as cp from 'child_process';
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 // 3. parti SDK'ların Node deprecation uyarılarını susturur (VS Code terminalinde görünür gürültü)
 process.noDeprecation = true;
 import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from './services/messages';
 import { runAgent, invalidateRepoMap } from './services/agent';
-import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations } from './services/tools';
+import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 import { listProviderModels } from './services/models';
 
@@ -91,6 +92,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const pendingToolApprovals = new Map<string, (approved: boolean) => void>();
 
   let activeAbort: AbortController | null = null;
+  let lastEditedFile: string | null = null;
 
   const runAgentFor = async (
     webview: vscode.Webview,
@@ -105,7 +107,10 @@ export function activate(context: vscode.ExtensionContext): void {
     await runAgent(settings, prompt, mode, history, {
       onChunk: (chunk) => void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage),
       onReasoning: (chunk) => void webview.postMessage({ type: 'assistantReasoning', text: chunk } satisfies HostToWebviewMessage),
-      onToolCall: (tool, summary) => void webview.postMessage({ type: 'toolCall', tool, summary } satisfies HostToWebviewMessage),
+      onToolCall: (tool, summary) => {
+        lastEditedFile = tool === 'write_file' || tool === 'replace_in_file' ? summary : lastEditedFile;
+        void webview.postMessage({ type: 'toolCall', tool, summary } satisfies HostToWebviewMessage);
+      },
       onToolRequest: (id, tool, args) =>
         new Promise<boolean>((resolve) => {
           pendingToolApprovals.set(id, resolve);
@@ -113,6 +118,17 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
       onDone: (usage) => {
         activeAbort = null;
+        if (lastEditedFile) {
+          const target = lastEditedFile;
+          lastEditedFile = null;
+          setTimeout(() => {
+            void openDiffForFile(
+              path.isAbsolute(target)
+                ? target
+                : path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '', target),
+            );
+          }, 250);
+        }
         void webview.postMessage({ type: 'assistantDone', inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, contextWindow: usage.contextWindow, model: usage.model } satisfies HostToWebviewMessage);
       },
       onCancelled: () => {
@@ -276,8 +292,19 @@ export function activate(context: vscode.ExtensionContext): void {
           ? `Aşağıdaki git diff'ini kod incelemesi açısından değerlendir. Türkçe, maddeler halinde; hata, risk, güvenlik ve iyileştirme fırsatlarını yaz:\n\n${diff.slice(0, 12000)}`
           : 'Çalışma alanında değişiklik yok. Lütfen önce değişiklik yapın.';
       } else if (message.name === 'diff') {
-        const diff = (await git('diff --stat')) || (await git('status --short')) || 'Değişiklik yok.';
-        prompt = `Şu git değişikliklerini özetle ve yorumla (Türkçe, kısa):\n\n${diff.slice(0, 12000)}`;
+        const hasChanges = await safeCommand<boolean>('git.hasChanges').then((v) => !!v);
+        if (hasChanges) {
+          const opened = await safeCommand('git.openChange', 'working').then(() => true).catch(() => false);
+          if (opened) {
+            await webview.postMessage({
+              type: 'systemNotice',
+              text: 'Çalışma alanı değişiklikleri editörde açıldı.',
+            } satisfies HostToWebviewMessage);
+            return;
+          }
+        }
+        const stat = (await git('diff --stat')) || (await git('status --short')) || 'Değişiklik yok.';
+        prompt = `Şu git değişikliklerini özetle ve yorumla (Türkçe, kısa):\n\n${stat.slice(0, 6000)}`;
       } else if (message.name === 'explain') {
         const sel = editor && !editor.selection.isEmpty ? editor.document.getText(editor.selection) : '';
         if (!sel) {
@@ -353,6 +380,7 @@ export function activate(context: vscode.ExtensionContext): void {
     aiStatus.show();
   };
   context.subscriptions.push(aiStatus);
+    vscode.workspace.registerTextDocumentContentProvider('tulvez-before', getDiffContentProvider());
   aiEditHooks.onEdit = () => {
     invalidateRepoMap();
     updateAiStatus();
@@ -417,6 +445,10 @@ function getNonce(): string {
   let v = '';
   for (let i = 0; i < 32; i++) v += chars.charAt(Math.floor(Math.random() * chars.length));
   return v;
+}
+
+function safeCommand<T>(command: string, ...args: unknown[]): Promise<T> {
+  return Promise.resolve(vscode.commands.executeCommand<T>(command, ...args));
 }
 
 function friendlyError(err: string): string {

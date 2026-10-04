@@ -68,17 +68,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     }),
   },
   {
-    name: 'edit_file',
-    description: 'Bir dosyada eski metni yenisiyle değiştirir.',
-    requiresApproval: false,
-    readOnly: false,
-    schema: z.object({
-      path: z.string().describe('Dosya yolu'),
-      old_string: z.string().describe('Değiştirilecek mevcut metin'),
-      new_string: z.string().describe('Yeni metin'),
-    }),
-  },
-  {
     name: 'replace_in_file',
     description: 'Bir dosyada metni değiştirir; eski metin tam ve tekil eşleşmek zorundadır, aksi halde hata döner.',
     requiresApproval: false,
@@ -142,7 +131,46 @@ export function aiLineCountForActiveEditor(): number | null {
   return ranges.reduce((a, r) => a + (r.end - r.start + 1), 0);
 }
 
+/** Düzenleme araçları için hedef dosyanın mutlak yolunu verir. */
+export function resolveEditPath(p: string): string | null {
+  if (!p) return null;
+  return resolvePath(p);
+}
+
 export const aiEditHooks: { onEdit?: () => void } = {};
+
+/** Yazma öncesi içerik: diff önizlemesi için tutulur. */
+const preEditSnapshot = new Map<string, string>();
+
+/** Diff'in sol tarafında "önceki hali"ni göstermek için içerik sağlayıcı. */
+interface DiffProvider {
+  provideTextDocumentContent(uri: vscode.Uri): string;
+}
+let diffProvider: DiffProvider | null = null;
+
+export function getDiffContentProvider(): DiffProvider {
+  if (!diffProvider) {
+    const Ctor = (vscode as unknown as {
+      TextDocumentContentProvider: new (opts: { scheme: string }) => DiffProvider;
+    }).TextDocumentContentProvider;
+    diffProvider = new Ctor({ scheme: 'tulvez-before' });
+    diffProvider.provideTextDocumentContent = (uri: vscode.Uri): string =>
+      preEditSnapshot.get(decodeURIComponent(uri.path.replace(/^\//, ''))) ?? '';
+  }
+  return diffProvider;
+}
+
+export async function snapshotBeforeEdit(fsPath: string): Promise<void> {
+  try {
+    preEditSnapshot.set(fsPath, await fs.readFile(fsPath, 'utf8'));
+  } catch {
+    preEditSnapshot.delete(fsPath);
+  }
+}
+
+export function clearSnapshot(fsPath: string): void {
+  preEditSnapshot.delete(fsPath);
+}
 
 function markAiEdit(filePath: string, start: number, end: number): void {
   const ranges = aiEdits.get(filePath) ?? [];
@@ -153,6 +181,18 @@ function markAiEdit(filePath: string, start: number, end: number): void {
 }
 
 const MAX_READ_CHARS = 50000;
+
+/**
+ * Bir dosyanın çıktısını token bütçesine göre kırparken, satır ortasında
+ * kesmek yerine ilk yarı + son yarı gösterir; model bağlamı görmeye devam eder.
+ */
+function truncateForBudget(text: string, budget: number): string {
+  if (text.length <= budget) return text;
+  const head = Math.floor(budget * 0.6);
+  const tail = budget - head - 40;
+  const omitted = text.length - head - tail;
+  return `${text.slice(0, head)}\n\n...[${omitted} karakter atlandı. Devamı için grep_files veya satır aralığı oku]...\n\n${text.slice(-tail)}`;
+}
 
 function withLineNumbers(content: string): string {
   const numbered = content
@@ -168,10 +208,48 @@ function firstLines(text: string): string {
   return text.split('\n').slice(0, 3).map((l) => `  ${l.trim().slice(0, 100)}`).join('\n');
 }
 
+/** Bir dosya dışarıdan değiştiyse (agent yazdıysa) VS Code'un diff görünümünü açar. */
+export async function openDiffForFile(fsPath: string, title = 'Tulvez değişikliği'): Promise<void> {
+  try {
+    const before = preEditSnapshot.get(fsPath);
+    const uri = vscode.Uri.file(fsPath);
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const after = doc.getText();
+    preEditSnapshot.delete(fsPath);
+
+    if (before === undefined || before === after) {
+      await vscode.window.showTextDocument(doc, { preview: false });
+      return;
+    }
+
+    // Sol tarafı gerçek eski içerikle doldur, sağ taraf yeni hali olsun
+    preEditSnapshot.set(fsPath, before);
+    const left = vscode.Uri.parse(`tulvez-before:${encodeURIComponent(fsPath)}`);
+    vscode.workspace.registerTextDocumentContentProvider('tulvez-before', getDiffContentProvider());
+    await vscode.commands.executeCommand(
+      'vscode.diff',
+      left,
+      uri,
+      `${title}: ${path.basename(fsPath)}`,
+      { preview: false },
+    );
+    const opened = preEditSnapshot.get(fsPath);
+    preEditSnapshot.delete(fsPath);
+    if (opened !== undefined) {
+      setTimeout(() => {
+        preEditSnapshot.set(fsPath, opened);
+      }, 1500);
+    }
+  } catch {
+    // diff açılamazsa akış bozulmasın
+  }
+}
+
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
   allowShell: boolean,
+  budgetChars = 24000,
 ): Promise<string> {
   try {
     switch (name) {
@@ -287,12 +365,23 @@ export async function executeTool(
         markAiEdit(target, 0, Math.max(0, lines - 1));
         return `Yazıldı: ${target}`;
       }
-      case 'edit_file': {
+      case 'replace_in_file': {
         const target = resolvePath(String(args.path ?? ''));
         const content = await fs.readFile(target, 'utf8');
         const oldStr = String(args.old_string ?? '');
-        if (!content.includes(oldStr)) return 'Hata: old_string dosyada bulunamadı.';
         const newStr = String(args.new_string ?? '');
+        if (!oldStr) return 'Hata: old_string boş.';
+        const occurrences = content.split(oldStr).length - 1;
+        if (occurrences === 0) {
+          return `Hata: eski metin bulunamadı. Şu satırları kontrol et:\n${firstLines(oldStr)}`;
+        }
+        if (occurrences > 1) {
+          const lines = content.split('\n');
+          const numbers = lines
+            .map((l, i) => (l.includes(oldStr.split('\n')[0]) ? i + 1 : 0))
+            .filter(Boolean);
+          return `Hata: eski metin ${occurrences} yerde geçiyor (satırlar: ${numbers.slice(0, 8).join(', ')}). Daha fazla bağlam ekleyerek tekilleştir.`;
+        }
         const updated = content.replace(oldStr, newStr);
         await fs.writeFile(target, updated, 'utf8');
         const idx = updated.indexOf(newStr);
@@ -301,7 +390,7 @@ export async function executeTool(
           const span = newStr.split('\n').length;
           markAiEdit(target, startLine, Math.max(startLine, startLine + span - 1));
         }
-        return `Düzenlendi: ${target}`;
+        return `Düzenlendi: ${path.relative(workspaceRoot() || '.', target).replace(/\\/g, '/')}`;
       }
       case 'list_files': {
         const dir = resolvePath(String(args.directory ?? '.'));
@@ -327,5 +416,11 @@ export async function executeTool(
   } catch (err) {
     return `Araç hatası (${name}): ${err instanceof Error ? err.message : String(err)}`;
   }
+}
+
+/** Her araç çıktısını token bütçesine sığdırır. */
+export function applyBudget(result: string, budgetChars = 24000): string {
+  if (result.length <= budgetChars) return result;
+  return `${truncateForBudget(result, budgetChars)}\n\n_(toplam ${result.length} karakter, ${budgetChars} karaktere kısaltıldı)_`;
 }
 

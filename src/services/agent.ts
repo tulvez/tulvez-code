@@ -1,9 +1,10 @@
 import { stepCountIs, streamText, type ModelMessage, type ToolSet } from 'ai';
+import * as path from 'path';
 import type { TulvezSettings } from './messages';
 import { calcCost } from './cost';
 import { buildPrompt } from './ai';
 import type { AgentMode, ChatTurn } from './types';
-import { TOOL_DEFINITIONS, executeTool } from './tools';
+import { TOOL_DEFINITIONS, applyBudget, executeTool, resolveEditPath, snapshotBeforeEdit } from './tools';
 import { buildRepoMap } from './repomap';
 import { resolveModel } from './providers';
 
@@ -90,7 +91,12 @@ function buildToolSet(
           );
           if (!allowed) return 'Kullanıcı aracı reddetti.';
         }
-        return executeTool(def.name, args, settings.allowShellCommands);
+        if (def.name === 'write_file' || def.name === 'replace_in_file') {
+          const target = resolveEditPath(String(args.path ?? ''));
+          if (target) await snapshotBeforeEdit(target);
+        }
+        const result = await executeTool(def.name, args, settings.allowShellCommands);
+        return applyBudget(result);
       },
     } as ToolSet[string];
   }

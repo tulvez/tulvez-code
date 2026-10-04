@@ -301,6 +301,10 @@ export function App(): JSX.Element {
           setMessages((prev) => prev.map((m) => (m.id === sid ? { ...m, stopped: true } : m)));
           streamingIdRef.current = null;
         }
+      } else if (msg.type === 'systemNotice') {
+        setMessages((prev) => [...prev, {
+          id: nextId.current++, role: 'tool', text: msg.text, toolName: 'tulvez',
+        }]);
       } else if (msg.type === 'toolCall') {
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'tool', text: msg.summary, toolName: msg.tool,
