@@ -30,4 +30,10 @@ jobs:
         run: npm run build
 
       - name: VSIX üret ve yayınla
-        run: npx @vscode/vsce publish -p ${{ secrets.VSCE_PAT }}
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG_NAME" == *-beta* || "$TAG_NAME" == *-alpha* || "$TAG_NAME" == *-rc* ]]; then
+            npx @vscode/vsce publish --pre-release -p ${{ secrets.VSCE_PAT }}
+          else
+            npx @vscode/vsce publish -p ${{ secrets.VSCE_PAT }}
+          fi
