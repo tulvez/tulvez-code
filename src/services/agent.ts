@@ -163,6 +163,18 @@ export async function runAgent(
         stopWhen: stepCountIs(12),
         abortSignal: signal,
         maxRetries: 0,
+        // Bazı OpenAI-uyumlu uç noktalar (örn. gpt-oss-20b) önceki adımın
+        // düşünme (reasoning) parçalarını geri kabul etmez. Düşünme hâlâ
+        // üretilir ve arayüzde gösterilir; sadece isteğe geri eklenmez.
+        prepareStep: async ({ messages }) => ({
+          messages: messages.map((m) => {
+            if (m.role !== 'assistant' || typeof m.content === 'string') return m;
+            const content = m.content.filter(
+              (p) => p.type === 'text' || p.type === 'tool-call',
+            );
+            return { ...m, content };
+          }),
+        }),
       });
 
       let sawText = false;
