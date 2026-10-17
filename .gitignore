@@ -2,3 +2,10 @@ node_modules/
 dist/
 .vscode-test/
 *.vsix
+
+# Video prodüksiyon çıktıları (kaynak metinler repoda kalır)
+marketing/export/
+*.cmproj
+*.camproj
+*.mp4
+*.mov
