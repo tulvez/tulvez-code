@@ -13,6 +13,18 @@ export interface ToolDefinition {
   readOnly: boolean;
 }
 
+/**
+ * Kabuk komutunu platforma göre açar.
+ *
+ * Windows'ta cmd.exe, macOS/Linux'ta sh kullanılır. Sabit cmd.exe çağırmak
+ * macOS ve Linux'ta "spawn cmd.exe ENOENT" hatası veriyordu.
+ */
+export function shellInvocation(command: string): { file: string; args: string[] } {
+  return process.platform === 'win32'
+    ? { file: 'cmd.exe', args: ['/d', '/s', '/c', command] }
+    : { file: '/bin/sh', args: ['-c', command] };
+}
+
 
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
@@ -427,8 +439,9 @@ export async function executeTool(
       case 'run_command': {
         if (!allowShell) return 'Hata: Terminal komutları kapalı. Ayarlar\'dan açın.';
         const cwd = workspaceRoot() || undefined;
+        const shell = shellInvocation(String(args.command ?? ''));
         return await new Promise<string>((resolve) => {
-          const child = cp.spawn('cmd.exe', ['/d', '/s', '/c', String(args.command ?? '')], {
+          const child = cp.spawn(shell.file, shell.args, {
             cwd,
             windowsHide: true,
           });
@@ -491,7 +504,8 @@ export async function executeTool(
           ? resolvePath(String(args.logFile))
           : path.join(cwd ?? '.', 'tulvez-bg.log');
         const out = fsSync.openSync(logFile, 'a');
-        const child = cp.spawn('cmd.exe', ['/d', '/s', '/c', String(args.command ?? '')], {
+        const bgShell = shellInvocation(String(args.command ?? ''));
+        const child = cp.spawn(bgShell.file, bgShell.args, {
           cwd,
           detached: true,
           stdio: ['ignore', out, out],

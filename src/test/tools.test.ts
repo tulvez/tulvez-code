@@ -15,7 +15,7 @@ afterEach(async () => {
   await fs.rm(tmpRoot, { recursive: true, force: true });
 });
 
-const { executeTool, TOOL_DEFINITIONS } = await import('../services/tools');
+const { executeTool, shellInvocation, TOOL_DEFINITIONS } = await import('../services/tools');
 
 describe('araç tanımları', () => {
   it('her araç adı, açıklaması ve şeması var', () => {
@@ -128,6 +128,21 @@ describe('run_command güvenliği', () => {
   it('izin açıkken çalıştırır', async () => {
     const out = await executeTool('run_command', { command: 'echo merhaba' }, true);
     expect(out).toContain('merhaba');
+  });
+
+  it('kabuk platforma uygun seçilir', () => {
+    const win = shellInvocation('npm test');
+    const unix = shellInvocation('npm test');
+    if (process.platform === 'win32') {
+      expect(win.file).toBe('cmd.exe');
+      expect(win.args).toContain('/c');
+    } else {
+      expect(unix.file).toBe('/bin/sh');
+      expect(unix.args).toContain('-c');
+    }
+    // Komut her iki platformda da aynı sırada ve bozulmadan taşınmalı
+    expect(win.args[win.args.length - 1]).toBe('npm test');
+    expect(unix.args[unix.args.length - 1]).toBe('npm test');
   });
 });
 
