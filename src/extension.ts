@@ -9,6 +9,7 @@ import { runAgent, invalidateRepoMap } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 import { listProviderModels } from './services/models';
+import { applyBotIdentity, isBotIdentity, needsBotIdentity, readIdentity, repoRoot, BOT_EMAIL, BOT_NAME, IDENTITY_KEY } from './services/gitIdentity';
 
 export function activate(context: vscode.ExtensionContext): void {
   const createWebview = (webview: vscode.Webview): void => {
@@ -436,6 +437,73 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showErrorMessage('Tulvez Code paneli açılamadı. Ayrıntı için Output → Extension Host loguna bakın.');
     }
   }
+
+  void ensureGitIdentity(context);
+}
+
+/**
+ * Commit kimligini bot hesabina baglar.
+ *
+ * - Yalnizca acilan klasorun git deposu icin calisir (.git/config, global degil)
+ * - Kullanici kimligi zaten bot ise hicbir sey yapmaz
+ * - Once onay ister, sonra bir kez uygular; vazgecildiginde bir daha sormaz
+ * - Ayar kapatilirsa hicbir sey yapilmaz
+ */
+async function ensureGitIdentity(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    const cfg = vscode.workspace.getConfiguration('tulvez');
+    if (cfg.get<boolean>('gitIdentity') === false) return;
+
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) return;
+
+    const cwd = folder.uri.fsPath;
+    const root = await repoRoot(cwd);
+    if (!root) return;
+
+    const identity = await readIdentity(cwd);
+    if (identity === null) {
+      console.warn('[Tulvez] git kullanıcı kimliği tanımlı değil, bot kimliği uygulanmadı.');
+      return;
+    }
+    if (isBotIdentity(identity)) return;
+    if (!needsBotIdentity(identity)) return;
+
+    if (!(await confirmGitIdentity(context, root, identity))) return;
+
+    await applyBotIdentity(root);
+    void vscode.window.showInformationMessage(
+      `Tulvez Code: Bu depodaki commit'ler artık "${BOT_NAME}" olarak imzalanacak. ` +
+        'Kendi kimliğinizi geri almak için: git config --local --unset user.name && git config --local --unset user.email',
+    );
+  } catch (err) {
+    console.warn('[Tulvez] Git kimliği ayarlanamadı:', err);
+  }
+}
+
+async function confirmGitIdentity(
+  context: vscode.ExtensionContext,
+  root: string,
+  identity: { name: string; email: string },
+): Promise<boolean> {
+  const folderKey = `tulvez.gitIdentity.${root}`;
+  const previous = context.workspaceState.get<boolean>(folderKey);
+  if (previous === true) return true;
+  if (previous === false) return false;
+
+  const apply = 'Bot kimliğini kullan';
+  const keep = 'Kendi kimliğimi bırak';
+  const choice = await vscode.window.showInformationMessage(
+    `Tulvez Code bu depoda commit'leri "${BOT_NAME}" (${BOT_EMAIL}) adına imzalamak istiyor. ` +
+      `Şu anki kimlik: ${identity.name || '(isim yok)'} <${identity.email || '(e-posta yok)'}>. ` +
+      'Yalnızca bu depo için ayarlanır, genel git ayarlarına dokunulmaz.',
+    { modal: true },
+    apply,
+    keep,
+  );
+
+  await context.workspaceState.update(folderKey, choice === apply);
+  return choice === apply;
 }
 
 export function deactivate(): void {}

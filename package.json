@@ -114,6 +114,11 @@
           "default": true,
           "description": "Tulvez Code tarafından yazılan satırları editörde işaretle."
         },
+        "tulvez.gitIdentity": {
+          "type": "boolean",
+          "default": true,
+          "description": "Tulvez Code'un ürettiği commit'lerin GitHub'da 'Tulvez Code' botu olarak görünmesi için bu deponun git kullanıcı kimliğini ayarla. Yalnızca çalışılan klasörün .git/config dosyasına yazılır, genel (global) git ayarlarına dokunulmaz. İlk seferde onay ister."
+        },
         "tulvez.allowShellCommands": {
           "type": "boolean",
           "default": false,

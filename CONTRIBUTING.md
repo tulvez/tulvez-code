@@ -28,12 +28,18 @@ Bu repoya üretilen commit'ler bir GitHub App bot kimliğiyle imzalanır:
 
 ```
 user.name  = Tulvez Code
-user.email = 5349654+tulvez-code[bot]@users.noreply.github.com
+user.email = 343685009+tulvez-code[bot]@users.noreply.github.com
 ```
 
 Amaç, ajanın ürettiği kodu repo geçmişinde insan katkıcısından ayırmaktır.
 Bu ayarlar **yalnızca bu repo için** geçerlidir (`.git/config`), global git
 kimliğinizi değiştirmez.
+
+> E-postadaki sayı, bot hesabının kullanıcı id'sidir (`343685009`).
+> GitHub commit yazarını bu biçimdeki e-postadan tanır
+> (`<bot-id>+<bot-login>@users.noreply.github.com`). Başka bir hesabın id'si
+> yazılırsa commit tanınmaz: katkıcı listesinde görünmez ve avatar boş kalır.
+> `src/test/gitidentity.test.ts` bu numarayı canlı olarak doğrular.
 
 Farklı bir kimlikle commit atmak istiyorsanız (ör. kendi kişisel çalışmanız):
 
@@ -43,5 +49,15 @@ git -c user.name="Adınız" -c user.email="e-posta@adresiniz" commit -m "mesaj"
 
 Commit'lerin GitHub'da **doğrulanmış (Verified)** görünmesi için ek olarak
 bot anahtarıyla imzalama (commit signing) gerekir; sadece isim/e-posta
-eşlemesi doğrulama rozeti vermez. İmzalama aktifleştirildiğinde bu depodaki
+eşleşmesi doğrulama rozeti vermez. İmzalama aktifleştirildiğinde bu depodaki
 Tulvez Code commit'leri diğer katkıcılardan ayırt edilebilir görünür.
+
+## Kullanıcılar için git kimliği
+
+Tulvez Code, kullandığı depoda commit attığında bot kimliğini **kullanıcıdan
+bir kez onay alıp** uygular (ayar: `tulvez.gitIdentity`, varsayılan açık):
+
+- Sadece o klasörün `.git/config` dosyasına yazılır, **global ayarlara dokunulmaz**
+- Kimlik zaten bot ise hiçbir şey yapılmaz
+- Vazgeçilirse bir daha sorulmaz
+- Kapatmak için: `tulvez.gitIdentity: false`
