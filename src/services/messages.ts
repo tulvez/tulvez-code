@@ -47,6 +47,7 @@ export type HostToWebviewMessage =
   | { type: 'modelsList'; models: string[]; error?: string }
   | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
   | { type: 'cancelled' }
-  | { type: 'skillsStatus'; exists: boolean; path: string; skills: string[] };
+  | { type: 'skillsStatus'; exists: boolean; path: string; skills: string[] }
+  | { type: 'intro'; soundUri: string; firstRun: boolean };
 
 
