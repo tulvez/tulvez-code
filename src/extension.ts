@@ -11,9 +11,6 @@ import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } fr
 import { listProviderModels } from './services/models';
 import { applyBotIdentity, isBotIdentity, needsBotIdentity, readIdentity, repoRoot, BOT_EMAIL, BOT_NAME, IDENTITY_KEY } from './services/gitIdentity';
 
-/** Tanıtım videosu. Video yayınlandığında tek satır güncellenecek. */
-const INTRO_VIDEO_URL = 'https://www.youtube.com/@tulvez';
-
 export function activate(context: vscode.ExtensionContext): void {
   const createWebview = (webview: vscode.Webview): void => {
     try {
@@ -94,12 +91,6 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const pendingToolApprovals = new Map<string, (approved: boolean) => void>();
-
-  /** 'install' = yeni kurulum sesi, 'manual' = komutla çalınan ses. */
-  let pendingSound: 'install' | 'manual' | null = null;
-
-  /** İlk kurulum mu? Bayrak globalState'te tutulur, güncelleme sonrası sıfırlanmaz. */
-  const isFirstRun = (): boolean => !context.globalState.get<boolean>('tulvez.welcomed');
 
   let activeAbort: AbortController | null = null;
   let lastEditedFile: string | null = null;
@@ -231,7 +222,6 @@ export function activate(context: vscode.ExtensionContext): void {
       } satisfies HostToWebviewMessage);
       const settings = await readSettings();
       await webview.postMessage({ type: 'settingsData', settings } satisfies HostToWebviewMessage);
-      if (!isFirstRun()) sendIntro(webview, false);
       return;
     }
 
@@ -411,36 +401,9 @@ export function activate(context: vscode.ExtensionContext): void {
       (msg: WebviewToHostMessage) => void handleMessage(panel.webview, msg),
       undefined, context.subscriptions,
     );
-    panel.onDidDispose(() => { pendingSound = null; }, undefined, context.subscriptions);
   };
 
   context.subscriptions.push(vscode.commands.registerCommand('tulvez.openPanel', openPanel));
-
-  // Kurulum sesi: webview'da çalar (VS Code'in genel ses API'si yok).
-  const soundUri = (webview: vscode.Webview): string =>
-    webview
-      .asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'resources', 'sounds', 'tulvez-ready.wav'))
-      .toString();
-
-  const soundEnabled = (): boolean =>
-    vscode.workspace.getConfiguration('tulvez').get<boolean>('sound') ?? true;
-
-  // Webview hazır olduğunda sesi gönderir: ya ilk kurulum ya da elle çalıştırma.
-  const sendIntro = (webview: vscode.Webview, firstRun: boolean): void => {
-    if (!soundEnabled()) return;
-    if (pendingSound) {
-      firstRun = pendingSound === 'install';
-      pendingSound = null;
-    }
-    void webview.postMessage({ type: 'intro', soundUri: soundUri(webview), firstRun } satisfies HostToWebviewMessage);
-  };
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('tulvez.playIntroSound', async () => {
-      pendingSound = 'manual';
-      openPanel();
-    }),
-  );
 
   const aiStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   aiStatus.command = 'tulvez.openPanel';
@@ -476,31 +439,6 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   void ensureGitIdentity(context);
-
-  // Yeni kurulum: paneli aç, sesi çaldır, karşılama bildirimi göster.
-  if (isFirstRun()) {
-    void context.globalState.update('tulvez.welcomed', true);
-    pendingSound = 'install';
-    openPanel();
-    void showWelcome();
-  }
-}
-
-/** Kurulum sonrası ilk açılışta gösterilen bildirim. */
-async function showWelcome(): Promise<void> {
-  const intro = 'Tanıtımı izle';
-  const settings = 'API anahtarı ekle';
-  const chosen = await vscode.window.showInformationMessage(
-    'Tulvez Code kuruldu. Başlamak için bir sağlayıcı seçip kendi API anahtarınızı girin.',
-    intro,
-    settings,
-  );
-  if (chosen === intro) {
-    void vscode.env.openExternal(vscode.Uri.parse(INTRO_VIDEO_URL));
-  } else if (chosen === settings) {
-    void vscode.commands.executeCommand('workbench.extensions.action.showExtensionsWithIds', ['tulvez.tulvez-code']);
-    void vscode.commands.executeCommand('workbench.action.openSettings', 'tulvez.aiProvider');
-  }
 }
 
 /**
@@ -596,7 +534,7 @@ function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): stri
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; media-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />
   <link rel="stylesheet" href="${styleUri}" />
   <title>Tulvez Code</title>
 </head>

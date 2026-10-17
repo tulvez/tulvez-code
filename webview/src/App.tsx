@@ -16,28 +16,6 @@ import './styles.css';
 
 const MIN_WIDTH = 220;
 
-/**
- * Kurulum sesi. Webview içinde çalar: VS Code'in genel ses çalma API'si yok,
- * webview HTML'i en güvenli yol. Ses dosyası eklentiyle birlikte gelir
- * (resources/sounds/tulvez-ready.wav) ve dışarıdan hiçbir şey indirilmez.
- */
-function playIntroSound(uri: string): Promise<void> {
-  return new Promise((resolve) => {
-    try {
-      const audio = new Audio(uri);
-      audio.volume = 0.35;
-      audio.addEventListener('ended', () => resolve());
-      audio.addEventListener('error', () => resolve());
-      const done = audio.play();
-      if (done && typeof done.catch === 'function') done.catch(() => resolve());
-      // Tarayıcı sesi hiç çalmazsa yine de asılı bırakma.
-      window.setTimeout(() => resolve(), 4000);
-    } catch {
-      resolve();
-    }
-  });
-}
-
 type AgentMode = 'ask' | 'plan' | 'build';
 type Page = 'chat' | 'settings' | 'history';
 
@@ -331,22 +309,10 @@ export function App(): JSX.Element {
   useEffect(() => {
     const handler = (event: MessageEvent<HostToWebviewMessage>) => {
       const msg = event.data;
-if (msg.type === 'initialized') {
+      if (msg.type === 'initialized') {
         setWorkspaceName(msg.workspaceName);
         setWorkspacePath(msg.workspacePath ?? '');
         setLogoUri(msg.logoUri);
-      } else if (msg.type === 'intro') {
-        void playIntroSound(msg.soundUri);
-        if (msg.firstRun) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: nextId.current++,
-              role: 'assistant',
-              text: `Hoş geldiniz! **Tulvez Code** kuruldu.\n\nBaşlamak için **Ayarlar** → sağlayıcınızı seçip kendi API anahtarınızı girin. Hesap açmanız gerekmiyor.\n\nKendi anahtarınız bilgisayarınızda kalır; sunucumuza hiçbir şey gitmez.`,
-            },
-          ]);
-        }
       } else if (msg.type === 'settingsData') {
         setProvider(msg.settings.aiProvider);
         setHasApiKey(msg.settings.aiProvider === 'ollama' || !!msg.settings.apiKey);
