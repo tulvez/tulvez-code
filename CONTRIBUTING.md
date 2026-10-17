@@ -12,8 +12,18 @@ Tulvez Code'a katkılar **fork + Pull Request** üzerinden alınır. Hiçbir kat
    tetikli otomatik CI yoktur (bilinçli tercih); doğrulama PR'ın sorumluluğundadır
 6. Yayınlama için `v*` etiketi itilir. `.github/workflows/publish.yml` yalnızca
    bu tetikleyicide çalışır: kurulum, tip kontrolü, test, derleme ve ardından
-   VSIX'i Marketplace'e yayınlama. Sürüm numarasında `-beta`, `-alpha` veya `-rc`
-   varsa otomatik olarak pre-release olarak işaretlenir
+   VSIX'i Marketplace'e yayınlama
+
+### Sürüm numaralandırma
+
+VS Code Marketplace, `package.json` içindeki prerelease sürüm numaralarını
+(örn. `0.1.0-beta.1`) **desteklemez** ve yayını reddeder. Bu yüzden:
+
+- `package.json` sürümü daima **düz semver** olur: `0.1.0`, `0.2.0`, ...
+- Prerelease durumu **git etiketi** ile belirlenir: `v0.1.0-beta.1`
+- Workflow, etikette `-beta`, `-alpha` veya `-rc` varsa otomatik olarak
+  `--pre-release` bayrağı ekler
+- Marketplace'te sürüm "Pre-Release" rozetiyle görünür
 
 ## Kurallar
 
