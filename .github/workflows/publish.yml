@@ -14,7 +14,9 @@ jobs:
       - name: Node
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          # Node 22 gerekir: Node 20'de jsdom -> html-encoding-sniffer ->
+          # @exodus/bytes zinciri ERR_REQUIRE_ESM hatası verir ve testler kılıtlanır.
+          node-version: 22
           cache: npm
 
       - name: Install
