@@ -8,7 +8,12 @@ Tulvez Code'a katkılar **fork + Pull Request** üzerinden alınır. Hiçbir kat
 2. `master`'dan bir feature branch aç (`feat/kısa-aciklama` veya `fix/kısa-aciklama`)
 3. `npm run check` ve `npm run build`'in temiz geçtiğinden emin ol
 4. Küçük ve odaklı değişiklikler için PR aç: neyi değiştirdiğini ve nedenini kısaca yaz
-5. PR açıldığında otomatik CI (`npm ci → check → build`) çalışır; yeşil olursa bakımcı incelemesine alınır
+5. PR'da `npm run check` ve `npm test` çıktısını yazıya yapıştırın. Depoda PR
+   tetikli otomatik CI yoktur (bilinçli tercih); doğrulama PR'ın sorumluluğundadır
+6. Yayınlama için `v*` etiketi itilir. `.github/workflows/publish.yml` yalnızca
+   bu tetikleyicide çalışır: kurulum, tip kontrolü, test, derleme ve ardından
+   VSIX'i Marketplace'e yayınlama. Sürüm numarasında `-beta`, `-alpha` veya `-rc`
+   varsa otomatik olarak pre-release olarak işaretlenir
 
 ## Kurallar
 
@@ -16,3 +21,27 @@ Tulvez Code'a katkılar **fork + Pull Request** üzerinden alınır. Hiçbir kat
 - Mock/sahte çalışma zamanı kodu kabul edilmez; feature'lar gerçek sağlayıcı API'leriyle doğrulanmalıdır
 - API anahtarı, token veya kişisel veri commit'lenmez
 - Büyük özellikler önce issue açılarak tartışılmalı
+
+## Commit kimliği
+
+Bu repoya üretilen commit'ler bir GitHub App bot kimliğiyle imzalanır:
+
+```
+user.name  = Tulvez Code
+user.email = 5349654+tulvez-code[bot]@users.noreply.github.com
+```
+
+Amaç, ajanın ürettiği kodu repo geçmişinde insan katkıcısından ayırmaktır.
+Bu ayarlar **yalnızca bu repo için** geçerlidir (`.git/config`), global git
+kimliğinizi değiştirmez.
+
+Farklı bir kimlikle commit atmak istiyorsanız (ör. kendi kişisel çalışmanız):
+
+```bash
+git -c user.name="Adınız" -c user.email="e-posta@adresiniz" commit -m "mesaj"
+```
+
+Commit'lerin GitHub'da **doğrulanmış (Verified)** görünmesi için ek olarak
+bot anahtarıyla imzalama (commit signing) gerekir; sadece isim/e-posta
+eşlemesi doğrulama rozeti vermez. İmzalama aktifleştirildiğinde bu depodaki
+Tulvez Code commit'leri diğer katkıcılardan ayırt edilebilir görünür.
