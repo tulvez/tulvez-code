@@ -5,7 +5,13 @@ dist/
 
 # Video prodüksiyon çıktıları (kaynak metinler repoda kalır)
 marketing/export/
+marketing/ses/
 *.cmproj
 *.camproj
 *.mp4
 *.mov
+*.mp3
+*.wav
+
+# ...ama eklentinin kullandigi ses repoda durur (paketlenmesi gerekiyor)
+!resources/sounds/*.wav

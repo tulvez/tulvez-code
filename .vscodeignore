@@ -4,6 +4,8 @@ node_modules/**
 webview/**
 src/**
 .github/**
+marketing/**
+spike/**
 tasks.json
 tsconfig.json
 tsconfig.tsbuildinfo
@@ -15,3 +17,5 @@ package-lock.json
 **/*.ts
 **/*.tsx
 **/*.map
+resources/make-sound.mjs
+resources/make-png.mjs
