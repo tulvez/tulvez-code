@@ -4,6 +4,7 @@ dist/
 *.vsix
 
 # Video prodüksiyon çıktıları (kaynak metinler repoda kalır)
+marketing/
 marketing/export/
 marketing/ses/
 *.cmproj
