@@ -454,8 +454,12 @@ export function App(): JSX.Element {
         localStorage.setItem('tulvez.current', JSON.stringify({
           messages: messages.map((m) => ({ ...m, animated: false })),
           mode,
+          sid: sessionIdRef.current,
         }));
       } catch { /* kota */ }
+      // Açık sohbet geçmişe de hemen yazılır: hatayla biten ya da yeni sohbet
+      // açılmadan kapatılan sohbetler de listede görünür.
+      saveCurrentSession(messages);
     }, 400);
     return () => window.clearTimeout(t);
   }, [messages, mode]);
@@ -464,7 +468,13 @@ export function App(): JSX.Element {
     try { localStorage.setItem('tulvez.sessions', JSON.stringify(sessions.slice(0, 20))); } catch { /* quota */ }
   }, [sessions]);
 
-  const sessionIdRef = useRef(1);
+  // Yeniden yüklemede aynı oturum sürer; eskiden hep 1'den başlayıp eski kaydın üstüne yazabiliyordu.
+  const sessionIdRef = useRef<number>((() => {
+    try {
+      const sid = (JSON.parse(localStorage.getItem('tulvez.current') ?? '{}') as { sid?: unknown }).sid;
+      return typeof sid === 'number' && Number.isFinite(sid) ? sid : Date.now();
+    } catch { return Date.now(); }
+  })());
   const pendingRun = useRef<string | null>(null);
   const nextId = useRef(1);
   const streamingIdRef = useRef<number | null>(null);
@@ -587,7 +597,8 @@ export function App(): JSX.Element {
   // ── Oturum işlemleri ─────────────────────────────────────────────
   const saveCurrentSession = (msgs: ChatMessage[]) => {
     if (msgs.length === 0) return;
-    const title = msgs.find((m) => m.role === 'user')?.text.slice(0, 40) ?? 'Sohbet';
+    const first = msgs.find((m) => m.role === 'user') ?? msgs.find((m) => m.text.startsWith('❌'));
+    const title = first?.text.replace(/^❌\s*/, '').trim().slice(0, 40) || 'Sohbet';
     setSessions((prev) => {
       const existing = prev.findIndex((s) => s.id === sessionIdRef.current);
       const session: ChatSession = {
