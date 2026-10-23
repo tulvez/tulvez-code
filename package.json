@@ -123,10 +123,10 @@
           "default": true,
           "description": "Kurulumda ve panel açılışında kısa bir ses çal."
         },
-        "tulvez.gitIdentity": {
+        "tulvez.gitCoAuthor": {
           "type": "boolean",
           "default": true,
-          "description": "Tulvez Code'un ürettiği commit'lerin GitHub'da 'Tulvez Code' botu olarak görünmesi için bu deponun git kullanıcı kimliğini ayarla. Yalnızca çalışılan klasörün .git/config dosyasına yazılır, genel (global) git ayarlarına dokunulmaz. İlk seferde onay ister."
+          "description": "Tulvez Code'un attığı commit'lere ek katkıcı satırı (Co-authored-by: Tulvez Code) ekle. Commit'in yazarı sen kalırsın; GitHub commit'te yanında tulvez-code[bot] görünür. Git kimliğine dokunulmaz."
         },
         "tulvez.allowShellCommands": {
           "type": "boolean",

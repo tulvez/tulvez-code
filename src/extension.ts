@@ -9,7 +9,8 @@ import { runAgent, invalidateRepoMap } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 import { listProviderModels } from './services/models';
-import { applyBotIdentity, isBotIdentity, needsBotIdentity, readIdentity, repoRoot, BOT_EMAIL, BOT_NAME, IDENTITY_KEY } from './services/gitIdentity';
+import { isBotIdentity, readIdentity, removeBotIdentity, repoRoot, withCoAuthor } from './services/gitIdentity';
+import { activateCoAuthorScm, noteAiEdit } from './services/coAuthorScm';
 
 export function activate(context: vscode.ExtensionContext): void {
   const createWebview = (webview: vscode.Webview): void => {
@@ -67,6 +68,7 @@ export function activate(context: vscode.ExtensionContext): void {
       showAiEdits: cfg.get('showAiEdits') ?? true,
       showModels: cfg.get('showModels') ?? false,
       showThinking: cfg.get('showThinking') ?? true,
+      gitCoAuthor: cfg.get('gitCoAuthor') ?? true,
     };
   };
 
@@ -83,6 +85,7 @@ export function activate(context: vscode.ExtensionContext): void {
     await cfg.update('showAiEdits', settings.showAiEdits ?? true, vscode.ConfigurationTarget.Global);
     await cfg.update('showModels', settings.showModels ?? false, vscode.ConfigurationTarget.Global);
     await cfg.update('showThinking', settings.showThinking ?? true, vscode.ConfigurationTarget.Global);
+    await cfg.update('gitCoAuthor', settings.gitCoAuthor ?? true, vscode.ConfigurationTarget.Global);
     if (settings.apiKey) {
       await context.secrets.store(secretKeyFor(settings.aiProvider), settings.apiKey);
     } else {
@@ -183,9 +186,15 @@ export function activate(context: vscode.ExtensionContext): void {
       const msg = message.message.trim();
       if (!msg) return;
       const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      // Yazar kullanıcının kendisidir; Tulvez Code yalnızca ek katkıcı olarak eklenir.
+      const coAuthor = vscode.workspace.getConfiguration('tulvez').get<boolean>('gitCoAuthor') ?? true;
+      const finalMessage = coAuthor ? withCoAuthor(msg) : msg;
+      // Kabuk yok (execFile): mesajdaki tırnak/köşeli parantez Windows'ta bozulmaz.
       const result = await new Promise<{ output: string; exitCode: number }>((resolve) => {
-        cp.exec(`git commit -m ${JSON.stringify(msg)}`, { cwd }, (err, stdout, stderr) => {
-          resolve({ output: `${stdout || ''}${stderr || ''}`.trim() || err?.message || '', exitCode: err?.code ?? 0 });
+        cp.execFile('git', ['commit', '-m', finalMessage], { cwd }, (err, stdout, stderr) => {
+          const raw = (err as { code?: unknown } | null)?.code;
+          const exitCode = err ? (typeof raw === 'number' ? raw : 1) : 0;
+          resolve({ output: `${stdout || ''}${stderr || ''}`.trim() || err?.message || '', exitCode });
         });
       });
       await webview.postMessage({
@@ -427,9 +436,10 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   context.subscriptions.push(aiStatus);
     vscode.workspace.registerTextDocumentContentProvider('tulvez-before', getDiffContentProvider());
-  aiEditHooks.onEdit = () => {
+  aiEditHooks.onEdit = (filePath) => {
     invalidateRepoMap();
     updateAiStatus();
+    noteAiEdit(filePath);
   };
 
   context.subscriptions.push(
@@ -446,72 +456,58 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
-  void ensureGitIdentity(context);
+  void migrateBotIdentity(context);
+  void activateCoAuthorScm(context);
 }
 
 /**
- * Commit kimligini bot hesabina baglar.
- *
- * - Yalnizca acilan klasorun git deposu icin calisir (.git/config, global degil)
- * - Kullanici kimligi zaten bot ise hicbir sey yapmaz
- * - Once onay ister, sonra bir kez uygular; vazgecildiginde bir daha sormaz
- * - Ayar kapatilirsa hicbir sey yapilmaz
+ * 0.1.x sürümleri deponun .git/config dosyasına bot kimliğini yazıyordu; bu yüzden
+ * o depodaki bütün commit'lerin yazarı bot oluyor, GitHub'da bot ana katkıcı gibi
+ * görünüyordu. Artık Tulvez Code yalnızca ek katkıcı (Co-authored-by) olarak eklenir.
+ * Eski ayar bulunursa depo başına bir kez sorulur; onaylanırsa yalnızca yerel ayar silinir.
  */
-async function ensureGitIdentity(context: vscode.ExtensionContext): Promise<void> {
+async function migrateBotIdentity(context: vscode.ExtensionContext): Promise<void> {
   try {
-    const cfg = vscode.workspace.getConfiguration('tulvez');
-    if (cfg.get<boolean>('gitIdentity') === false) return;
-
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) return;
-
     const cwd = folder.uri.fsPath;
     const root = await repoRoot(cwd);
     if (!root) return;
 
-    const identity = await readIdentity(cwd);
-    if (identity === null) {
-      console.warn('[Tulvez] git kullanıcı kimliği tanımlı değil, bot kimliği uygulanmadı.');
+    const local = await readIdentity(cwd, undefined, '--local');
+    if (!isBotIdentity(local)) return;
+
+    const key = `tulvez.botIdentityMigrated.${root}`;
+    if (context.workspaceState.get<boolean>(key)) return;
+
+    const global = await readIdentity(cwd, undefined, '--global');
+    if (!global?.email) {
+      void vscode.window.showWarningMessage(
+        'Tulvez Code: Bu depoda commit\'lerin yazarı hâlâ Tulvez Code botu. Artık yazar sen olmalısın, ' +
+          'Tulvez Code ek katkıcı olarak eklenir. Önce kendi git kimliğini ayarla: ' +
+          'git config --global user.name "Adın" ve git config --global user.email "GitHub noreply adresin".',
+      );
       return;
     }
-    if (isBotIdentity(identity)) return;
-    if (!needsBotIdentity(identity)) return;
 
-    if (!(await confirmGitIdentity(context, root, identity))) return;
-
-    await applyBotIdentity(root);
-    void vscode.window.showInformationMessage(
-      `Tulvez Code: Bu depodaki commit'ler artık "${BOT_NAME}" olarak imzalanacak. ` +
-        'Kendi kimliğinizi geri almak için: git config --local --unset user.name && git config --local --unset user.email',
+    const remove = 'Kaldır, yazar ben olayım';
+    const keep = 'Şimdilik kalsın';
+    // Modal değil: açılışta pencereyi kilitleyen bir dialog açmaz, köşede bildirim olarak durur
+    const choice = await vscode.window.showInformationMessage(
+      'Tulvez Code artık commit\'lerin yazarı olmuyor; ek katkıcı olarak ekleniyor. Bu depodaki eski bot ' +
+        `kimliği kaldırılsın mı? Sonraki commit'ler ${global.name || global.email} adıyla atılır.`,
+      remove,
+      keep,
     );
+    if (choice === undefined) return;
+    await context.workspaceState.update(key, true);
+    if (choice !== remove) return;
+
+    await removeBotIdentity(root);
+    void vscode.window.showInformationMessage('Tulvez Code: Bot kimliği kaldırıldı. Commit\'lerin yazarı artık sensin.');
   } catch (err) {
-    console.warn('[Tulvez] Git kimliği ayarlanamadı:', err);
+    console.warn('[Tulvez] Eski bot kimliği denetlenemedi:', err);
   }
-}
-
-async function confirmGitIdentity(
-  context: vscode.ExtensionContext,
-  root: string,
-  identity: { name: string; email: string },
-): Promise<boolean> {
-  const folderKey = `tulvez.gitIdentity.${root}`;
-  const previous = context.workspaceState.get<boolean>(folderKey);
-  if (previous === true) return true;
-  if (previous === false) return false;
-
-  const apply = 'Bot kimliğini kullan';
-  const keep = 'Kendi kimliğimi bırak';
-  const choice = await vscode.window.showInformationMessage(
-    `Tulvez Code bu depoda commit'leri "${BOT_NAME}" (${BOT_EMAIL}) adına imzalamak istiyor. ` +
-      `Şu anki kimlik: ${identity.name || '(isim yok)'} <${identity.email || '(e-posta yok)'}>. ` +
-      'Yalnızca bu depo için ayarlanır, genel git ayarlarına dokunulmaz.',
-    { modal: true },
-    apply,
-    keep,
-  );
-
-  await context.workspaceState.update(folderKey, choice === apply);
-  return choice === apply;
 }
 
 export function deactivate(): void {}
@@ -542,7 +538,7 @@ function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): stri
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; font-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />
   <link rel="stylesheet" href="${styleUri}" />
   <title>Tulvez Code</title>
 </head>

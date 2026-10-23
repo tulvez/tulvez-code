@@ -59,4 +59,5 @@ export const baseSettings = {
   showAiEdits: true,
   showModels: false,
   showThinking: true,
+  gitCoAuthor: true,
 };

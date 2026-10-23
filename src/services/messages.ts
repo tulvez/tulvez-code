@@ -11,6 +11,8 @@ export interface TulvezSettings {
   showAiEdits: boolean;
   showModels: boolean;
   showThinking: boolean;
+  /** Tulvez Code'un attığı commit'lere ek katkıcı (Co-authored-by) satırı ekle */
+  gitCoAuthor: boolean;
 }
 
 export type WebviewToHostMessage =

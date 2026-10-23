@@ -4,6 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { z } from 'zod';
+import { addCoAuthorToCommand } from './gitIdentity';
 
 export interface ToolDefinition {
   name: string;
@@ -23,6 +24,15 @@ export function shellInvocation(command: string): { file: string; args: string[]
   return process.platform === 'win32'
     ? { file: 'cmd.exe', args: ['/d', '/s', '/c', command] }
     : { file: '/bin/sh', args: ['-c', command] };
+}
+
+/**
+ * Ajanın çalıştırdığı komut. İçinde `git commit` varsa (ayar açıkken) Tulvez Code
+ * ek katkıcı olarak eklenir; commit'in yazarı kullanıcı olarak kalır.
+ */
+function agentCommand(raw: string): string {
+  const coAuthor = vscode.workspace.getConfiguration('tulvez').get<boolean>('gitCoAuthor', true);
+  return coAuthor ? addCoAuthorToCommand(raw) : raw;
 }
 
 
@@ -170,7 +180,7 @@ export function resolveEditPath(p: string): string | null {
   return resolvePath(p);
 }
 
-export const aiEditHooks: { onEdit?: () => void } = {};
+export const aiEditHooks: { onEdit?: (filePath: string) => void } = {};
 
 /** Yazma öncesi içerik: diff önizlemesi için tutulur. */
 const preEditSnapshot = new Map<string, string>();
@@ -208,7 +218,7 @@ function markAiEdit(filePath: string, start: number, end: number): void {
   ranges.push({ start, end });
   aiEdits.set(filePath, ranges);
   refreshAiDecorations();
-  aiEditHooks.onEdit?.();
+  aiEditHooks.onEdit?.(filePath);
 }
 
 const MAX_READ_CHARS = 50000;
@@ -439,7 +449,7 @@ export async function executeTool(
       case 'run_command': {
         if (!allowShell) return 'Hata: Terminal komutları kapalı. Ayarlar\'dan açın.';
         const cwd = workspaceRoot() || undefined;
-        const shell = shellInvocation(String(args.command ?? ''));
+        const shell = shellInvocation(agentCommand(String(args.command ?? '')));
         return await new Promise<string>((resolve) => {
           const child = cp.spawn(shell.file, shell.args, {
             cwd,
@@ -504,7 +514,7 @@ export async function executeTool(
           ? resolvePath(String(args.logFile))
           : path.join(cwd ?? '.', 'tulvez-bg.log');
         const out = fsSync.openSync(logFile, 'a');
-        const bgShell = shellInvocation(String(args.command ?? ''));
+        const bgShell = shellInvocation(agentCommand(String(args.command ?? '')));
         const child = cp.spawn(bgShell.file, bgShell.args, {
           cwd,
           detached: true,
