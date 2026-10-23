@@ -741,7 +741,13 @@ export function App(): JSX.Element {
       if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !e.clipboardData) return;
       const range = sel.getRangeAt(0);
       const closed = [...document.querySelectorAll('details:not([open])')].some((d) => range.intersectsNode(d));
-      if (!closed) return;
+      // Panoya yalnız düz metin gider: tarayıcının eklediği HTML kopyası balon
+      // çerçevelerini taşır, zengin metin alan yerlerde "──" çizgisine dönüşüyordu.
+      if (!closed) {
+        e.clipboardData.setData('text/plain', sel.toString());
+        e.preventDefault();
+        return;
+      }
       const box = document.createElement('div');
       box.className = 'tz-copy-box';
       box.appendChild(range.cloneContents());
