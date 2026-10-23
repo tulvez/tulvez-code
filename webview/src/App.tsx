@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { AnimationEvent, CSSProperties, ReactNode } from 'react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from './components/ui/dropdown-menu';
@@ -155,22 +155,102 @@ function ShootingStar({ first, gap }: { first: number; gap: [number, number] }) 
   );
 }
 
-// Uzun süre boş ekranda kalınca Dünya yörüngede geçer: ilki ~20 sn sonra,
-// sonra 1,5–3 dakikada bir. Geçiş 45 sn sürer; küre kendi ekseninde döner.
-function Earth({ active }: { active: boolean }) {
-  const [pass, setPass] = useState({ n: 0, wait: 20, low: Math.random() < 0.5 });
+// Uydu: güneş panelli kafes yapısı (ISS benzeri), yalnız SVG. Işık soldan gelir.
+function Satellite() {
+  // Güneş kanadı: kafese dik, uzun ve ince; ince hücre çizgileri ve altın kenar
+  const wing = (x: number, y: number, k: string) => (
+    <g key={k}>
+      <rect x={x} y={y} width="7" height="22" fill="url(#tzSatPanel)" stroke="#a8843c" strokeWidth="0.3" />
+      <path d={`M${x + 3.5} ${y}v22${Array.from({ length: 10 }, (_, i) => `M${x} ${y + 2 * (i + 1)}h7`).join('')}`}
+        stroke="#05080f" strokeWidth="0.22" opacity="0.75" />
+    </g>
+  );
+  return (
+    <svg className="tz-sat-body" viewBox="0 0 100 56" width="92" height="52">
+      <defs>
+        <linearGradient id="tzSatPanel" x1="0" y1="0" x2="1" y2="0.35">
+          <stop offset="0" stopColor="#c9a35a" />
+          <stop offset="0.3" stopColor="#6e5428" />
+          <stop offset="1" stopColor="#1d1810" />
+        </linearGradient>
+        <linearGradient id="tzSatHull" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#f4f1ea" />
+          <stop offset="1" stopColor="#7e7b75" />
+        </linearGradient>
+        <linearGradient id="tzSatHullV" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f4f1ea" />
+          <stop offset="1" stopColor="#8a8780" />
+        </linearGradient>
+        <radialGradient id="tzSatGlint">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.95" />
+          <stop offset="0.25" stopColor="#fff6dd" stopOpacity="0.45" />
+          <stop offset="1" stopColor="#fff6dd" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {/* ana kafes: kafes örgüsü ince çaprazlarla */}
+      <rect x="3" y="26.6" width="94" height="2.8" fill="url(#tzSatHullV)" />
+      <path d={Array.from({ length: 23 }, (_, i) => `M${4 + i * 4} 26.6l2 2.8`).join('')} stroke="#4c4a45" strokeWidth="0.3" />
+      {/* dört çift güneş kanadı (üst ve alt) */}
+      {[6, 15, 78, 87].flatMap((x, i) => [wing(x, 3.4, `u${i}`), wing(x, 30.6, `d${i}`)])}
+      <path d="M9.5 25.4v1.2M18.5 25.4v1.2M81.5 25.4v1.2M90.5 25.4v1.2M9.5 29.4v1.2M18.5 29.4v1.2M81.5 29.4v1.2M90.5 29.4v1.2"
+        stroke="#9a978f" strokeWidth="0.6" />
+      {/* radyatörler: beyaz, kafesin iki yanında */}
+      <path d="M30 29.4l-3 10h6zM70 26.6l3-10h-6z" fill="#e8e5de" opacity="0.88" />
+      <path d="M28 32.8h4M29 36.2h4M68 23.2h4M69 19.8h-4" stroke="#a9a69f" strokeWidth="0.25" />
+      {/* basınçlı modüller: kafese dik uzanan gövde ve yan modüller */}
+      <rect x="46.5" y="13" width="7" height="30" rx="3.2" fill="url(#tzSatHull)" />
+      <rect x="39" y="23.8" width="22" height="8.4" rx="3.6" fill="url(#tzSatHullV)" />
+      <path d="M46.5 20h7M46.5 36h7M43.5 23.8v8.4M56.5 23.8v8.4" stroke="#6d6a64" strokeWidth="0.3" />
+      <rect x="48.2" y="7" width="3.6" height="6.4" rx="1.4" fill="#d9d6cf" />
+      {/* güneş paneline vuran ışık parlaması (geçişin ortasında) */}
+      <circle className="tz-sat-glint" cx="19" cy="14" r="11" fill="url(#tzSatGlint)" />
+    </svg>
+  );
+}
+
+// Uzun süre boş ekranda kalınca gökyüzünden cisimler geçer. İlk Dünya ~20 sn sonra (45 sn sürer,
+// kendi ekseninde döner); ardından Ay (60 sn) ve uydu (22 sn); sonra 1,5–3 dakika ara.
+// Gökyüzü sırası: Dünya → Ay → uydu → (uzun ara) → Dünya …
+// Aynı anda tek cisim geçer; WebGL bağlamı da hep tektir (geçiş bitince kapatılır).
+type SkyBody = 'earth' | 'moon' | 'sat';
+const NEXT_BODY: Record<SkyBody, SkyBody> = { earth: 'moon', moon: 'sat', sat: 'earth' };
+const WAIT_BEFORE: Record<SkyBody, () => number> = {
+  earth: () => 90 + Math.random() * 90,
+  moon: () => 18 + Math.random() * 20,
+  sat: () => 14 + Math.random() * 16,
+};
+
+function Sky({ active }: { active: boolean }) {
+  const [pass, setPass] = useState<{ n: number; body: SkyBody; wait: number; low: boolean }>(
+    { n: 0, body: 'earth', wait: 20, low: Math.random() < 0.5 },
+  );
   // Küre yalnız ekrandan geçerken çizilir (bekleme süresinde ve gizliyken çizim yok)
   const [flying, setFlying] = useState(false);
+  const next = () => {
+    setFlying(false);
+    setPass((p) => {
+      const body = NEXT_BODY[p.body];
+      return { n: p.n + 1, body, wait: WAIT_BEFORE[body](), low: !p.low };
+    });
+  };
+  const handlers = {
+    onAnimationStart: (e: AnimationEvent) => { if (e.target === e.currentTarget) setFlying(true); },
+    onAnimationEnd: (e: AnimationEvent) => { if (e.target === e.currentTarget) next(); },
+  };
+  if (pass.body === 'sat') {
+    return (
+      <div key={pass.n} className={`tz-sat-orbit ${pass.low ? 'is-low' : ''}`}
+        style={{ animationDelay: `${pass.wait}s` }} {...handlers}>
+        <Satellite />
+      </div>
+    );
+  }
+  const moon = pass.body === 'moon';
   return (
-    <div key={pass.n} className={`tz-earth-orbit ${pass.low ? 'is-low' : ''}`}
-      style={{ animationDelay: `${pass.wait}s` }}
-      onAnimationStart={(e) => { if (e.target === e.currentTarget) setFlying(true); }}
-      onAnimationEnd={(e) => {
-        if (e.target !== e.currentTarget) return;
-        setFlying(false);
-        setPass((p) => ({ n: p.n + 1, wait: 90 + Math.random() * 90, low: !p.low }));
-      }}>
-      <EarthGlobe size={LOW_POWER ? 104 : 124} running={flying && active} lowPower={LOW_POWER} />
+    <div key={pass.n} className={`tz-earth-orbit ${moon ? 'is-moon' : ''} ${pass.low ? 'is-low' : ''}`}
+      style={{ animationDelay: `${pass.wait}s` }} {...handlers}>
+      <EarthGlobe body={pass.body} size={moon ? (LOW_POWER ? 50 : 58) : (LOW_POWER ? 104 : 124)}
+        running={flying && active} lowPower={LOW_POWER} />
     </div>
   );
 }
@@ -197,7 +277,7 @@ const Starfield = memo(function Starfield() {
   }, []);
   return (
     <div className={`tz-space ${hidden ? 'is-paused' : ''} ${LOW_POWER ? 'is-low-power' : ''}`} aria-hidden>
-      <Earth active={!hidden} />
+      <Sky active={!hidden} />
       {STAR_LAYERS.map((layer) => (
         <div key={layer.drift} className={`tz-stars tz-drift-${layer.drift}`}>
           {layer.stars.map((s, i) => (

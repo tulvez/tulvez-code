@@ -368,6 +368,60 @@ body.vscode-light .tz-space { opacity: 0.55; }
   90%  { opacity: 1; }
   100% { opacity: 0; transform: translate3d(-120px, 66vh, 0) scale(0.65); }
 }
+/* Ay: daha küçük ve uzak, daha yavaş ve yüksekten geçer */
+.tz-earth-orbit.is-moon { animation-name: tzMoonHigh; animation-duration: 60s; }
+.tz-earth-orbit.is-moon.is-low { animation-name: tzMoonLow; }
+@keyframes tzMoonHigh {
+  0%   { opacity: 0; transform: translate3d(calc(100vw + 30px), 30vh, 0); }
+  10%  { opacity: 1; }
+  50%  { transform: translate3d(58vw, 8vh, 0); }
+  90%  { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(-80px, 12vh, 0); }
+}
+@keyframes tzMoonLow {
+  0%   { opacity: 0; transform: translate3d(-80px, 62vh, 0); }
+  10%  { opacity: 1; }
+  50%  { transform: translate3d(30vw, 40vh, 0); }
+  90%  { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(calc(100vw + 30px), 26vh, 0); }
+}
+
+/* Uydu: düz çizgide hızlı geçer, yavaşça döner; ortada paneline güneş vurur */
+.tz-sat-orbit {
+  position: absolute; left: 0; top: 0;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: tzSatHigh 22s linear 1 both;
+}
+.tz-sat-orbit.is-low { animation-name: tzSatLow; }
+.tz-sat-body {
+  display: block;
+  filter: drop-shadow(0 0 3px rgba(255, 236, 190, 0.18));
+  animation: tzSatTumble 22s linear 1 both;
+  animation-delay: inherit;
+}
+.tz-sat-glint { opacity: 0; animation: tzSatGlint 22s ease-in-out 1 both; animation-delay: inherit; }
+@keyframes tzSatHigh {
+  0%   { opacity: 0; transform: translate3d(-90px, 22vh, 0) scale(0.55); }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(calc(100vw + 20px), 6vh, 0) scale(0.7); }
+}
+@keyframes tzSatLow {
+  0%   { opacity: 0; transform: translate3d(calc(100vw + 20px), 62vh, 0) scale(0.6); }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(-90px, 54vh, 0) scale(0.75); }
+}
+@keyframes tzSatTumble { from { transform: rotate(-14deg); } to { transform: rotate(10deg); } }
+@keyframes tzSatGlint {
+  0%, 44% { opacity: 0; }
+  50%     { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+.tz-space.is-low-power .tz-sat-body { filter: none; }
+@media (prefers-reduced-motion: reduce) { .tz-sat-orbit { display: none; } }
+
 /* Gerçekçi küre WebGL ile çizilir (EarthGlobe); burada yalnız yörünge hareketi var */
 .tz-globe { display: block; }
 .tz-globe[data-unsupported] { display: none; }
