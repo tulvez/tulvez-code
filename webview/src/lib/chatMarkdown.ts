@@ -15,6 +15,9 @@ export interface ExportMessage {
   costUsd?: number;
   model?: string;
   stopped?: boolean;
+  output?: string;
+  status?: 'running' | 'ok' | 'error' | 'rejected';
+  cont?: boolean;
 }
 
 const MODE_LABEL = { ask: 'Ask', plan: 'Plan', build: 'Build' } as const;
@@ -46,7 +49,8 @@ export function chatToMarkdown(messages: ExportMessage[], opts: { workspace?: st
     if (m.role === 'user') {
       out.push('## Sen', '', m.text.trim());
     } else if (m.role === 'assistant') {
-      out.push(`## Tulvez Code · ${MODE_LABEL[m.mode ?? 'build']}`, '');
+      // Araçtan sonra gelen devam bölümü aynı yanıtın parçasıdır, başlık tekrarlanmaz
+      if (!m.cont) out.push(`## Tulvez Code · ${MODE_LABEL[m.mode ?? 'build']}`, '');
       if (m.reasoning?.trim()) {
         out.push('<details>', '<summary>Düşünüş</summary>', '', m.reasoning.trim(), '', '</details>', '');
       }
@@ -61,8 +65,14 @@ export function chatToMarkdown(messages: ExportMessage[], opts: { workspace?: st
         if (m.model) parts.push(prettyModel(m.model));
         out.push('', `<sub>${parts.join(' · ')}</sub>`);
       }
+    } else if (m.role === 'tool' && (m.toolName === 'run_command' || m.toolName === 'run_in_background')) {
+      const failed = m.status === 'error' || (m.exitCode ?? 0) !== 0;
+      const tag = m.status === 'rejected' ? ' · reddedildi' : failed ? ` · ${m.exitCode !== undefined ? `exit ${m.exitCode}` : 'hata'}` : '';
+      out.push(`**Terminal${tag}**`, '', fence(`$ ${m.text}${m.output ? `\n${m.output}` : ''}`, 'text'));
     } else if (m.role === 'tool') {
-      out.push(`**Araç · \`${m.toolName ?? 'araç'}\`**`, '', fence(m.text));
+      out.push(`**Araç · \`${m.toolName ?? 'araç'}\`** ${m.text.includes('\n') ? '' : `\`${m.text}\``}`.trimEnd());
+      if (m.text.includes('\n')) out.push('', fence(m.text));
+      if (m.output) out.push('', '<details>', '<summary>Sonuç</summary>', '', fence(m.output), '', '</details>');
     } else {
       const failed = (m.exitCode ?? 0) !== 0;
       out.push(`**Terminal${failed ? ` · exit ${m.exitCode}` : ''}**`, '', fence(m.text, 'text'));

@@ -14,7 +14,7 @@ import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   ArrowDown, ArrowUp, Brain, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy,
   FolderOpen, GitCommit, Hammer, Lightbulb, MessageSquare, RotateCcw, Save, Search, Settings,
-  Square, SquarePen, Terminal, Trash2, X, Zap,
+  Square, SquarePen, Terminal, Trash2, X, Zap, FileText, FilePen, FolderTree, Ban, LoaderCircle,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -44,7 +44,16 @@ interface ChatMessage {
   stopped?: boolean;
   reasoning?: string;
   toolName?: string;
+  /** Araç çağrısı: eklentideki çağrı kimliği, durumu, sonucu ve süresi */
+  callId?: string;
+  status?: ToolStatus;
+  output?: string;
+  startedAt?: number;
+  durationMs?: number;
+  /** Aynı yanıtın araç çağrısından sonra gelen devamı: başlık tekrar yazılmaz */
+  cont?: boolean;
 }
+type ToolStatus = 'running' | 'ok' | 'error' | 'rejected';
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
 interface RunConfirm { command: string; }
 
@@ -244,6 +253,80 @@ function useTyping(full: string, active: boolean, speed = 8) {
   return { displayed: full.slice(0, index), done: index >= full.length };
 }
 
+// ── Araç adımları ──────────────────────────────────────────────────
+const isShellTool = (name?: string): boolean => name === 'run_command' || name === 'run_in_background';
+
+const TOOL_INFO: Record<string, { label: string; busy: string; icon: ReactNode }> = {
+  read_file:       { label: 'Okundu',     busy: 'Okunuyor',     icon: <FileText size={12} /> },
+  read_files:      { label: 'Okundu',     busy: 'Okunuyor',     icon: <FileText size={12} /> },
+  write_file:      { label: 'Yazıldı',    busy: 'Yazılıyor',    icon: <FilePen size={12} /> },
+  replace_in_file: { label: 'Düzenlendi', busy: 'Düzenleniyor', icon: <FilePen size={12} /> },
+  edit_file:       { label: 'Düzenlendi', busy: 'Düzenleniyor', icon: <FilePen size={12} /> },
+  grep_files:      { label: 'Arandı',     busy: 'Aranıyor',     icon: <Search size={12} /> },
+  list_dir:        { label: 'Listelendi', busy: 'Listeleniyor', icon: <FolderTree size={12} /> },
+  list_files:      { label: 'Listelendi', busy: 'Listeleniyor', icon: <FolderTree size={12} /> },
+  stop_background: { label: 'Durduruldu', busy: 'Durduruluyor', icon: <Square size={11} /> },
+};
+
+function formatDuration(ms?: number): string {
+  if (ms === undefined) return '';
+  if (ms < 1000) return `${ms} ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1).replace('.', ',')} sn`;
+  return `${Math.floor(ms / 60_000)} dk ${Math.round((ms % 60_000) / 1000)} sn`;
+}
+
+function StepState({ status }: { status?: ToolStatus }) {
+  if (status === 'running') return <LoaderCircle size={12} className="tz-step-spin" />;
+  if (status === 'error') return <X size={12} />;
+  if (status === 'rejected') return <Ban size={11} />;
+  return <Check size={12} />;
+}
+
+/** Terminal komutu: komut satırı, durum, süre ve çıktı tek kartta. */
+function CommandStep({ msg }: { msg: ChatMessage }) {
+  // Kullanıcının /run komutu: komut metni yok, yalnız çıktı ve çıkış kodu var
+  const isUserRun = msg.role === 'command';
+  const status: ToolStatus = isUserRun ? ((msg.exitCode ?? 0) === 0 ? 'ok' : 'error') : (msg.status ?? 'ok');
+  const output = isUserRun ? msg.text : msg.output;
+  const command = isUserRun ? '' : msg.text;
+  const meta = status === 'running' ? 'çalışıyor'
+    : status === 'rejected' ? 'reddedildi'
+    : msg.exitCode !== undefined && msg.exitCode !== 0 ? `çıkış ${msg.exitCode}`
+    : status === 'error' ? 'hata' : formatDuration(msg.durationMs) || 'tamam';
+  return (
+    <div className={`tz-turn tz-cmd is-${status}`}>
+      <details open={status !== 'running' && !!output}>
+        <summary className="tz-cmd-head" title={command || undefined}>
+          <span className="tz-cmd-state"><StepState status={status} /></span>
+          {command
+            ? <code className="tz-cmd-line"><span className="tz-cmd-prompt">$</span>{command}</code>
+            : <span className="tz-cmd-line tz-cmd-plain"><Terminal size={12} /> terminal</span>}
+          <span className="tz-cmd-meta">{meta}</span>
+          {output ? <ChevronRight size={12} className="tz-fold-icon" /> : null}
+        </summary>
+        {output ? <pre className="tz-cmd-out">{output}</pre> : null}
+      </details>
+    </div>
+  );
+}
+
+/** Dosya okuma, arama, düzenleme gibi araçlar: tek satır, açılınca sonuç. */
+function ToolStep({ msg }: { msg: ChatMessage }) {
+  const info = TOOL_INFO[msg.toolName ?? ''] ?? { label: msg.toolName ?? 'araç', busy: msg.toolName ?? 'araç', icon: <Zap size={11} /> };
+  const status = msg.status ?? 'ok';
+  return (
+    <details className={`tz-turn tz-tool tz-step is-${status}`}>
+      <summary>
+        <span className="tz-tool-icon">{status === 'ok' ? info.icon : <StepState status={status} />}</span>
+        <span className="tz-tool-name">{status === 'running' ? info.busy : status === 'rejected' ? 'Reddedildi' : info.label}</span>
+        <span className="tz-tool-hint" title={msg.text}>{msg.text}</span>
+        {msg.output ? <ChevronRight size={12} className="tz-fold-icon" /> : null}
+      </summary>
+      {msg.output ? <pre className="tz-tool-body">{msg.output}</pre> : null}
+    </details>
+  );
+}
+
 function AiHead({ mode }: { mode: AgentMode }) {
   const m = MODES.find((x) => x.id === mode) ?? MODES[2];
   return (
@@ -319,30 +402,15 @@ const MessageItem = memo(function MessageItem({ msg, copied, animate, live, show
   msg: ChatMessage; copied: boolean; animate: boolean; live: boolean; showThinking: boolean;
   onCopy: (msg: ChatMessage) => void; onRetry: () => void; onAnimationEnd: (id: number) => void;
 }) {
-  if (msg.role === 'command') {
-    const failed = (msg.exitCode ?? 0) !== 0;
-    return (
-      <div className="tz-turn">
-        <div className={`tz-term ${failed ? 'is-failed' : ''}`}>
-          <div className="tz-term-head">
-            <Terminal size={12} />
-            <span>terminal</span>
-            <span className={`tz-term-exit ${failed ? 'is-failed' : ''}`}>
-              {failed ? `exit ${msg.exitCode}` : 'tamam'}
-            </span>
-          </div>
-          <pre className="tz-term-body">{msg.text}</pre>
-        </div>
-      </div>
-    );
-  }
+  if (msg.role === 'command' || (msg.role === 'tool' && isShellTool(msg.toolName))) return <CommandStep msg={msg} />;
+  if (msg.role === 'tool' && msg.toolName && msg.toolName !== 'tulvez') return <ToolStep msg={msg} />;
   if (msg.role === 'tool') {
     return (
       <details className="tz-turn tz-tool">
         <summary>
           <span className="tz-tool-icon"><Zap size={11} /></span>
           <span className="tz-tool-name">{msg.toolName ?? 'araç'}</span>
-          <span className="tz-tool-hint">{msg.text.slice(0, 90)}</span>
+          <span className="tz-tool-hint is-dup">{msg.text.slice(0, 90)}</span>
           <ChevronRight size={12} className="tz-fold-icon" />
         </summary>
         <pre className="tz-tool-body">{msg.text}</pre>
@@ -372,8 +440,8 @@ const MessageItem = memo(function MessageItem({ msg, copied, animate, live, show
     );
   }
   return (
-    <div className="tz-turn tz-turn-ai" style={style}>
-      <AiHead mode={m} />
+    <div className={`tz-turn tz-turn-ai ${msg.cont ? 'is-cont' : ''}`} style={style}>
+      {!msg.cont && <AiHead mode={m} />}
       <AssistantBody msg={msg} copied={copied} animate={animate} live={live}
         showThinking={showThinking} onCopy={onCopy} onAnimationEnd={onAnimationEnd} />
     </div>
@@ -418,7 +486,8 @@ export function App(): JSX.Element {
         (m): m is ChatMessage =>
           !!m && typeof m === 'object' && typeof m.text === 'string'
           && Number.isFinite(m.id) && m.text.length < 20000,
-      );
+      // Kapanırken yarım kalan araç adımı sonsuza dek "çalışıyor" görünmesin
+      ).map((m) => (m.status === 'running' ? { ...m, status: 'error' as const, output: m.output ?? 'Yarıda kaldı.' } : m));
     } catch { return []; }
   });
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -476,8 +545,10 @@ export function App(): JSX.Element {
     } catch { return Date.now(); }
   })());
   const pendingRun = useRef<string | null>(null);
-  const nextId = useRef(1);
+  // Kimlikler sohbet içinde benzersiz olmalı: geri yüklenen mesajların üstünden devam edilir
+  const nextId = useRef(messages.reduce((mx, m) => Math.max(mx, m.id), 0) + 1);
   const streamingIdRef = useRef<number | null>(null);
+  const lastAssistantIdRef = useRef<number | null>(null);
   const animatedIdsRef = useRef<Set<number>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -508,9 +579,19 @@ export function App(): JSX.Element {
     if (sid === null) {
       const id = nextId.current++;
       streamingIdRef.current = id;
-      setMessages((prev) => [...prev, {
-        id, role: 'assistant', text: t, reasoning: r || undefined, mode: modeRef.current, animated: true,
-      }]);
+      lastAssistantIdRef.current = id;
+      setMessages((prev) => {
+        // Aynı yanıtın araç çağrısından sonraki devamı mı? (son kullanıcı mesajından beri yanıt var)
+        let cont = false;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          const p = prev[i];
+          if (p.role === 'user') break;
+          if (p.role === 'assistant' && !p.text.startsWith('❌')) { cont = true; break; }
+        }
+        return [...prev, {
+          id, role: 'assistant', text: t, reasoning: r || undefined, mode: modeRef.current, animated: true, cont,
+        }];
+      });
     } else {
       setMessages((prev) => prev.map((m) => (m.id === sid
         ? { ...m, text: m.text + t, reasoning: r ? (m.reasoning ?? '') + r : m.reasoning }
@@ -681,7 +762,9 @@ export function App(): JSX.Element {
         flushStream();
         setWaiting(false);
         setStreaming(false);
-        const sid = streamingIdRef.current;
+        // Kullanım bilgisi yanıtın son metin bölümüne yazılır (araçtan sonra metin gelmediyse öncekine)
+        const sid = streamingIdRef.current ?? lastAssistantIdRef.current;
+        lastAssistantIdRef.current = null;
         if (sid !== null) {
           setMessages((prev) => prev.map((m) => m.id === sid
             ? { ...m, inputTokens: msg.inputTokens, outputTokens: msg.outputTokens, costUsd: msg.costUsd, contextWindow: msg.contextWindow, model: msg.model }
@@ -728,9 +811,17 @@ export function App(): JSX.Element {
         }]);
       } else if (msg.type === 'toolCall') {
         flushStream();
+        // Araçtan sonra gelen metin yeni bir bölüm olur: sıra metin → araç → metin korunur
+        streamingIdRef.current = null;
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'tool', text: msg.summary, toolName: msg.tool,
+          callId: msg.id, status: msg.id ? 'running' : undefined, startedAt: Date.now(),
         }]);
+      } else if (msg.type === 'toolResult') {
+        const done = Date.now();
+        setMessages((prev) => prev.map((m) => (m.role === 'tool' && m.callId === msg.id
+          ? { ...m, status: msg.status, output: msg.output, exitCode: msg.exitCode, durationMs: m.startedAt ? done - m.startedAt : undefined }
+          : m)));
       } else if (msg.type === 'toolRequest') {
         setToolApproval({ id: msg.id, tool: msg.tool, args: msg.args });
       }
@@ -765,7 +856,7 @@ export function App(): JSX.Element {
       box.querySelectorAll('details').forEach((d) => d.setAttribute('open', ''));
       // Düşünüş başlığındaki karakter sayısı kopyada gereksiz
       // araç satırındaki kısa özet, açılan ayrıntıda zaten tam hâliyle var
-      box.querySelectorAll('.tz-reasoning-count, .tz-fold-icon, .tz-tool-hint').forEach((n) => n.remove());
+      box.querySelectorAll('.tz-reasoning-count, .tz-fold-icon, .tz-tool-hint.is-dup').forEach((n) => n.remove());
       document.body.appendChild(box);
       const text = box.innerText.replace(/\n{3,}/g, '\n\n').trim();
       box.remove();
@@ -806,10 +897,17 @@ export function App(): JSX.Element {
 
   const historyFor = (msgs: ChatMessage[]) => msgs
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim() && !m.text.startsWith('❌'))
-    .map((m) => ({ role: m.role as 'user' | 'assistant', text: m.text }))
+    // Araç çağrısıyla bölünmüş yanıt bölümleri modele tek yanıt olarak gider
+    .reduce<{ role: 'user' | 'assistant'; text: string }[]>((acc, m) => {
+      const last = acc[acc.length - 1];
+      if (m.role === 'assistant' && last?.role === 'assistant') last.text += `\n\n${m.text}`;
+      else acc.push({ role: m.role as 'user' | 'assistant', text: m.text });
+      return acc;
+    }, [])
     .slice(-20);
 
   const pushUser = (text: string) => {
+    lastAssistantIdRef.current = null;
     setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
     followNow();
   };
@@ -875,8 +973,18 @@ export function App(): JSX.Element {
     setToolApproval(null);
   };
 
+  // Kopyala düğmesi yanıtın tamamını alır: araçlarla bölünmüş metin bölümleri birleşir
   const copy = useCallback(async (msg: ChatMessage) => {
-    await navigator.clipboard.writeText(msg.text);
+    const list = messagesRef.current;
+    const at = list.findIndex((m) => m.id === msg.id);
+    const parts: string[] = [];
+    for (let i = at; i >= 0; i--) {
+      const m = list[i];
+      if (m.role === 'user') break;
+      if (m.role === 'assistant' && m.text.trim()) parts.unshift(m.text.trim());
+      if (m.role === 'assistant' && !m.cont) break;
+    }
+    await navigator.clipboard.writeText(parts.length ? parts.join('\n\n') : msg.text);
     setCopiedId(msg.id);
     window.setTimeout(() => setCopiedId(null), 1500);
   }, []);
@@ -898,6 +1006,7 @@ export function App(): JSX.Element {
   const restoreSession = (s: ChatSession) => {
     saveCurrentSession(messages);
     sessionIdRef.current = s.id;
+    nextId.current = Math.max(nextId.current, s.messages.reduce((mx, m) => Math.max(mx, m.id), 0) + 1);
     setMessages(s.messages);
     setMode(s.mode);
     followRef.current = true;
