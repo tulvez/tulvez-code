@@ -20,9 +20,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './styles.css';
 
-// Bunun altında içerik gizlenir. Kenar çubuğu sık sık 170–220 px açıldığı için
-// eşik düşük tutulur; aksi halde panel açılır açılmaz boşalmış gibi görünür.
-const MIN_WIDTH = 160;
+// Bunun altında arayüz sığmaz; yalnız "paneli genişlet" ekranı gösterilir (ayrı uyarı şeridi yok).
+const MIN_WIDTH = 220;
 // Kenar çubuğunda başlık ve düğmeler VS Code'un kendi başlık çubuğundadır;
 // ayrı editör sekmesinde (Paneli Aç) küçük bir araç çubuğu gösterilir.
 const IN_SIDEBAR = document.body.dataset.host !== 'panel';
@@ -167,16 +166,8 @@ function Earth({ active }: { active: boolean }) {
   );
 }
 
-// Kelime kelime belirme (skiper70 "text reveal" fikri; kaydırma yerine açılışta, yalnız CSS).
-// Yalnız ilk açılışta oynar; başka sayfadan boş sohbete dönünce metin hazır durur.
-let wordsRevealed = false;
+// Kelime kelime belirme (skiper70 "text reveal" fikri; kaydırma yerine açılışta, yalnız CSS)
 function WordReveal({ text, start = 0, step = 0.06 }: { text: string; start?: number; step?: number }) {
-  const [animate] = useState(() => !wordsRevealed);
-  useEffect(() => {
-    const t = window.setTimeout(() => { wordsRevealed = true; }, 1500);
-    return () => window.clearTimeout(t);
-  }, []);
-  if (!animate) return <>{text}</>;
   return (
     <>
       {text.split(' ').map((w, i) => (
@@ -186,19 +177,18 @@ function WordReveal({ text, start = 0, step = 0.06 }: { text: string; start?: nu
   );
 }
 
-// Uzay kabukta sürekli bağlıdır: başka sayfaya geçip boş sohbete dönünce baştan
-// başlamaz, kaldığı yerden devam eder (görünmezken animasyonlar duraklatılır).
-const Starfield = memo(function Starfield({ active }: { active: boolean }) {
+// Uzay yalnız boş sohbette bağlıdır; başka sayfaya geçince tamamen kaldırılır
+// (panel görünmezken animasyonlar duraklatılır).
+const Starfield = memo(function Starfield() {
   const [hidden, setHidden] = useState(document.hidden);
   useEffect(() => {
     const on = () => setHidden(document.hidden);
     document.addEventListener('visibilitychange', on);
     return () => document.removeEventListener('visibilitychange', on);
   }, []);
-  const on = active && !hidden;
   return (
-    <div className={`tz-space ${on ? '' : 'is-paused'} ${active ? '' : 'is-off'} ${LOW_POWER ? 'is-low-power' : ''}`} aria-hidden>
-      <Earth active={on} />
+    <div className={`tz-space ${hidden ? 'is-paused' : ''} ${LOW_POWER ? 'is-low-power' : ''}`} aria-hidden>
+      <Earth active={!hidden} />
       {STAR_LAYERS.map((layer) => (
         <div key={layer.drift} className={`tz-stars tz-drift-${layer.drift}`}>
           {layer.stars.map((s, i) => (
@@ -456,7 +446,6 @@ export function App(): JSX.Element {
   const [setupBaseUrl, setSetupBaseUrl] = useState('');
   const [liveModels, setLiveModels] = useState<string[]>([]);
   const [showJump, setShowJump] = useState(false);
-  const [narrowDismissed, setNarrowDismissed] = useState(false);
 
   // Sohbet kalıcılığı: akış sırasında her parçada değil, kısa bir gecikmeyle yazılır.
   useEffect(() => {
@@ -1332,14 +1321,8 @@ export function App(): JSX.Element {
         </header>
       )}
 
-      {width < 260 && !narrowDismissed && (
-        <div className="tz-narrow-hint" role="status">
-          <span>Panel dar. Kenarından sürükleyip genişletirsen daha rahat kullanırsın.</span>
-          <button className="tz-ghost-icon" type="button" title="Kapat" onClick={() => setNarrowDismissed(true)}><X size={12} /></button>
-        </div>
-      )}
-
       <div className="tz-chat-wrap">
+        {messages.length === 0 && <Starfield />}
         <div ref={scrollRef} className="tz-scroll tz-chat">
           <div ref={contentRef} className="tz-chat-content">
             {messages.length === 0 ? renderWelcome() : (
@@ -1382,7 +1365,6 @@ export function App(): JSX.Element {
 
   return (
     <div className="tz-shell" ref={shellRef}>
-      <Starfield active={page === 'chat' && messages.length === 0 && width >= MIN_WIDTH} />
       {width < MIN_WIDTH ? <TooNarrow /> : page === 'settings' ? (
         <SettingsPage
           onBack={() => setPage('chat')}

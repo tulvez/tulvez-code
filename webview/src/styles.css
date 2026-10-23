@@ -157,9 +157,6 @@ summary:active { opacity: 0.62; }
   overflow: hidden;
   position: relative;
 }
-/* Uzay kabuğun arkasında durur; sayfalar onun üstünde çizilir */
-.tz-shell > :not(.tz-space) { position: relative; z-index: 1; }
-.tz-space.is-off { visibility: hidden; }
 
 .tz-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 
@@ -420,16 +417,6 @@ body.vscode-light .tz-beam > span {
 }
 @media (prefers-reduced-motion: reduce) { .tz-beam { display: none; } }
 
-/* ── Dar panel uyarısı ────────────────────────────────────────── */
-.tz-narrow-hint {
-  display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0;
-  margin: 6px 6px 0; padding: 7px 4px 7px 10px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--tn-accent-line);
-  background: var(--tn-accent-wash);
-  font-size: 11px; line-height: 1.45; color: var(--tn-text-2);
-}
-.tz-narrow-hint span { flex: 1; min-width: 0; }
 
 /* Kopyalama: kapalı bölümler açık hâliyle ekran dışında çizilip metni alınır */
 .tz-copy-box {
