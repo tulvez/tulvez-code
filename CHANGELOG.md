@@ -50,8 +50,12 @@ Arayüz sıfırdan yeniden tasarlandı (Tulvez Noir). Eklentinin davranışı de
   dokusu (kamu malı, 1024×512, eklentiye gömülü — ağ isteği yok), 23,4° eksen eğikliği, gece/gündüz
   sınırı, okyanus parlaması, atmosfer; dönüş yönü gerçeğe uygun (batıdan doğuya). Yalnız ekrandayken
   çizer, 30 kare/sn (zayıf donanımda 20). WebGL yoksa gösterilmez
-- Uzay kaldığı yerden devam eder: başka sayfaya geçip boş sohbete dönünce baştan başlamaz
-  (görünmezken duraklatılır); karşılama metni animasyonu yalnız ilk açılışta oynar
+- Dünyadan sonra Ay ve uydu geçer. Ay aynı WebGL çizimiyle: NASA LRO renkli Ay dokusu (kamu malı,
+  512×256, gömülü), atmosfersiz keskin gündüz/gece sınırı, regolitin ışığı geri yansıtması ve hafif Dünya
+  ışığı. Uydu ISS benzeri SVG (kafes, dört çift güneş kanadı, modüller, radyatörler), yavaş döner ve
+  geçişin ortasında paneline güneş vurur. Aynı anda tek cisim geçer, WebGL bağlamı da tektir
+- Uzay yalnız boş sohbette bağlıdır; ayarlar/geçmişten dönünce baştan başlar (kaldığı yerden devam
+  özelliği ayarlar ve geçmişin açılmasını bozduğu için kaldırıldı)
 - Eski donanım: yalnız transform/opacity hareketi, 4 çekirdek ve altında yarı yıldız ve tek kayan
   yıldız, panel görünmezken bütün hareket durur
 - Ayarlar Codex mantığında sıfırdan: panelde yalnız temel ajan ayarları — Bağlantı (sağlayıcı, anahtar,
@@ -71,8 +75,18 @@ Arayüz sıfırdan yeniden tasarlandı (Tulvez Noir). Eklentinin davranışı de
 - Karşılama başlığı "[işaret] Tulvez Code"; işaret uygulamaya gömülü, yazıdan sonra belirmiyor.
   Alt metin kelime kelime belirir
 - Yapay zekâ çalışırken giriş kutusunun kenarında mod renginde ışık döner (bağımlılıksız, border-beam benzeri)
-- Dar panel: 260 px altında kapatılabilir "panel dar" uyarısı, 160 px altında "sığmıyor" ekranı;
-  dizin adı dar panelde de görünür (maliyet/bağlam ipucuna geçer)
+- Dar panel: uyarı şeridi yok; 220 px altında yalnız "paneli genişlet" ekranı. Dizin adı dar
+  panelde de görünür (maliyet/bağlam ipucuna geçer)
+- Komutlar sırasıyla ve sonucuyla: yanıt metin → komut → metin bölümlerine ayrılır. Komut kartında
+  `$ komut`, çalışıyor/tamam/hata durumu, süre ya da çıkış kodu ve çıktı; dosya okuma, arama ve düzenleme
+  gibi araçlar tek satır ("Okunuyor…" → "Okundu"), açılınca sonucu gösterir. Kopyala düğmesi yanıtın
+  bütün bölümlerini birlikte kopyalar; modele giden geçmişte bölümler tek yanıt olarak birleşir
+- Geçmiş: açık sohbet geçmişe hemen yazılır (hatayla biten ya da yeni sohbet açmadan kapatılan sohbet
+  de listede görünür). Düzeltme: yeniden yüklemede oturum ve mesaj kimlikleri 1'den başlayıp eski
+  kayıtlarla çakışabiliyordu
+- Özel uç nokta: örnek adresler (OpenRouter, LM Studio, vLLM) tıklanınca alana yazılır
+- Kopyalama panoya yalnız düz metin koyar (HTML kopyası zengin metin alan yerlerde "──" çizgisine
+  dönüşüyordu)
 - Kopyalama: seçim kapalı bir düşünüş ya da araç bölümünü kapsıyorsa onun içeriği de kopyalanır;
   düşünüş ve araç başlıkları da seçilebilir
 - Sohbeti Markdown olarak kaydet: başlık çubuğunda yeni sohbetin yanında. Sohbet adıyla
