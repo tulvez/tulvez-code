@@ -1025,7 +1025,7 @@ export function App(): JSX.Element {
             <input className="tz-field" type="password" placeholder="API anahtarı" value={setupKey}
               onChange={(e) => setSetupKey(e.target.value)} autoComplete="off" spellCheck={false} />
             {setupProvider === 'custom' && (
-              <input className="tz-field" type="text" placeholder="Base URL (örn. https://openrouter.ai/api/v1)"
+              <input className="tz-field" type="text" placeholder="Adres — örn. https://openrouter.ai/api/v1 ya da http://localhost:1234/v1"
                 value={setupBaseUrl} onChange={(e) => setSetupBaseUrl(e.target.value)} spellCheck={false} />
             )}
             <div className="tz-setup-actions">

@@ -78,6 +78,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** Özel uç nokta için örnek adresler; tıklanınca alana yazılır. */
+const ENDPOINT_EXAMPLES = [
+  { name: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
+  { name: 'LM Studio', url: 'http://localhost:1234/v1' },
+  { name: 'vLLM', url: 'http://localhost:8000/v1' },
+];
+
 function Row({ title, desc, control, children, onClick }: {
   title: ReactNode; desc?: ReactNode; control?: ReactNode; children?: ReactNode; onClick?: () => void;
 }) {
@@ -418,10 +425,20 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
           )} />
 
         {cfg.aiProvider === 'custom' && (
-          <Row title="Adres" desc="OpenAI uyumlu uç nokta">
+          <Row title="Adres" desc="OpenAI uyumlu uç noktanın /v1 adresi">
             <input className="cx-input" type="text" spellCheck={false} aria-label="Base URL"
               value={cfg.baseUrl || ''} placeholder="https://openrouter.ai/api/v1"
               onChange={(e) => apply({ baseUrl: e.target.value })} />
+            <div className="cx-examples">
+              <span className="cx-examples-label">Örnek</span>
+              {ENDPOINT_EXAMPLES.map((x) => (
+                <button key={x.url} type="button" className="cx-example" title={`${x.name} — kullanmak için tıkla`}
+                  onClick={() => apply({ baseUrl: x.url })}>
+                  <span className="cx-example-url">{x.url}</span>
+                  <span className="cx-example-name">{x.name}</span>
+                </button>
+              ))}
+            </div>
           </Row>
         )}
         {cfg.aiProvider === 'ollama' && (

@@ -1032,6 +1032,18 @@ details[open] > summary .tz-fold-icon { transform: rotate(90deg); }
   transition: border-color var(--dur);
 }
 .cx-input::placeholder { color: var(--tn-text-4); }
+/* Özel uç nokta örnekleri — tıklanınca alana yazılır */
+.cx-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.cx-examples-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; color: var(--tn-text-4); margin-right: 2px; }
+.cx-example {
+  display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%;
+  padding: 3px 8px; border-radius: 6px; border: 1px dashed var(--tn-line-2, var(--tn-line));
+  background: transparent; color: var(--tn-text-2); cursor: pointer; font: inherit;
+}
+.cx-example-url { font-family: var(--mono); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-example-name { font-size: 10px; color: var(--tn-text-4); white-space: nowrap; }
+@media (hover: hover) { .cx-example:hover { border-style: solid; color: var(--tn-text); } }
+.cx-example:active { opacity: 0.62; }
 .cx-input:focus { border-color: var(--tn-text-4); }
 .cx-mono { font-family: var(--mono); font-size: 12px; }
 .cx-input-group {
