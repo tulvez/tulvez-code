@@ -16,3 +16,6 @@ marketing/ses/
 
 # ...ama eklentinin kullandigi ses repoda durur (paketlenmesi gerekiyor)
 !resources/sounds/*.wav
+
+# F5 geliştirme günlüğü (src/services/devLog.ts)
+.tulvez-dev.log*

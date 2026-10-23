@@ -23,6 +23,7 @@ export type WebviewToHostMessage =
   | { type: 'exportChat'; title: string; markdown: string }
   | { type: 'getSkillsRegistry' }
   | { type: 'openVsSettings' }
+  | { type: 'clientLog'; level: 'info' | 'error'; text: string }
   | { type: 'installSkill'; id: string }
   | { type: 'removeSkill'; id: string }
   | { type: 'openFolder' }

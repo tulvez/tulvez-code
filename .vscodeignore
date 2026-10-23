@@ -19,3 +19,7 @@ package-lock.json
 **/*.map
 resources/make-sound.mjs
 resources/make-png.mjs
+.tulvez-dev.log*
+tulvez-noir/**
+*.html
+!dist/webview/index.html

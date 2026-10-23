@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 process.noDeprecation = true;
 import type { HostToWebviewMessage, NavigateTarget, TulvezSettings, WebviewToHostMessage } from './services/messages';
 import { chatFileName } from './services/chatExport';
+import { devLog, initDevLog, step } from './services/devLog';
 import { fetchRegistry, installedSkills, installSkill, registryBase, removeSkill, type RegistrySkill } from './services/skillsRegistry';
 import { runAgent, invalidateRepoMap } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
@@ -15,7 +16,10 @@ import { isBotIdentity, readIdentity, removeBotIdentity, repoRoot, withCoAuthor 
 import { activateCoAuthorScm, noteAiEdit } from './services/coAuthorScm';
 
 export function activate(context: vscode.ExtensionContext): void {
+  initDevLog(context);
+  devLog('activate başladı');
   const createWebview = (webview: vscode.Webview, host: 'sidebar' | 'panel' = 'panel'): void => {
+    devLog('webview hazırlanıyor', host);
     try {
       webview.options = {
         enableScripts: true,
@@ -290,7 +294,13 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
+    if (message.type === 'clientLog') {
+      devLog(`webview ${message.level}`, message.text.slice(0, 2000));
+      return;
+    }
+
     if (message.type === 'ready') {
+      devLog('webview hazır (ready)');
       const workspaceName = vscode.workspace.name ?? 'Çalışma alanı yok';
       const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
       await webview.postMessage({
@@ -528,16 +538,12 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   if (context.extensionMode === vscode.ExtensionMode.Development) {
-    try {
-      openPanel();
-    } catch (err) {
-      console.error('[Tulvez] Panel açılamadı:', err);
-      void vscode.window.showErrorMessage('Tulvez Code paneli açılamadı. Ayrıntı için Output → Extension Host loguna bakın.');
-    }
+    step('geliştirme paneli', () => openPanel());
   }
 
-  void migrateBotIdentity(context);
-  void activateCoAuthorScm(context);
+  void migrateBotIdentity(context).then(() => devLog('✓ bot kimliği denetimi'), (e) => devLog('✗ bot kimliği denetimi', String(e)));
+  void activateCoAuthorScm(context).then(() => devLog('✓ ek katkıcı (Kaynak Denetimi)'), (e) => devLog('✗ ek katkıcı', String(e)));
+  devLog('activate bitti');
 }
 
 /**
@@ -590,7 +596,9 @@ async function migrateBotIdentity(context: vscode.ExtensionContext): Promise<voi
   }
 }
 
-export function deactivate(): void {}
+export function deactivate(): void {
+  devLog('deactivate (eklenti kapanıyor)');
+}
 
 class TulvezSidebarProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | undefined;
@@ -656,7 +664,7 @@ function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, host:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; font-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; font-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />
   <link rel="stylesheet" href="${styleUri}" />
   <title>Tulvez Code</title>
 </head>
