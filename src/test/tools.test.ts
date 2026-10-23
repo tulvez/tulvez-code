@@ -130,6 +130,15 @@ describe('run_command güvenliği', () => {
     expect(out).toContain('merhaba');
   });
 
+  it('çıkış kodunu arayüz için bildirir', async () => {
+    const ok: { exitCode?: number } = {};
+    await executeTool('run_command', { command: 'echo tamam' }, true, undefined, ok);
+    expect(ok.exitCode).toBe(0);
+    const bad: { exitCode?: number } = {};
+    await executeTool('run_command', { command: 'exit 3' }, true, undefined, bad);
+    expect(bad.exitCode).toBe(3);
+  });
+
   it('kabuk platforma uygun seçilir', () => {
     const win = shellInvocation('npm test');
     const unix = shellInvocation('npm test');

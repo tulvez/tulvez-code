@@ -124,10 +124,13 @@ export function activate(context: vscode.ExtensionContext): void {
         void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage);
       },
       onReasoning: (chunk) => void webview.postMessage({ type: 'assistantReasoning', text: chunk } satisfies HostToWebviewMessage),
-      onToolCall: (tool, summary) => {
+      onToolCall: (tool, summary, id) => {
         lastEditedFile = tool === 'write_file' || tool === 'replace_in_file' ? summary : lastEditedFile;
-        void webview.postMessage({ type: 'toolCall', tool, summary } satisfies HostToWebviewMessage);
+        void webview.postMessage({ type: 'toolCall', tool, summary, id } satisfies HostToWebviewMessage);
       },
+      onToolResult: (r) => void webview.postMessage({
+        type: 'toolResult', id: r.callId, tool: r.tool, output: r.output, status: r.status, exitCode: r.exitCode,
+      } satisfies HostToWebviewMessage),
       onToolRequest: (id, tool, args) =>
         new Promise<boolean>((resolve) => {
           pendingToolApprovals.set(id, resolve);

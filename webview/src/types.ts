@@ -64,7 +64,8 @@ export type HostToWebviewMessage =
   | { type: 'commitMessage'; text: string; staged: boolean }
   | { type: 'settingsData'; settings: TulvezSettings }
   | { type: 'toolRequest'; id: string; tool: string; args: string }
-  | { type: 'toolCall'; tool: string; summary: string }
+  | { type: 'toolCall'; tool: string; summary: string; id?: string }
+  | { type: 'toolResult'; id: string; tool: string; output: string; status: 'ok' | 'error' | 'rejected'; exitCode?: number }
   | { type: 'modelsList'; models: string[]; error?: string }
   | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
   | { type: 'cancelled' }

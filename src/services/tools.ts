@@ -296,6 +296,7 @@ export async function executeTool(
   args: Record<string, unknown>,
   allowShell: boolean,
   budgetChars = 24000,
+  meta?: { exitCode?: number },
 ): Promise<string> {
   try {
     switch (name) {
@@ -466,6 +467,7 @@ export async function executeTool(
             clearInterval(ticker);
             clearTimeout(hardStop);
             const out = `${stdout}\n${stderr}`.trim();
+            if (meta) meta.exitCode = code;
             resolve(out || (code === 0 ? '(çıktı yok)' : `exit ${code}`));
           };
 
@@ -478,7 +480,7 @@ export async function executeTool(
             }
           });
           child.stderr?.on('data', (d) => { stderr += String(d); });
-          child.on('error', (err) => { stderr += String(err.message); collect(); });
+          child.on('error', (err) => { stderr += String(err.message); code = code || 1; collect(); });
           child.on('close', (exitCode) => { code = exitCode ?? 0; collect(); });
 
           // Uzun süreçler (sunucu, GUI) sonsuza kadar çalışır; çıktı üretmeyenleri

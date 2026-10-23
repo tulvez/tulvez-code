@@ -10,12 +10,30 @@ import { resolveModel } from './providers';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
-  onToolCall: (tool: string, summary: string) => void;
+  /** callId, aynı çağrının sonucunu (onToolResult) eşlemek içindir. */
+  onToolCall: (tool: string, summary: string, callId: string) => void;
+  onToolResult?: (result: ToolResult) => void;
   onToolRequest: (id: string, tool: string, args: string) => Promise<boolean>;
   onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number; model: string }) => void;
   onCancelled?: () => void;
   onReasoning?: (text: string) => void;
   onError: (err: string) => void;
+}
+
+export interface ToolResult {
+  callId: string;
+  tool: string;
+  output: string;
+  status: 'ok' | 'error' | 'rejected';
+  exitCode?: number;
+}
+
+/** Arayüzde gösterilecek sonuç: araç sonucu uzun olabilir, baştan ve sondan kesilir. */
+function previewOutput(text: string, max = 4000): string {
+  if (text.length <= max) return text;
+  const head = text.slice(0, Math.floor(max * 0.6));
+  const tail = text.slice(-Math.floor(max * 0.4));
+  return `${head}\n… (${text.length - max} karakter gösterilmiyor) …\n${tail}`;
 }
 
 let repoMapCache: { text: string; builtAt: number } | null = null;
@@ -82,20 +100,36 @@ function buildToolSet(
       description: def.description,
       inputSchema: def.schema as ToolSet[string]['inputSchema'],
       execute: async (args: Record<string, unknown>) => {
-        cb.onToolCall(def.name, toolSummary(def.name, args));
+        const callId = nextToolReqId();
+        const report = (output: string, status: ToolResult['status'], exitCode?: number): void => {
+          cb.onToolResult?.({ callId, tool: def.name, output: previewOutput(output), status, exitCode });
+        };
+        cb.onToolCall(def.name, toolSummary(def.name, args), callId);
         if (def.requiresApproval && !settings.autoApproveCommands) {
           const allowed = await cb.onToolRequest(
             nextToolReqId(),
             def.name,
             JSON.stringify(args, null, 2).slice(0, 2000),
           );
-          if (!allowed) return 'Kullanıcı aracı reddetti.';
+          if (!allowed) {
+            report('Kullanıcı aracı reddetti.', 'rejected');
+            return 'Kullanıcı aracı reddetti.';
+          }
         }
         if (def.name === 'write_file' || def.name === 'replace_in_file') {
           const target = resolveEditPath(String(args.path ?? ''));
           if (target) await snapshotBeforeEdit(target);
         }
-        const result = await executeTool(def.name, args, settings.allowShellCommands);
+        const meta: { exitCode?: number } = {};
+        let result: string;
+        try {
+          result = await executeTool(def.name, args, settings.allowShellCommands, undefined, meta);
+        } catch (err) {
+          report(err instanceof Error ? err.message : String(err), 'error');
+          throw err;
+        }
+        const failed = meta.exitCode !== undefined ? meta.exitCode !== 0 : /^Hata\b/.test(result);
+        report(result, failed ? 'error' : 'ok', meta.exitCode);
         return applyBudget(result);
       },
     } as ToolSet[string];
