@@ -11,10 +11,21 @@ export interface TulvezSettings {
   showAiEdits: boolean;
   showModels: boolean;
   showThinking: boolean;
+  /** Tulvez Code'un attığı commit'lere ek katkıcı (Co-authored-by) satırı ekle */
+  gitCoAuthor: boolean;
 }
+
+/** VS Code başlık çubuğu düğmelerinin webview'a ilettiği komutlar */
+export type NavigateTarget = 'newChat' | 'history' | 'settings' | 'export';
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
+  | { type: 'exportChat'; title: string; markdown: string }
+  | { type: 'getSkillsRegistry' }
+  | { type: 'openVsSettings' }
+  | { type: 'clientLog'; level: 'info' | 'error'; text: string }
+  | { type: 'installSkill'; id: string }
+  | { type: 'removeSkill'; id: string }
   | { type: 'openFolder' }
   | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[]; model?: string }
   | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain' | 'skill'; arg?: string; mode: 'ask' | 'plan' | 'build' }
@@ -22,7 +33,8 @@ export type WebviewToHostMessage =
   | { type: 'getSkills' }
   | { type: 'openFolder' }
   | { type: 'toolApproval'; id: string; approved: boolean }
-| { type: 'listModels' }
+  | { type: 'listModels' }
+  | { type: 'switchProvider'; provider: TulvezSettings['aiProvider'] }
   | { type: 'cancelStream' }
   | { type: 'applyCommit'; message: string }
   | { type: 'expandSidebar' }
@@ -33,6 +45,15 @@ export type WebviewToHostMessage =
 
 export type HostToWebviewMessage =
   | { type: 'initialized'; workspaceName: string; workspacePath?: string; logoUri: string }
+  | { type: 'navigate'; to: NavigateTarget }
+  | {
+      type: 'skillsRegistry';
+      source: string;
+      skills: { id: string; name: string; description: string; tags: string[]; version?: string }[];
+      installed: { id: string; name: string }[];
+      error?: string;
+      busy?: string;
+    }
   | { type: 'error'; message: string }
   | { type: 'systemNotice'; text: string }
   | { type: 'assistantChunk'; text: string }
