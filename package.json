@@ -51,8 +51,56 @@
       {
         "command": "tulvez.playIntroSound",
         "title": "Tulvez Code: Kurulum Sesini Çal"
+      },
+      {
+        "command": "tulvez.newChat",
+        "title": "Yeni sohbet",
+        "category": "Tulvez Code",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tulvez.exportChat",
+        "title": "Sohbeti Markdown olarak kaydet",
+        "category": "Tulvez Code",
+        "icon": "$(save)"
+      },
+      {
+        "command": "tulvez.showHistory",
+        "title": "Sohbet geçmişi",
+        "category": "Tulvez Code",
+        "icon": "$(history)"
+      },
+      {
+        "command": "tulvez.openSettings",
+        "title": "Ayarlar",
+        "category": "Tulvez Code",
+        "icon": "$(settings-gear)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "tulvez.newChat",
+          "when": "view == tulvez.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tulvez.exportChat",
+          "when": "view == tulvez.sidebar",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tulvez.showHistory",
+          "when": "view == tulvez.sidebar",
+          "group": "navigation@3"
+        },
+        {
+          "command": "tulvez.openSettings",
+          "when": "view == tulvez.sidebar",
+          "group": "navigation@4"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {

@@ -4,7 +4,8 @@ import * as vscode from 'vscode';
 
 // 3. parti SDK'ların Node deprecation uyarılarını susturur (VS Code terminalinde görünür gürültü)
 process.noDeprecation = true;
-import type { HostToWebviewMessage, TulvezSettings, WebviewToHostMessage } from './services/messages';
+import type { HostToWebviewMessage, NavigateTarget, TulvezSettings, WebviewToHostMessage } from './services/messages';
+import { chatFileName } from './services/chatExport';
 import { runAgent, invalidateRepoMap } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
@@ -13,7 +14,7 @@ import { isBotIdentity, readIdentity, removeBotIdentity, repoRoot, withCoAuthor 
 import { activateCoAuthorScm, noteAiEdit } from './services/coAuthorScm';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const createWebview = (webview: vscode.Webview): void => {
+  const createWebview = (webview: vscode.Webview, host: 'sidebar' | 'panel' = 'panel'): void => {
     try {
       webview.options = {
         enableScripts: true,
@@ -22,7 +23,7 @@ export function activate(context: vscode.ExtensionContext): void {
           vscode.Uri.joinPath(context.extensionUri, 'resources'),
         ],
       };
-      webview.html = getWebviewHtml(webview, context.extensionUri);
+      webview.html = getWebviewHtml(webview, context.extensionUri, host);
     } catch (err) {
       console.error('[Tulvez] Webview hazırlanamadı:', err);
     }
@@ -202,6 +203,41 @@ export function activate(context: vscode.ExtensionContext): void {
         output: result.exitCode === 0 ? result.output || 'Commit oluşturuldu.' : `Commit başarısız: ${result.output}`,
         exitCode: result.exitCode,
       } satisfies HostToWebviewMessage);
+      return;
+    }
+
+    if (message.type === 'exportChat') {
+      // Sohbet, adıyla birlikte Markdown dosyasına yazılır ve VS Code'da açılır.
+      // Klasör açıksa <klasör>/.tulvez/sohbetler/ (git'e girmez), değilse eklentinin kendi alanı.
+      if (!message.markdown.trim()) {
+        void vscode.window.showInformationMessage('Tulvez Code: Kaydedilecek bir sohbet yok.');
+        return;
+      }
+      try {
+        const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
+        const dir = folder
+          ? vscode.Uri.joinPath(folder, '.tulvez', 'sohbetler')
+          : vscode.Uri.joinPath(context.globalStorageUri, 'sohbetler');
+        await vscode.workspace.fs.createDirectory(dir);
+        if (folder) {
+          const ignore = vscode.Uri.joinPath(dir, '.gitignore');
+          try {
+            await vscode.workspace.fs.stat(ignore);
+          } catch {
+            await vscode.workspace.fs.writeFile(ignore, Buffer.from('# Tulvez Code sohbet kayıtları — depoya girmez\n*\n', 'utf8'));
+          }
+        }
+        const file = vscode.Uri.joinPath(dir, chatFileName(message.title, new Date()));
+        await vscode.workspace.fs.writeFile(file, Buffer.from(message.markdown, 'utf8'));
+        const doc = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(doc, { preview: false });
+        await webview.postMessage({
+          type: 'systemNotice',
+          text: `Sohbet kaydedildi: ${folder ? vscode.workspace.asRelativePath(file) : file.fsPath}`,
+        } satisfies HostToWebviewMessage);
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Tulvez Code: Sohbet kaydedilemedi — ${err instanceof Error ? err.message : String(err)}`);
+      }
       return;
     }
 
@@ -409,6 +445,16 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerWebviewViewProvider('tulvez.sidebar', sidebarProvider),
   );
 
+  // Kenar çubuğu başlığındaki düğmeler (yeni sohbet, geçmiş, ayarlar) webview'a yönlendirilir;
+  // böylece panelde ikinci bir "Tulvez Code" başlığına gerek kalmaz.
+  const navigate = (to: NavigateTarget) => () => sidebarProvider.navigate(to);
+  context.subscriptions.push(
+    vscode.commands.registerCommand('tulvez.newChat', navigate('newChat')),
+    vscode.commands.registerCommand('tulvez.exportChat', navigate('export')),
+    vscode.commands.registerCommand('tulvez.showHistory', navigate('history')),
+    vscode.commands.registerCommand('tulvez.openSettings', navigate('settings')),
+  );
+
   const openPanel = () => {
     const panel = vscode.window.createWebviewPanel(
       'tulvezPanel', 'Tulvez Code', vscode.ViewColumn.Beside, { enableScripts: true },
@@ -513,22 +559,60 @@ async function migrateBotIdentity(context: vscode.ExtensionContext): Promise<voi
 export function deactivate(): void {}
 
 class TulvezSidebarProvider implements vscode.WebviewViewProvider {
+  private view: vscode.WebviewView | undefined;
+
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly createWebview: (webview: vscode.Webview) => void,
+    private readonly createWebview: (webview: vscode.Webview, host: 'sidebar' | 'panel') => void,
     private readonly handleMessage: (webview: vscode.Webview, message: WebviewToHostMessage) => Promise<void>,
   ) {}
 
+  // Webview gizlenip yeniden görünür olunca VS Code onu baştan kurar; uygulama
+  // "ready" demeden gönderilen komut kaybolurdu (ayarlar "bazen açılmıyor" sorunu).
+  // Komut, webview hazır olana kadar bekletilir.
+  private ready = false;
+  private pending: NavigateTarget | null = null;
+
+  navigate(to: NavigateTarget): void {
+    this.pending = to;
+    if (!this.view) {
+      // görünüm hiç açılmadıysa aç; resolveWebviewView + ready sonrası uygulanır
+      void vscode.commands.executeCommand('tulvez.sidebar.focus');
+      return;
+    }
+    this.view.show?.(true);
+    if (this.ready) this.flush();
+  }
+
+  private flush(): void {
+    if (!this.view || !this.pending) return;
+    const to = this.pending;
+    this.pending = null;
+    void this.view.webview.postMessage({ type: 'navigate', to } satisfies HostToWebviewMessage);
+  }
+
   resolveWebviewView(webviewView: vscode.WebviewView): void {
-    this.createWebview(webviewView.webview);
+    this.view = webviewView;
+    this.ready = false;
+    webviewView.onDidDispose(() => {
+      if (this.view === webviewView) { this.view = undefined; this.ready = false; }
+    });
+    this.createWebview(webviewView.webview, 'sidebar');
     webviewView.webview.onDidReceiveMessage(
-      (msg: WebviewToHostMessage) => void this.handleMessage(webviewView.webview, msg),
+      (msg: WebviewToHostMessage) => {
+        void this.handleMessage(webviewView.webview, msg);
+        if (msg.type === 'ready' && this.view === webviewView) {
+          this.ready = true;
+          // ready mesajı dinleyici kurulduktan hemen sonra gelir; bir kare bekle
+          setTimeout(() => this.flush(), 50);
+        }
+      },
       undefined, this.context.subscriptions,
     );
   }
 }
 
-function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, host: 'sidebar' | 'panel'): string {
   const webviewRoot = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'assets', 'index.js'));
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'assets', 'index.css'));
@@ -542,7 +626,7 @@ function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): stri
   <link rel="stylesheet" href="${styleUri}" />
   <title>Tulvez Code</title>
 </head>
-<body>
+<body data-host="${host}">
   <div id="root"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
