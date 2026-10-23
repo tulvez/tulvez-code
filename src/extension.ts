@@ -270,6 +270,14 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
+    if (message.type === 'switchProvider') {
+      const cfg = vscode.workspace.getConfiguration('tulvez');
+      await cfg.update('aiProvider', message.provider, vscode.ConfigurationTarget.Global);
+      await cfg.update('model', '', vscode.ConfigurationTarget.Global);
+      await webview.postMessage({ type: 'settingsData', settings: await readSettings() } satisfies HostToWebviewMessage);
+      return;
+    }
+
     if (message.type === 'saveSettings') {
       await saveSettings(message.settings);
       await webview.postMessage({ type: 'settingsData', settings: await readSettings() } satisfies HostToWebviewMessage);

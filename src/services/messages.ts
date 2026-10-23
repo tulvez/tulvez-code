@@ -22,7 +22,8 @@ export type WebviewToHostMessage =
   | { type: 'getSkills' }
   | { type: 'openFolder' }
   | { type: 'toolApproval'; id: string; approved: boolean }
-| { type: 'listModels' }
+  | { type: 'listModels' }
+  | { type: 'switchProvider'; provider: TulvezSettings['aiProvider'] }
   | { type: 'cancelStream' }
   | { type: 'applyCommit'; message: string }
   | { type: 'expandSidebar' }
