@@ -171,6 +171,11 @@
           "default": true,
           "description": "Kurulumda ve panel açılışında kısa bir ses çal."
         },
+        "tulvez.skillsRegistry": {
+          "type": "string",
+          "default": "https://raw.githubusercontent.com/tulvez/tulvez-code-skills/main",
+          "description": "Skills deposunun adresi (kökünde index.json bulunan https adresi). Varsayılan Tulvez Code'un resmî skills deposudur."
+        },
         "tulvez.gitCoAuthor": {
           "type": "boolean",
           "default": true,

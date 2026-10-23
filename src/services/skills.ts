@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import { installedSkills } from './skillsRegistry';
 
 export const SKILLS_FILE = 'code_skills.md';
 
@@ -78,7 +79,13 @@ export function getInstructions(): string {
   return withoutSkills;
 }
 
+/** code_skills.md içindeki skill'ler + depodan kurulanlar (.tulvez/skills/*.md). */
 export function parseSkills(): Skill[] {
+  const installed = installedSkills().map((s) => ({ name: s.id, text: s.text }));
+  return [...parseFileSkills(), ...installed];
+}
+
+function parseFileSkills(): Skill[] {
   const content = readSkillsFile();
   if (!content) return [];
   const skillsBlock = content.split(/^##\s+Skills\s*$/m)[1];

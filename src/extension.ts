@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 process.noDeprecation = true;
 import type { HostToWebviewMessage, NavigateTarget, TulvezSettings, WebviewToHostMessage } from './services/messages';
 import { chatFileName } from './services/chatExport';
+import { fetchRegistry, installedSkills, installSkill, registryBase, removeSkill, type RegistrySkill } from './services/skillsRegistry';
 import { runAgent, invalidateRepoMap } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
@@ -206,6 +207,33 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
+    if (message.type === 'getSkillsRegistry' || message.type === 'installSkill' || message.type === 'removeSkill') {
+      // Skills deposu: liste, kur, kaldır. Her işlemden sonra güncel durum webview'a gider.
+      const source = registryBase();
+      const installedList = () => installedSkills().map((s) => ({ id: s.id, name: s.name }));
+      let error: string | undefined;
+      let catalog: RegistrySkill[] = [];
+      try {
+        catalog = await fetchRegistry(source);
+        if (message.type === 'installSkill') {
+          const entry = catalog.find((s) => s.id === message.id);
+          if (!entry) throw new Error('Skill depoda bulunamadı');
+          await installSkill(entry, source);
+        }
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err);
+      }
+      if (message.type === 'removeSkill') removeSkill(message.id);
+      await webview.postMessage({
+        type: 'skillsRegistry',
+        source,
+        skills: catalog.map(({ id, name, description, tags, version }) => ({ id, name, description, tags, version })),
+        installed: installedList(),
+        error,
+      } satisfies HostToWebviewMessage);
+      return;
+    }
+
     if (message.type === 'exportChat') {
       // Sohbet, adıyla birlikte Markdown dosyasına yazılır ve VS Code'da açılır.
       // Klasör açıksa <klasör>/.tulvez/sohbetler/ (git'e girmez), değilse eklentinin kendi alanı.
@@ -253,6 +281,12 @@ export function activate(context: vscode.ExtensionContext): void {
         resolve(message.approved);
         pendingToolApprovals.delete(message.id);
       }
+      return;
+    }
+
+    if (message.type === 'openVsSettings') {
+      // Codex'teki gibi: tüm ayarlar VS Code'un kendi ayar ekranında, eklentiye süzülmüş
+      await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:tulvez.tulvez-code');
       return;
     }
 

@@ -21,6 +21,10 @@ export type NavigateTarget = 'newChat' | 'history' | 'settings' | 'export';
 export type WebviewToHostMessage =
   | { type: 'ready' }
   | { type: 'exportChat'; title: string; markdown: string }
+  | { type: 'getSkillsRegistry' }
+  | { type: 'openVsSettings' }
+  | { type: 'installSkill'; id: string }
+  | { type: 'removeSkill'; id: string }
   | { type: 'openFolder' }
   | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[]; model?: string }
   | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain' | 'skill'; arg?: string; mode: 'ask' | 'plan' | 'build' }
@@ -41,6 +45,14 @@ export type WebviewToHostMessage =
 export type HostToWebviewMessage =
   | { type: 'initialized'; workspaceName: string; workspacePath?: string; logoUri: string }
   | { type: 'navigate'; to: NavigateTarget }
+  | {
+      type: 'skillsRegistry';
+      source: string;
+      skills: { id: string; name: string; description: string; tags: string[]; version?: string }[];
+      installed: { id: string; name: string }[];
+      error?: string;
+      busy?: string;
+    }
   | { type: 'error'; message: string }
   | { type: 'systemNotice'; text: string }
   | { type: 'assistantChunk'; text: string }
