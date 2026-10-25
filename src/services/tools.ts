@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { z } from 'zod';
 import { BOT_AUTHOR_ENV, addUserCoAuthorToCommand, isCommitCommand, readIdentity } from './gitIdentity';
 import { getSkillsRoot } from './orgSkills';
+import { L } from './i18n';
 
 export interface ToolDefinition {
   name: string;
@@ -224,8 +225,8 @@ const FETCH_MAX_CHARS = 40_000;
 
 async function webFetch(url: string, signal?: AbortSignal): Promise<string> {
   let parsed: URL;
-  try { parsed = new URL(url); } catch { return `Hata: geçersiz adres: ${url}`; }
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return 'Hata: yalnız http ve https adresleri açılır.';
+  try { parsed = new URL(url); } catch { return L(`Hata: geçersiz adres: ${url}`, `Error: invalid address: ${url}`); }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return L('Hata: yalnız http ve https adresleri açılır.', 'Error: only http and https addresses can be opened.');
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20_000);
   const onAbort = () => ctrl.abort();
@@ -233,7 +234,7 @@ async function webFetch(url: string, signal?: AbortSignal): Promise<string> {
   try {
     const res = await fetch(parsed, { signal: ctrl.signal, redirect: 'follow', headers: { 'User-Agent': 'tulvez-code (+https://github.com/tulvez/tulvez-code)', Accept: 'text/html,text/plain,text/markdown,application/json;q=0.9,*/*;q=0.5' } });
     const type = res.headers.get('content-type') ?? '';
-    if (!/text|json|xml|markdown|javascript/i.test(type) && type) return `Hata: ${type} türündeki içerik metin değil (HTTP ${res.status}).`;
+    if (!/text|json|xml|markdown|javascript/i.test(type) && type) return L(`Hata: ${type} türündeki içerik metin değil (HTTP ${res.status}).`, `Error: ${type} content is not text (HTTP ${res.status}).`);
     const buf = Buffer.from(await res.arrayBuffer());
     const raw = buf.subarray(0, FETCH_MAX_BYTES).toString('utf8');
     const text = /html/i.test(type) || /^\s*<(!doctype|html)/i.test(raw) ? htmlToText(raw) : raw;
@@ -241,9 +242,9 @@ async function webFetch(url: string, signal?: AbortSignal): Promise<string> {
     const body = text.length > FETCH_MAX_CHARS ? `${text.slice(0, FETCH_MAX_CHARS)}\n… (sayfa kısaltıldı, ${text.length} karakter)` : text;
     return `${res.url}${title ? ` — ${htmlToText(title)}` : ''} (HTTP ${res.status})\n\n${body || '(boş sayfa)'}`;
   } catch (err) {
-    if (signal?.aborted) return 'Hata: kullanıcı durdurdu.';
-    if ((err as Error).name === 'AbortError') return 'Hata: sayfa 20 saniyede yanıt vermedi.';
-    return `Hata: sayfa açılamadı: ${(err as Error).message}`;
+    if (signal?.aborted) return L('Hata: kullanıcı durdurdu.', 'Error: stopped by the user.');
+    if ((err as Error).name === 'AbortError') return L('Hata: sayfa 20 saniyede yanıt vermedi.', 'Error: the page did not respond within 20 seconds.');
+    return L(`Hata: sayfa açılamadı: ${(err as Error).message}`, `Error: could not open the page: ${(err as Error).message}`);
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
@@ -284,14 +285,14 @@ function isInside(target: string, root: string): boolean {
  */
 function resolvePath(p: string, access: 'read' | 'write' = 'read'): string {
   const root = workspaceRoot();
-  if (!root) throw new Error('Önce bir klasör aç: Tulvez Code dosyalara yalnız açık çalışma alanında dokunur.');
+  if (!root) throw new Error(L('Önce bir klasör aç: Tulvez Code dosyalara yalnız açık çalışma alanında dokunur.', 'Open a folder first: Tulvez Code only touches files in the open workspace.'));
   const target = path.resolve(root, p);
   const real = realish(target);
   const roots = [root];
   const skills = getSkillsRoot();
   if (access === 'read' && skills) roots.push(skills);
   if (!roots.some((r) => isInside(real, realish(r)))) {
-    throw new Error(`${p} çalışma alanının dışında. Tulvez Code yalnız açık klasördeki dosyalara ${access === 'read' ? 'bakar' : 'yazar'}.`);
+    throw new Error(L(`${p} çalışma alanının dışında. Tulvez Code yalnız açık klasördeki dosyalara ${access === 'read' ? 'bakar' : 'yazar'}.`, `${p} is outside the workspace. Tulvez Code only ${access === 'read' ? 'reads' : 'writes'} files in the open folder.`));
   }
   return target;
 }
@@ -587,7 +588,7 @@ export async function executeTool(
           .join('\n');
       }
       case 'run_command': {
-        if (!allowShell) return 'Hata: Terminal komutları kapalı. Ayarlar\'dan açın.';
+        if (!allowShell) return L("Hata: Terminal komutları kapalı. Ayarlar'dan açın.", 'Error: terminal commands are turned off. Turn them on in Settings.');
         const cwd = workspaceRoot() || undefined;
         const run = await agentCommand(String(args.command ?? ''), cwd);
         const shell = shellInvocation(run.command);
@@ -644,7 +645,7 @@ export async function executeTool(
           // Durdur düğmesi: çalışan komut da kapatılır
           const onAbort = (): void => {
             stopProcess();
-            stderr += '\n(kullanıcı durdurdu)';
+            stderr += L('\n(kullanıcı durdurdu)', '\n(stopped by the user)');
             code = code || 130;
             collect();
           };
@@ -663,7 +664,7 @@ export async function executeTool(
         });
       }
       case 'run_in_background': {
-        if (!allowShell) return 'Hata: Terminal komutları kapalı. Ayarlar\'dan açın.';
+        if (!allowShell) return L("Hata: Terminal komutları kapalı. Ayarlar'dan açın.", 'Error: terminal commands are turned off. Turn them on in Settings.');
         const cwd = workspaceRoot() || undefined;
         const logFile = args.logFile
           ? resolvePath(String(args.logFile), 'write')

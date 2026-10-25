@@ -1,5 +1,6 @@
 import type { TulvezSettings } from './messages';
 import { listOpencodeModels } from './opencode';
+import { L } from './i18n';
 
 /**
  * Sağlayıcının hesabında gerçekten kullanılabilen modelleri döndürür.
@@ -44,7 +45,7 @@ export async function listProviderModels(settings: TulvezSettings): Promise<stri
   const res = await fetch(`${baseURL}/models`, {
     headers: key ? { Authorization: `Bearer ${key}` } : {},
   });
-  if (!res.ok) throw new Error(`Model listesi alınamadı (${res.status})`);
+  if (!res.ok) throw new Error(L(`Model listesi alınamadı (${res.status})`, `Could not get the model list (${res.status})`));
   const json = (await res.json()) as { data?: { id: string }[] };
   return (json.data ?? []).map((m) => m.id).sort();
 }

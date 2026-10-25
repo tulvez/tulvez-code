@@ -12,7 +12,8 @@ import { runAgent, invalidateRepoMap } from './services/agent';
 import { getConversation, saveConversation } from './services/conversation';
 import { beginCheckpoint, endCheckpoint, undoCheckpoint } from './services/checkpoint';
 import { mentionContext } from './services/mentions';
-import { FREE_ONLY_MESSAGE, isFreeOnlyError, loadOpencodeCatalog, refreshOpencodeCatalog } from './services/opencode';
+import { freeOnlyMessage, isFreeOnlyError, loadOpencodeCatalog, refreshOpencodeCatalog } from './services/opencode';
+import { L, currentLang } from './services/i18n';
 import { McpManager, parseMcpServers, projectApprovalKey, readProjectMcp, type McpServerEntry } from './services/mcp';
 import { aiEditHooks, aiLineCountForActiveEditor, forgetAiEdits, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
@@ -44,11 +45,13 @@ export function activate(context: vscode.ExtensionContext): void {
     if (context.workspaceState.get<string>(MCP_APPROVED_KEY) === key) return [...user, ...project];
     if (!askForProject || mcpDeniedKey === key) return user;
     const list = project.map((e) => `• ${e.name}: ${e.config.command ? [e.config.command, ...(e.config.args ?? [])].join(' ') : e.config.url}`).join('\n');
+    const allow = L('İzin ver', 'Allow');
     const pick = await vscode.window.showWarningMessage(
-      'Bu proje MCP sunucuları çalıştırmak istiyor (.mcp.json). Yalnız güvendiğin projelerde izin ver: bu komutlar bilgisayarında çalışır.',
-      { modal: true, detail: list }, 'İzin ver',
+      L('Bu proje MCP sunucuları çalıştırmak istiyor (.mcp.json). Yalnız güvendiğin projelerde izin ver: bu komutlar bilgisayarında çalışır.',
+        'This project wants to run MCP servers (.mcp.json). Only allow this in projects you trust: these commands run on your computer.'),
+      { modal: true, detail: list }, allow,
     );
-    if (pick === 'İzin ver') {
+    if (pick === allow) {
       await context.workspaceState.update(MCP_APPROVED_KEY, key);
       return [...user, ...project];
     }
@@ -79,6 +82,8 @@ export function activate(context: vscode.ExtensionContext): void {
       .finally(() => { skillSync = null; });
     return skillSync;
   };
+  // Açık paneller: dil değişince yeni dille yeniden yüklenir (sohbet webview'ın kendi deposunda kalır)
+  const openPanels = new Set<vscode.WebviewPanel>();
   const createWebview = (webview: vscode.Webview, host: 'sidebar' | 'panel' = 'panel'): void => {
     devLog('webview hazırlanıyor', host);
     try {
@@ -136,6 +141,7 @@ export function activate(context: vscode.ExtensionContext): void {
       showModels: cfg.get('showModels') ?? false,
       showThinking: cfg.get('showThinking') ?? true,
       gitCoAuthor: cfg.get('gitCoAuthor') ?? true,
+      language: (cfg.get<string>('language') ?? 'auto') as TulvezSettings['language'],
     };
   };
 
@@ -153,6 +159,9 @@ export function activate(context: vscode.ExtensionContext): void {
     await cfg.update('showModels', settings.showModels ?? false, vscode.ConfigurationTarget.Global);
     await cfg.update('showThinking', settings.showThinking ?? true, vscode.ConfigurationTarget.Global);
     await cfg.update('gitCoAuthor', settings.gitCoAuthor ?? true, vscode.ConfigurationTarget.Global);
+    if (settings.language && settings.language !== (cfg.get<string>('language') ?? 'auto')) {
+      await cfg.update('language', settings.language, vscode.ConfigurationTarget.Global);
+    }
     if (settings.apiKey) {
       await context.secrets.store(secretKeyFor(settings.aiProvider), settings.apiKey);
     } else {
@@ -324,11 +333,13 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         const r = await undoCheckpoint(message.id, async (changed) => {
           const names = changed.map((f) => vscode.workspace.asRelativePath(f)).join(', ');
+          const yes = L('Yine de geri al', 'Undo anyway');
           const ok = await vscode.window.showWarningMessage(
-            `Tulvez Code: şu dosyalar yanıttan sonra değişmiş: ${names}. Geri alınca bu değişiklikler de kaybolur.`,
-            { modal: true }, 'Yine de geri al',
+            L(`Tulvez Code: şu dosyalar yanıttan sonra değişmiş: ${names}. Geri alınca bu değişiklikler de kaybolur.`,
+              `Tulvez Code: these files changed after the reply: ${names}. Undoing will also lose those changes.`),
+            { modal: true }, yes,
           );
-          return ok === 'Yine de geri al';
+          return ok === yes;
         });
         for (const f of r.restored) forgetAiEdits(f);
         if (r.restored.length) {
@@ -347,16 +358,16 @@ export function activate(context: vscode.ExtensionContext): void {
         if (message.type === 'importSkill') {
           // Windows ve Linux'ta tek pencere hem dosya hem klasör seçtiremez (ikisi istenirse yalnız klasör açılır)
           const kind = await vscode.window.showQuickPick([
-            { label: '$(file) .md dosyaları', description: 'Her dosya bir beceri; adı dosya adından gelir', files: true },
-            { label: '$(folder) Klasörler', description: 'Betik ve belgeleriyle beceri ya da beceri koleksiyonu', files: false },
-          ], { title: 'Beceri yükle', placeHolder: 'Ne yükleyeceksin? (birden çok seçebilirsin)' });
+            { label: L('$(file) .md dosyaları', '$(file) .md files'), description: L('Her dosya bir beceri; adı dosya adından gelir', 'Each file is a skill, named after the file'), files: true },
+            { label: L('$(folder) Klasörler', '$(folder) Folders'), description: L('Betik ve belgeleriyle beceri ya da beceri koleksiyonu', 'A skill with its scripts and documents, or a collection of skills'), files: false },
+          ], { title: L('Beceri yükle', 'Upload skills'), placeHolder: L('Ne yükleyeceksin? (birden çok seçebilirsin)', 'What will you upload? (you can pick several)') });
           const picked = kind && await vscode.window.showOpenDialog({
-            title: kind.files ? 'Beceri yükle: .md dosyaları' : 'Beceri yükle: klasörler',
-            openLabel: 'Yükle',
+            title: kind.files ? L('Beceri yükle: .md dosyaları', 'Upload skills: .md files') : L('Beceri yükle: klasörler', 'Upload skills: folders'),
+            openLabel: L('Yükle', 'Upload'),
             canSelectFiles: kind.files,
             canSelectFolders: !kind.files,
             canSelectMany: true,
-            filters: kind.files ? { 'Beceri (.md)': ['md'] } : undefined,
+            filters: kind.files ? { [L('Beceri (.md)', 'Skill (.md)')]: ['md'] } : undefined,
           });
           if (picked?.length) {
             const { imported, errors } = importLocalSkills(picked.map((u) => u.fsPath), skillsRoot);
@@ -364,21 +375,21 @@ export function activate(context: vscode.ExtensionContext): void {
             const disabled = context.globalState.get<string[]>(SKILLS_DISABLED_KEY, []).filter((d) => !ids.has(d));
             await context.globalState.update(SKILLS_DISABLED_KEY, disabled);
             if (imported.length) {
-              void vscode.window.showInformationMessage(`Tulvez Code: ${imported.length} beceri yüklendi — ${[...ids].join(', ')}`);
+              void vscode.window.showInformationMessage(L(`Tulvez Code: ${imported.length} beceri yüklendi — ${[...ids].join(', ')}`, `Tulvez Code: ${imported.length} skill(s) uploaded — ${[...ids].join(', ')}`));
             }
-            if (errors.length) void vscode.window.showWarningMessage(`Tulvez Code: ${errors.length} öğe yüklenemedi — ${errors.join(' · ')}`);
+            if (errors.length) void vscode.window.showWarningMessage(L(`Tulvez Code: ${errors.length} öğe yüklenemedi — ${errors.join(' · ')}`, `Tulvez Code: ${errors.length} item(s) could not be uploaded — ${errors.join(' · ')}`));
           }
         } else {
           const picked = await vscode.window.showOpenDialog({
-            title: `"${message.id}" becerisini kaydet: bir klasör seç`,
-            openLabel: 'Buraya kaydet',
+            title: L(`"${message.id}" becerisini kaydet: bir klasör seç`, `Save the "${message.id}" skill: choose a folder`),
+            openLabel: L('Buraya kaydet', 'Save here'),
             canSelectFiles: false,
             canSelectFolders: true,
             canSelectMany: false,
           });
           if (picked?.[0]) {
             const dest = exportLocalSkill(skillsRoot, message.id, picked[0].fsPath);
-            const open = await vscode.window.showInformationMessage(`Tulvez Code: beceri kaydedildi — ${dest}`, 'Klasörü aç');
+            const open = await vscode.window.showInformationMessage(L(`Tulvez Code: beceri kaydedildi — ${dest}`, `Tulvez Code: skill saved — ${dest}`), L('Klasörü aç', 'Open folder'));
             if (open) void vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(dest));
           }
         }
@@ -453,7 +464,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // Sohbet, adıyla birlikte Markdown dosyasına yazılır ve VS Code'da açılır.
       // Klasör açıksa <klasör>/.tulvez/sohbetler/ (git'e girmez), değilse eklentinin kendi alanı.
       if (!message.markdown.trim()) {
-        void vscode.window.showInformationMessage('Tulvez Code: Kaydedilecek bir sohbet yok.');
+        void vscode.window.showInformationMessage(L('Tulvez Code: Kaydedilecek bir sohbet yok.', 'Tulvez Code: There is no chat to save.'));
         return;
       }
       try {
@@ -476,10 +487,10 @@ export function activate(context: vscode.ExtensionContext): void {
         await vscode.window.showTextDocument(doc, { preview: false });
         await webview.postMessage({
           type: 'systemNotice',
-          text: `Sohbet kaydedildi: ${folder ? vscode.workspace.asRelativePath(file) : file.fsPath}`,
+          text: `${L('Sohbet kaydedildi', 'Chat saved')}: ${folder ? vscode.workspace.asRelativePath(file) : file.fsPath}`,
         } satisfies HostToWebviewMessage);
       } catch (err) {
-        void vscode.window.showErrorMessage(`Tulvez Code: Sohbet kaydedilemedi — ${err instanceof Error ? err.message : String(err)}`);
+        void vscode.window.showErrorMessage(`${L('Tulvez Code: Sohbet kaydedilemedi', 'Tulvez Code: Could not save the chat')} — ${err instanceof Error ? err.message : String(err)}`);
       }
       return;
     }
@@ -561,7 +572,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     if (message.type === 'expandSidebar') {
-      vscode.window.showInformationMessage('Sidebar kenarını sürükleyerek genişletin.');
+      vscode.window.showInformationMessage(L('Sidebar kenarını sürükleyerek genişletin.', 'Drag the side bar edge to make it wider.'));
       return;
     }
 
@@ -636,11 +647,11 @@ export function activate(context: vscode.ExtensionContext): void {
         // Commit'i ajan kendisi atar: git komutları her zamanki gibi izin ister.
         const status = await git('status --short');
         if (!status) {
-          await webview.postMessage({ type: 'error', message: "Commit'lenecek değişiklik yok." } satisfies HostToWebviewMessage);
+          await webview.postMessage({ type: 'error', message: L("Commit'lenecek değişiklik yok.", 'There are no changes to commit.') } satisfies HostToWebviewMessage);
           return;
         }
         if (!settings.allowShellCommands) {
-          await webview.postMessage({ type: 'error', message: "Commit için terminal izni gerekli: Ayarlar → İzinler → Onaylı ya da Tam erişim." } satisfies HostToWebviewMessage);
+          await webview.postMessage({ type: 'error', message: L('Commit için terminal izni gerekli: Ayarlar → İzinler → Onaylı ya da Tam erişim.', 'Committing needs terminal permission: Settings → Permissions → Approved or Full access.') } satisfies HostToWebviewMessage);
           return;
         }
         let diff = await git('diff --cached');
@@ -651,9 +662,9 @@ export function activate(context: vscode.ExtensionContext): void {
           staged
             ? "- Staged değişiklikler var: yalnız onları commit'le, başka dosya ekleme."
             : "- Hiçbir şey staged değil: ilgili dosyaları `git add` ile ekle.",
-          "- Mesaj Türkçe, conventional commit biçiminde, kısa ve ne değiştiğini anlatan tek satır olsun.",
+          L('- Mesaj Türkçe, conventional commit biçiminde, kısa ve ne değiştiğini anlatan tek satır olsun.', '- Write the message in English, in conventional commit format, as one short line that says what changed.'),
           '- `git commit -m "…"` komutunu run_command aracıyla kendin çalıştır. Push yapma.',
-          '- Bitince commit\'i bir cümleyle özetle.',
+          L("- Bitince commit'i bir cümleyle özetle.", '- When done, summarise the commit in one sentence (in English).'),
           '',
           `git status:\n${status}`,
           '',
@@ -665,8 +676,8 @@ export function activate(context: vscode.ExtensionContext): void {
         let diff = await git('diff --cached');
         if (!diff) diff = await git('diff');
         prompt = diff
-          ? `Aşağıdaki git diff'ini kod incelemesi açısından değerlendir. Türkçe, maddeler halinde; hata, risk, güvenlik ve iyileştirme fırsatlarını yaz:\n\n${diff.slice(0, 12000)}`
-          : 'Çalışma alanında değişiklik yok. Lütfen önce değişiklik yapın.';
+          ? `${L("Aşağıdaki git diff'ini kod incelemesi açısından değerlendir. Türkçe, maddeler halinde; hata, risk, güvenlik ve iyileştirme fırsatlarını yaz:", 'Review the git diff below. In English, as bullet points, list bugs, risks, security issues and improvement opportunities:')}\n\n${diff.slice(0, 12000)}`
+          : L('Çalışma alanında değişiklik yok. Lütfen önce değişiklik yapın.', 'There are no changes in the workspace. Make some changes first.');
       } else if (message.name === 'diff') {
         const hasChanges = await safeCommand<boolean>('git.hasChanges').then((v) => !!v);
         if (hasChanges) {
@@ -674,33 +685,33 @@ export function activate(context: vscode.ExtensionContext): void {
           if (opened) {
             await webview.postMessage({
               type: 'systemNotice',
-              text: 'Çalışma alanı değişiklikleri editörde açıldı.',
+              text: L('Çalışma alanı değişiklikleri editörde açıldı.', 'Workspace changes opened in the editor.'),
             } satisfies HostToWebviewMessage);
             return;
           }
         }
-        const stat = (await git('diff --stat')) || (await git('status --short')) || 'Değişiklik yok.';
-        prompt = `Şu git değişikliklerini özetle ve yorumla (Türkçe, kısa):\n\n${stat.slice(0, 6000)}`;
+        const stat = (await git('diff --stat')) || (await git('status --short')) || L('Değişiklik yok.', 'No changes.');
+        prompt = `${L('Şu git değişikliklerini özetle ve yorumla (Türkçe, kısa):', 'Summarise and comment on these git changes (in English, briefly):')}\n\n${stat.slice(0, 6000)}`;
       } else if (message.name === 'explain') {
         const sel = editor && !editor.selection.isEmpty ? editor.document.getText(editor.selection) : '';
         if (!sel) {
-          await webview.postMessage({ type: 'error', message: 'Editörde seçili kod yok. Önce kod seçin.' } satisfies HostToWebviewMessage);
+          await webview.postMessage({ type: 'error', message: L('Editörde seçili kod yok. Önce kod seçin.', 'No code is selected in the editor. Select some code first.') } satisfies HostToWebviewMessage);
           return;
         }
-        prompt = `Aşağıdaki kodu Türkçe olarak açıkla; ne yaptığını, önemli noktaları ve olası sorunları yaz:\n\n\`\`\`\n${sel.slice(0, 8000)}\n\`\`\``;
+        prompt = `${L('Aşağıdaki kodu Türkçe olarak açıkla; ne yaptığını, önemli noktaları ve olası sorunları yaz:', 'Explain the code below in English: what it does, key points and possible problems:')}\n\n\`\`\`\n${sel.slice(0, 8000)}\n\`\`\``;
       } else if (message.name === 'skill') {
         const skills = parseSkills();
         if (skills.length === 0) {
-          await webview.postMessage({ type: 'error', message: 'Kurulu beceri yok. Ayarlar > Skills\'ten GitHub becerilerini yükleyebilir ya da code_skills.md oluşturabilirsin.' } satisfies HostToWebviewMessage);
+          await webview.postMessage({ type: 'error', message: L("Kurulu beceri yok. Ayarlar > Skills'ten GitHub becerilerini yükleyebilir ya da code_skills.md oluşturabilirsin.", 'No skills installed. Load the GitHub skills from Settings > Skills, or create code_skills.md.') } satisfies HostToWebviewMessage);
           return;
         }
         const hit = matchSkill(skills, message.arg ?? '');
         if (!hit) {
-          await webview.postMessage({ type: 'error', message: `"${message.arg}" adlı beceri yok. Kurulu olanlar: ${skills.map((s) => s.name).join(', ')}` } satisfies HostToWebviewMessage);
+          await webview.postMessage({ type: 'error', message: L(`"${message.arg}" adlı beceri yok. Kurulu olanlar: ${skills.map((s) => s.name).join(', ')}`, `There is no skill named "${message.arg}". Installed: ${skills.map((s) => s.name).join(', ')}`) } satisfies HostToWebviewMessage);
           return;
         }
         prompt = `${hit.skill.text}\n\n(Bu talimat "${hit.skill.name}" becerisinden geldi.)`;
-        if (hit.request) prompt += `\n\nKullanıcının isteği: ${hit.request}`;
+        if (hit.request) prompt += `\n\n${L('Kullanıcının isteği', "The user's request")}: ${hit.request}`;
       }
 
       await runAgentFor(webview, settings, prompt, mode, [], message);
@@ -756,6 +767,8 @@ export function activate(context: vscode.ExtensionContext): void {
       'tulvezPanel', 'Tulvez Code', vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true },
     );
     createWebview(panel.webview);
+    openPanels.add(panel);
+    panel.onDidDispose(() => openPanels.delete(panel));
     panel.webview.onDidReceiveMessage(
       (msg: WebviewToHostMessage) => void handleMessage(panel.webview, msg),
       undefined, context.subscriptions,
@@ -763,6 +776,14 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(vscode.commands.registerCommand('tulvez.openPanel', openPanel));
+
+  // Dil değişince paneller yeni dille yeniden yüklenir; yan panel Ayarlar'a döner (değişiklik oradan yapıldı)
+  context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
+    if (!e.affectsConfiguration('tulvez.language')) return;
+    devLog('dil değişti', currentLang());
+    sidebarProvider.reload('settings');
+    for (const panel of openPanels) createWebview(panel.webview);
+  }));
 
   const aiStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   aiStatus.command = 'tulvez.openPanel';
@@ -772,8 +793,8 @@ export function activate(context: vscode.ExtensionContext): void {
       aiStatus.hide();
       return;
     }
-    aiStatus.text = `$(sparkle) ${count} satır AI`;
-    aiStatus.tooltip = 'Tulvez Code tarafından yazıldı olarak işaretlenen satırlar';
+    aiStatus.text = `$(sparkle) ${count} ${L('satır AI', 'AI lines')}`;
+    aiStatus.tooltip = L('Tulvez Code tarafından yazıldı olarak işaretlenen satırlar', 'Lines marked as written by Tulvez Code');
     aiStatus.show();
   };
   context.subscriptions.push(aiStatus);
@@ -825,20 +846,25 @@ async function migrateBotIdentity(context: vscode.ExtensionContext): Promise<voi
 
     const global = await readIdentity(cwd, undefined, '--global');
     if (!global?.email) {
-      void vscode.window.showWarningMessage(
-        'Tulvez Code: Bu depoda commit\'lerin yazarı hâlâ Tulvez Code botu. Artık yazar sen olmalısın, ' +
+      void vscode.window.showWarningMessage(L(
+        "Tulvez Code: Bu depoda commit'lerin yazarı hâlâ Tulvez Code botu. Artık yazar sen olmalısın, " +
           'Tulvez Code ek katkıcı olarak eklenir. Önce kendi git kimliğini ayarla: ' +
           'git config --global user.name "Adın" ve git config --global user.email "GitHub noreply adresin".',
-      );
+        'Tulvez Code: In this repository the commit author is still the Tulvez Code bot. You should be the author now, ' +
+          'with Tulvez Code added as a co-author. First set your own git identity: ' +
+          'git config --global user.name "Your name" and git config --global user.email "your GitHub noreply address".',
+      ));
       return;
     }
 
-    const remove = 'Kaldır, yazar ben olayım';
-    const keep = 'Şimdilik kalsın';
+    const remove = L('Kaldır, yazar ben olayım', 'Remove it, make me the author');
+    const keep = L('Şimdilik kalsın', 'Keep it for now');
     // Modal değil: açılışta pencereyi kilitleyen bir dialog açmaz, köşede bildirim olarak durur
     const choice = await vscode.window.showInformationMessage(
-      'Tulvez Code artık commit\'lerin yazarı olmuyor; ek katkıcı olarak ekleniyor. Bu depodaki eski bot ' +
+      L("Tulvez Code artık commit'lerin yazarı olmuyor; ek katkıcı olarak ekleniyor. Bu depodaki eski bot " +
         `kimliği kaldırılsın mı? Sonraki commit'ler ${global.name || global.email} adıyla atılır.`,
+      'Tulvez Code is no longer the commit author; it is added as a co-author. Remove the old bot identity ' +
+        `from this repository? Later commits will be made as ${global.name || global.email}.`),
       remove,
       keep,
     );
@@ -847,7 +873,7 @@ async function migrateBotIdentity(context: vscode.ExtensionContext): Promise<voi
     if (choice !== remove) return;
 
     await removeBotIdentity(root);
-    void vscode.window.showInformationMessage('Tulvez Code: Bot kimliği kaldırıldı. Commit\'lerin yazarı artık sensin.');
+    void vscode.window.showInformationMessage(L("Tulvez Code: Bot kimliği kaldırıldı. Commit'lerin yazarı artık sensin.", 'Tulvez Code: The bot identity was removed. You are now the commit author.'));
   } catch (err) {
     console.warn('[Tulvez] Eski bot kimliği denetlenemedi:', err);
   }
@@ -872,6 +898,14 @@ class TulvezSidebarProvider implements vscode.WebviewViewProvider {
   // Komut, webview hazır olana kadar bekletilir.
   private ready = false;
   private pending: NavigateTarget | null = null;
+
+  /** Görünümü yeniden yükler (dil değişti); hazır olunca `to` sayfası açılır. */
+  reload(to: NavigateTarget | null): void {
+    if (!this.view) return;
+    this.ready = false;
+    this.pending = to;
+    this.createWebview(this.view.webview, 'sidebar');
+  }
 
   navigate(to: NavigateTarget): void {
     this.pending = to;
@@ -918,7 +952,7 @@ function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, host:
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'assets', 'index.css'));
   const nonce = getNonce();
   return `<!DOCTYPE html>
-<html lang="tr">
+<html lang="${currentLang()}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -926,7 +960,7 @@ function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, host:
   <link rel="stylesheet" href="${styleUri}" />
   <title>Tulvez Code</title>
 </head>
-<body data-host="${host}">
+<body data-host="${host}" data-lang="${currentLang()}">
   <div id="root"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
@@ -947,39 +981,40 @@ function safeCommand<T>(command: string, ...args: unknown[]): Promise<T> {
 function friendlyError(err: string): string {
   const m = err.toLowerCase();
 
-  if (isFreeOnlyError(err) || err === FREE_ONLY_MESSAGE) return FREE_ONLY_MESSAGE;
+  if (isFreeOnlyError(err) || err === freeOnlyMessage()) return freeOnlyMessage();
 
   if (m.includes('no output generated')) {
-    return 'Sağlayıcı boş yanıt döndürdü. Bu genelde kota, geçici yoğunluk veya model hatasıdır. Model değiştirip tekrar deneyebilirsin.';
+    return L('Sağlayıcı boş yanıt döndürdü. Bu genelde kota, geçici yoğunluk veya model hatasıdır. Model değiştirip tekrar deneyebilirsin.', 'The provider returned an empty reply. This is usually a quota, a temporary overload or a model error. Try another model and try again.');
   }
   if (m.includes('exceeded your current quota') || m.includes('quota exceeded') || m.includes('billing')) {
     const retry = /retry in (\d+)h(\d+)m/.exec(err);
-    const wait = retry ? ` Yaklaşık ${retry[1]} saat ${retry[2]} dakika sonra sıfırlanır.` : '';
-    return `Sağlayıcının ücretsiz kotası tükendi.${wait} Ücretli plana geçebilir, başka bir model/anahtar seçebilir veya Ollama kullanabilirsin.`;
+    const wait = retry ? L(` Yaklaşık ${retry[1]} saat ${retry[2]} dakika sonra sıfırlanır.`, ` It resets in about ${retry[1]} h ${retry[2]} min.`) : '';
+    return L(`Sağlayıcının ücretsiz kotası tükendi.${wait} Ücretli plana geçebilir, başka bir model/anahtar seçebilir veya Ollama kullanabilirsin.`,
+      `The provider's free quota is used up.${wait} You can move to a paid plan, choose another model or key, or use Ollama.`);
   }
   if (m.includes('429')) {
-    return 'Çok fazla istek gönderildi. Birkaç saniye bekleyip tekrar dene.';
+    return L('Çok fazla istek gönderildi. Birkaç saniye bekleyip tekrar dene.', 'Too many requests. Wait a few seconds and try again.');
   }
   if (m.includes('503') || m.includes('overloaded') || m.includes('high demand')) {
-    return 'Model şu anda aşırı yoğun (sağlayıcı tarafı). Birkaç dakika sonra tekrar dene veya başka bir model seç.';
+    return L('Model şu anda aşırı yoğun (sağlayıcı tarafı). Birkaç dakika sonra tekrar dene veya başka bir model seç.', 'The model is overloaded right now (on the provider side). Try again in a few minutes or choose another model.');
   }
   if (m.includes('failed to parse stream')) {
-    return 'Cevap akışı sağlayıcı tarafında kesildi. Tekrar dene veya başka bir model seç.';
+    return L('Cevap akışı sağlayıcı tarafında kesildi. Tekrar dene veya başka bir model seç.', 'The reply stream was cut off by the provider. Try again or choose another model.');
   }
   if (m.includes('zaman aşımına uğradı')) {
-    return 'Cevap akışı zaman aşımına uğradı. Ağ bağlantını kontrol edip tekrar dene.';
+    return L('Cevap akışı zaman aşımına uğradı. Ağ bağlantını kontrol edip tekrar dene.', 'The reply stream timed out. Check your network connection and try again.');
   }
   if (m.includes('fetch failed') || m.includes('econnreset') || m.includes('network') || m.includes('enotfound')) {
-    return 'Sağlayıcıya ulaşılamadı. İnternet bağlantını kontrol et veya Ollama kullanıyorsan sunucunun açık olduğundan emin ol.';
+    return L('Sağlayıcıya ulaşılamadı. İnternet bağlantını kontrol et veya Ollama kullanıyorsan sunucunun açık olduğundan emin ol.', 'Could not reach the provider. Check your internet connection, or if you use Ollama, make sure the server is running.');
   }
   if (m.includes('api key') || m.includes('api anahtarı') || m.includes('unauthorized') || m.includes('401') || m.includes('invalid credential')) {
-    return 'API anahtarı eksik veya geçersiz. Ayarlar\'dan anahtarını kontrol et.';
+    return L("API anahtarı eksik veya geçersiz. Ayarlar'dan anahtarını kontrol et.", 'The API key is missing or invalid. Check your key in Settings.');
   }
   if (m.includes('model') && (m.includes('not found') || m.includes('404'))) {
-    return 'Seçili model bulunamadı. Ayarlar → Model listesinden geçerli bir model seç.';
+    return L('Seçili model bulunamadı. Ayarlar → Model listesinden geçerli bir model seç.', 'The selected model was not found. Choose a valid model in Settings → Model.');
   }
   if (m.includes('tool') && m.includes('not supported')) {
-    return 'Bu model araç (tool) çağrısını desteklemiyor. Araç kullanabilen bir model seç (ör. Claude Sonnet, GPT-4o, Gemini 2.5 Flash).';
+    return L('Bu model araç (tool) çağrısını desteklemiyor. Araç kullanabilen bir model seç (ör. Claude Sonnet, GPT-4o, Gemini 2.5 Flash).', 'This model does not support tool calls. Choose a model that can use tools (e.g. Claude Sonnet, GPT-4o, Gemini 2.5 Flash).');
   }
   return err.length > 400 ? `${err.slice(0, 400)}…` : err;
 }

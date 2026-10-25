@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { L } from './i18n';
 
 /**
  * Tulvez Code skills deposu.
@@ -52,9 +53,9 @@ export function registryBase(): string {
 
 /** index.json'u doğrular; bozuk ya da tehlikeli (../ içeren yol, geçersiz kimlik) kayıtları atar. */
 export function parseIndex(json: unknown): RegistrySkill[] {
-  if (!json || typeof json !== 'object') throw new Error('index.json geçersiz');
+  if (!json || typeof json !== 'object') throw new Error(L('index.json geçersiz', 'index.json is invalid'));
   const list = (json as { skills?: unknown }).skills;
-  if (!Array.isArray(list)) throw new Error('index.json içinde "skills" listesi yok');
+  if (!Array.isArray(list)) throw new Error(L('index.json içinde "skills" listesi yok', 'index.json has no "skills" list'));
   const out: RegistrySkill[] = [];
   for (const item of list) {
     if (!item || typeof item !== 'object') continue;
@@ -76,18 +77,18 @@ export function parseIndex(json: unknown): RegistrySkill[] {
 }
 
 async function fetchText(url: string, maxBytes: number): Promise<string> {
-  if (!/^https:\/\//i.test(url)) throw new Error('Skills deposu adresi https ile başlamalı');
+  if (!/^https:\/\//i.test(url)) throw new Error(L('Skills deposu adresi https ile başlamalı', 'The skills repository address must start with https'));
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'tulvez-code' } });
-    if (res.status === 404) throw new Error('Bulunamadı (404) — depo henüz yayında değil ya da adres yanlış');
-    if (!res.ok) throw new Error(`Depo yanıt vermedi (HTTP ${res.status})`);
+    if (res.status === 404) throw new Error(L('Bulunamadı (404) — depo henüz yayında değil ya da adres yanlış', 'Not found (404) — the repository is not published yet or the address is wrong'));
+    if (!res.ok) throw new Error(L(`Depo yanıt vermedi (HTTP ${res.status})`, `The repository did not respond (HTTP ${res.status})`));
     const text = await res.text();
-    if (text.length > maxBytes) throw new Error('Dosya çok büyük');
+    if (text.length > maxBytes) throw new Error(L('Dosya çok büyük', 'The file is too large'));
     return text;
   } catch (err) {
-    if ((err as Error).name === 'AbortError') throw new Error('Depo zaman aşımına uğradı');
+    if ((err as Error).name === 'AbortError') throw new Error(L('Depo zaman aşımına uğradı', 'The repository timed out'));
     throw err;
   } finally {
     clearTimeout(timer);
@@ -97,7 +98,7 @@ async function fetchText(url: string, maxBytes: number): Promise<string> {
 export async function fetchRegistry(base = registryBase()): Promise<RegistrySkill[]> {
   const text = await fetchText(`${base}/index.json`, MAX_INDEX_BYTES);
   let json: unknown;
-  try { json = JSON.parse(text); } catch { throw new Error('index.json okunamadı (JSON değil)'); }
+  try { json = JSON.parse(text); } catch { throw new Error(L('index.json okunamadı (JSON değil)', 'Could not read index.json (not JSON)')); }
   return parseIndex(json);
 }
 
@@ -131,10 +132,10 @@ export function installedSkills(): InstalledSkill[] {
 
 export async function installSkill(entry: RegistrySkill, base = registryBase()): Promise<void> {
   const dir = skillsDir();
-  if (!dir) throw new Error('Önce bir klasör aç: skill çalışma alanına kurulur');
-  if (!ID_RE.test(entry.id)) throw new Error('Geçersiz skill kimliği');
+  if (!dir) throw new Error(L('Önce bir klasör aç: skill çalışma alanına kurulur', 'Open a folder first: the skill is installed into the workspace'));
+  if (!ID_RE.test(entry.id)) throw new Error(L('Geçersiz skill kimliği', 'Invalid skill id'));
   const content = await fetchText(`${base}/${entry.file}`, MAX_SKILL_BYTES);
-  if (!content.trim()) throw new Error('Skill dosyası boş');
+  if (!content.trim()) throw new Error(L('Skill dosyası boş', 'The skill file is empty'));
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, `${entry.id}.md`), content, 'utf8');
 }

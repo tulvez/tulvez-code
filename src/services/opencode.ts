@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { L } from './i18n';
 
 /**
  * OpenCode (Console: kullandıkça öde · Go: aylık abonelik).
@@ -38,10 +39,13 @@ const MODELS_DEV_ID: Record<OcPlan, string> = { console: 'opencode', go: 'openco
 
 export const DEFAULT_OPENCODE_MODEL = 'deepseek-v4.1-flash';
 
-export const FREE_ONLY_MESSAGE =
+export const freeOnlyMessage = (): string => L(
   'Bu ücretsiz model yalnız OpenCode’un kendi uygulamasında çalışıyor (OpenCode’un kuralı: ücretsiz modeller başka araçlardan kullanılamaz). ' +
   'Tulvez Code’da kullanmak için ücretli bir OpenCode modeli seç (ör. deepseek-v4.1-flash), OpenCode Go aboneliğine geç ' +
-  '(sağlayıcı: OpenCode Go) ya da ücretsiz seçenek olarak Google Gemini’nin ücretsiz katmanını veya Ollama’yı kullan.';
+  '(sağlayıcı: OpenCode Go) ya da ücretsiz seçenek olarak Google Gemini’nin ücretsiz katmanını veya Ollama’yı kullan.',
+  'This free model only works in the OpenCode app itself (OpenCode’s rule: free models cannot be used from other tools). ' +
+  'To use OpenCode in Tulvez Code, choose a paid OpenCode model (e.g. deepseek-v4.1-flash), subscribe to OpenCode Go ' +
+  '(provider: OpenCode Go), or for a free option use Google Gemini’s free tier or Ollama.');
 
 let catalog: OcCatalog | null = null;
 
@@ -137,7 +141,7 @@ export async function listOpencodeModels(plan: OcPlan, key: string): Promise<str
       headers: key ? { Authorization: `Bearer ${key}` } : {},
       signal: AbortSignal.timeout(20_000),
     });
-    if (!res.ok) throw new Error(`Model listesi alınamadı (${res.status})`);
+    if (!res.ok) throw new Error(L(`Model listesi alınamadı (${res.status})`, `Could not get the model list (${res.status})`));
     ids = ((await res.json()) as { data?: { id: string }[] }).data?.map((m) => m.id) ?? [];
   }
   return ids.filter((id) => id !== 'test' && !(plan === 'console' && isFreeModel(id, plan))).sort();

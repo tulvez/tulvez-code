@@ -4,6 +4,7 @@ import { Check, Search } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { L } from '../lib/i18n';
 import { prettyModel } from '../lib/modelName';
 
 export const DEFAULT_MODEL = 'Varsayılan';
@@ -38,7 +39,7 @@ export function ModelMenu({ value, models, onSelect, trigger, allowDefault = tru
           <input
             ref={inputRef}
             type="text"
-            placeholder="Model ara"
+            placeholder={L('Model ara', 'Search models')}
             value={search}
             spellCheck={false}
             onChange={(e) => setSearch(e.target.value)}
@@ -50,14 +51,14 @@ export function ModelMenu({ value, models, onSelect, trigger, allowDefault = tru
           {list.map((m) => (
             <DropdownMenuItem key={m} className={`tz-menu-item tz-model-item ${value === m ? 'is-on' : ''}`} onSelect={() => onSelect(m)}>
               <span className="tz-model-text">
-                <span className="tz-model-name">{m === DEFAULT_MODEL ? 'Varsayılan model' : prettyModel(m)}</span>
-                <span className="tz-model-id" title={m}>{m === DEFAULT_MODEL ? 'Ayarlarda seçilen model' : m}</span>
+                <span className="tz-model-name">{m === DEFAULT_MODEL ? L('Varsayılan model', 'Default model') : prettyModel(m)}</span>
+                <span className="tz-model-id" title={m}>{m === DEFAULT_MODEL ? L('Ayarlarda seçilen model', 'The model chosen in Settings') : m}</span>
               </span>
               {value === m && <Check size={12} className="tz-menu-check" />}
             </DropdownMenuItem>
           ))}
           {list.length === 0 && (
-            <div className="tz-menu-empty">{q ? `"${search}" ile eşleşen model yok` : (emptyText ?? 'Model listesi boş')}</div>
+            <div className="tz-menu-empty">{q ? L(`"${search}" ile eşleşen model yok`, `No model matches "${search}"`) : (emptyText ?? L('Model listesi boş', 'The model list is empty'))}</div>
           )}
         </div>
       </DropdownMenuContent>

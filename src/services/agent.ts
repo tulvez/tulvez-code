@@ -12,6 +12,7 @@ import { compactConversation, withoutReasoning } from './conversation';
 import { recordBefore } from './checkpoint';
 import type { McpTool } from './mcp';
 import { isFreeOnlyError } from './opencode';
+import { L } from './i18n';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -120,8 +121,8 @@ function buildToolSet(
         if (!settings.autoApproveCommands) {
           const allowed = await cb.onToolRequest(nextToolReqId(), t.name, JSON.stringify(args, null, 2).slice(0, 2000));
           if (!allowed) {
-            cb.onToolResult?.({ callId, tool: t.name, output: 'Kullanıcı aracı reddetti.', status: 'rejected' });
-            return 'Kullanıcı aracı reddetti.';
+            cb.onToolResult?.({ callId, tool: t.name, output: L('Kullanıcı aracı reddetti.', 'The user denied the tool.'), status: 'rejected' });
+            return L('Kullanıcı aracı reddetti.', 'The user denied the tool.');
           }
         }
         try {
@@ -131,7 +132,7 @@ function buildToolSet(
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           cb.onToolResult?.({ callId, tool: t.name, output: message, status: 'error' });
-          return `Hata: ${message}`;
+          return `${L('Hata', 'Error')}: ${message}`;
         }
       },
     } as ToolSet[string];
@@ -159,8 +160,8 @@ function buildToolSet(
             JSON.stringify(args, null, 2).slice(0, 2000),
           );
           if (!allowed) {
-            report('Kullanıcı aracı reddetti.', 'rejected');
-            return 'Kullanıcı aracı reddetti.';
+            report(L('Kullanıcı aracı reddetti.', 'The user denied the tool.'), 'rejected');
+            return L('Kullanıcı aracı reddetti.', 'The user denied the tool.');
           }
         }
         if (def.name === 'write_file' || def.name === 'replace_in_file') {
@@ -211,11 +212,11 @@ export async function runAgent(
   memory?: AgentOptions,
 ): Promise<void> {
   if (settings.aiProvider === 'custom' && !settings.baseUrl) {
-    callbacks.onError('Base URL boş. Ayarlar\'dan OpenAI uyumlu endpoint adresini girin.');
+    callbacks.onError(L("Base URL boş. Ayarlar'dan OpenAI uyumlu endpoint adresini girin.", 'The base URL is empty. Enter the OpenAI-compatible endpoint address in Settings.'));
     return;
   }
   if (settings.aiProvider !== 'ollama' && !settings.apiKey) {
-    callbacks.onError('API anahtarı eksik. Ayarlar\'dan ekleyin.');
+    callbacks.onError(L("API anahtarı eksik. Ayarlar'dan ekleyin.", 'The API key is missing. Add it in Settings.'));
     return;
   }
 
@@ -301,11 +302,11 @@ export async function runAgent(
       const text = (await result.text).trim();
 
       if (!text && !sawText && finishReason !== 'tool-calls') {
-        cb.onChunk('_(Model boş yanıt döndü. Modeli değiştirmeyi veya isteği kısaltmayı dene.)_');
+        cb.onChunk(L('_(Model boş yanıt döndü. Modeli değiştirmeyi veya isteği kısaltmayı dene.)_', '_(The model returned an empty reply. Try another model or a shorter request.)_'));
       } else if (finishReason === 'length') {
-        cb.onChunk('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmek için "devam" yazabilirsin._');
+        cb.onChunk(L('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmek için "devam" yazabilirsin._', '\n\n_⚠️ The reply was cut off at the model\'s output limit. Type "continue" to go on._'));
       } else if (finishReason === 'tool-calls') {
-        cb.onChunk(`\n\n_⚠️ Bu istekte ${MAX_STEPS} adım sınırına ulaştım. Kaldığım yerden sürdürmem için "devam" yaz._`);
+        cb.onChunk(L(`\n\n_⚠️ Bu istekte ${MAX_STEPS} adım sınırına ulaştım. Kaldığım yerden sürdürmem için "devam" yaz._`, `\n\n_⚠️ I reached the ${MAX_STEPS}-step limit for this request. Type "continue" for me to pick up where I left off._`));
       }
 
       if (memory?.onConversation) {

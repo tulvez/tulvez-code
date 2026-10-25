@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
 import type { TulvezSettings } from './messages';
-import { DEFAULT_OPENCODE_MODEL, FREE_ONLY_MESSAGE, opencodeCost, routeFor, type OcPlan } from './opencode';
+import { DEFAULT_OPENCODE_MODEL, freeOnlyMessage, opencodeCost, routeFor, type OcPlan } from './opencode';
 
 export type ResolvedModel = {
   model: LanguageModel;
@@ -68,7 +68,7 @@ export function resolveModel(settings: TulvezSettings, client: ClientInfo = {}):
     const plan: OcPlan = provider === 'opencode-go' ? 'go' : 'console';
     const id = settings.model || DEFAULT_OPENCODE_MODEL;
     const route = routeFor(id, plan);
-    if (plan === 'console' && route.free) throw new Error(FREE_ONLY_MESSAGE);
+    if (plan === 'console' && route.free) throw new Error(freeOnlyMessage());
     const source = plan === 'go' ? 'OpenCode Go' : 'OpenCode';
     const cost = (i: number, o: number) => opencodeCost(id, plan, i, o);
     // OpenCode Go bunları ister (Console'da da yönlendirme ve önbelleğe yarar)

@@ -18,8 +18,24 @@ export interface SlashEntry {
 }
 
 export interface SlashMenu {
+  /** Hangi menü (başlık dile göre değişir, karşılaştırma bununla yapılır) */
+  kind: 'commands' | 'skills' | 'files';
   title: string;
   items: SlashEntry[];
+}
+
+import { L } from './i18n';
+
+/** Beceri açıklamalarının gösterim sınırı: satırlar hep aynı yükseklikte (2 satır) görünsün */
+export const ACIKLAMA_SINIRI = 100;
+
+/** Açıklamayı sınırda kelime ortasından bölmeden kısaltır; tamamı ipucunda (title) kalır. */
+export function kisaAciklama(text: string, sinir = ACIKLAMA_SINIRI): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (t.length <= sinir) return t;
+  const cut = t.slice(0, sinir - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > sinir * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.·—-]+$/, '')}…`;
 }
 
 const SKILL_RE = /^\/skills?(?:\s+(\S*))?$/i;
@@ -34,16 +50,16 @@ export function slashMenu(input: string, commands: SlashCommand[], skills: Skill
     const items: SlashEntry[] = skills
       .filter((s) => !q || s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
       .sort((a, b) => Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q)))
-      .map((s) => ({ label: s.name, hint: s.description, insert: `/skill ${s.name} ` }));
+      .map((s) => ({ label: s.name, hint: kisaAciklama(s.description), insert: `/skill ${s.name} ` }));
     if (items.length === 0) {
       items.push({
-        label: skills.length ? 'Eşleşen beceri yok' : 'Kurulu beceri yok',
-        hint: skills.length ? '' : 'Ayarlar → Skills',
+        label: skills.length ? L('Eşleşen beceri yok', 'No matching skill') : L('Kurulu beceri yok', 'No skills installed'),
+        hint: skills.length ? '' : L('Ayarlar → Skills', 'Settings → Skills'),
         insert: input,
         disabled: true,
       });
     }
-    return { title: 'Beceriler', items };
+    return { kind: 'skills', title: L('Beceriler', 'Skills'), items };
   }
 
   if (/\s/.test(input)) return null;
@@ -51,7 +67,7 @@ export function slashMenu(input: string, commands: SlashCommand[], skills: Skill
   const items: SlashEntry[] = commands
     .filter((c) => c.cmd.startsWith(q))
     .map((c) => ({ label: c.cmd, hint: c.hint, insert: `${c.cmd} ` }));
-  return items.length ? { title: 'Komutlar', items } : null;
+  return items.length ? { kind: 'commands', title: L('Komutlar', 'Commands'), items } : null;
 }
 
 /** Giriş sonundaki "@yarım" yazı: dosya menüsünün arama metni; yoksa null. */
@@ -69,8 +85,8 @@ export function mentionMenu(input: string, files: string[] | null): SlashMenu | 
   if (q === null) return null;
   const head = input.slice(0, input.length - q.length - 1);
   const items: SlashEntry[] = files === null
-    ? [{ label: 'Aranıyor…', hint: '', insert: input, disabled: true }]
+    ? [{ label: L('Aranıyor…', 'Searching…'), hint: '', insert: input, disabled: true }]
     : files.map((f) => ({ label: f, hint: '', insert: `${head}@${f} ` }));
-  if (files !== null && items.length === 0) items.push({ label: 'Eşleşen dosya yok', hint: '', insert: input, disabled: true });
-  return { title: 'Dosyalar', items };
+  if (files !== null && items.length === 0) items.push({ label: L('Eşleşen dosya yok', 'No matching file'), hint: '', insert: input, disabled: true });
+  return { kind: 'files', title: L('Dosyalar', 'Files'), items };
 }

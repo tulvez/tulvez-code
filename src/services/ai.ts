@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentMode } from './types';
 import { getInstructions } from './skills';
+import { currentLang } from './i18n';
 
 // Başka yardımcıların da okuduğu proje talimat dosyaları (ilk bulunanlar, sırayla)
 const RULE_FILES = ['AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md', '.cursorrules', '.clinerules', '.windsurfrules'];
@@ -72,7 +73,11 @@ const ROLES: Record<AgentMode, string> = {
 
 // code_skills.md her istekte okunur: düzenleme eklenti yeniden yüklenmeden geçerli olur
 export function buildPrompt(mode: AgentMode, repoMap: string, skills = ''): string {
-  let base = `${identity()}\n\n${MODES_LINE}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}`;
+  // Yanıt dili Tulvez Code'un diline uyar; kullanıcı başka dilde yazarsa o dil
+  const dil = currentLang() === 'en'
+    ? 'Language: reply to the user in English. If the user writes in another language, reply in that language.'
+    : 'Dil: kullanıcıya Türkçe yanıt ver. Kullanıcı başka bir dilde yazarsa o dilde yanıt ver.';
+  let base = `${identity()}\n\n${dil}\n\n${MODES_LINE}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}`;
   const rules = projectRules();
   if (rules) base += `\n\n${rules}`;
   if (skills) base += `\n\n${skills}`;

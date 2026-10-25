@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { installedSkills } from './skillsRegistry';
+import { currentLang } from './i18n';
 import { getSkillsRoot, localSkills, skillBody } from './orgSkills';
 
 export const SKILLS_FILE = 'code_skills.md';
@@ -64,10 +65,40 @@ export function skillsFileExists(): boolean {
   return fs.existsSync(uri.fsPath);
 }
 
+const DEFAULT_TEMPLATE_EN = `# Tulvez Code Skills
+
+This file defines the identity and abilities of the Tulvez Code agent in this workspace.
+Tulvez Code reads it on every request. Edit it to adapt the agent's character, rules and
+expertise to your project. If the file is deleted, Tulvez Code uses its default identity.
+
+## Kimlik
+
+Your name is Tulvez Code; you are a software engineering assistant working in this workspace.
+Do not introduce yourself under another product name; always act as Tulvez Code.
+
+## Kurallar
+
+- Follow the conventions of this repository (see AGENTS.md)
+- Read the relevant file before changing it
+- Keep answers short and in English
+
+## Skills
+
+Each heading below (### name) can be run as a slash command:
+type \`/skill <name>\` to run that skill's instructions.
+Example:
+
+### write-tests
+
+Write unit tests for the project. Look at the existing test setup first, use the same style,
+keep the scope narrow and run them.
+`;
+
 export function createSkillsTemplate(): boolean {
   const uri = skillsFileUri();
   if (!uri || fs.existsSync(uri.fsPath)) return false;
-  fs.writeFileSync(uri.fsPath, DEFAULT_TEMPLATE, 'utf8');
+  // "## Kimlik / ## Kurallar / ## Skills" başlıkları iki dilde de aynı: ayrıştırıcı bunlara bakar
+  fs.writeFileSync(uri.fsPath, currentLang() === 'en' ? DEFAULT_TEMPLATE_EN : DEFAULT_TEMPLATE, 'utf8');
   return true;
 }
 

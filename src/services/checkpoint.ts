@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { L } from './i18n';
 
 /**
  * Geri alma noktaları: bir yanıtta Tulvez Code'un yazdığı her dosyanın önceki hali.
@@ -56,7 +57,7 @@ export async function undoCheckpoint(
   confirm: (changedByUser: string[]) => Promise<boolean>,
 ): Promise<{ restored: string[]; cancelled: boolean }> {
   const cp = store.get(id);
-  if (!cp) throw new Error('Bu yanıtın geri alma kaydı yok (VS Code yeniden açıldıysa kayıt silinir).');
+  if (!cp) throw new Error(L('Bu yanıtın geri alma kaydı yok (VS Code yeniden açıldıysa kayıt silinir).', 'There is no undo record for this reply (records are cleared when VS Code restarts).'));
   const changed: string[] = [];
   for (const [file, state] of cp.files) {
     if ((await readOrNull(file)) !== state.after) changed.push(file);
