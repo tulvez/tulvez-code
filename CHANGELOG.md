@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+- Düzeltme — Windows'ta çift tırnaklı komutlar bozuluyordu: `git commit -m "iki kelime"` gibi
+  her komut "pathspec … did not match" hatası veriyordu, çünkü cmd.exe Node'un `\"` kaçışını
+  tanımıyor. Komut artık cmd.exe'ye olduğu gibi gider (Node'un `shell: true` yöntemi)
+- Windows'ta çok satırlı komutun yalnız ilk satırı çalışıyordu; satırlar artık `&&` ile bağlanır
+- Ajana Windows'ta komutların cmd.exe ile çalıştığı ve çift tırnak kullanması gerektiği söylenir
+
 ## 0.2.1
 
 0.2.0 etiketi yayın testinde durdu, Marketplace'e çıkmadı; aynı içerik bu sürümle çıkar.
