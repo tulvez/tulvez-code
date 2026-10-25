@@ -34,7 +34,12 @@ beforeAll(async () => {
       requests.push(j);
       res.writeHead(200, { 'content-type': 'text/event-stream' });
       const last = j.messages[j.messages.length - 1];
-      if (last.role === 'user' && String(last.content).includes('notu değiştir')) {
+      if (last.role === 'user' && String(last.content).includes('liste tut')) {
+        chunk(res, { tool_calls: [{ index: 0, id: 'call_t', type: 'function', function: { name: 'todo_write', arguments: JSON.stringify({ todos: [
+          { content: 'Dosyayı oku', status: 'completed' }, { content: 'Testi yaz', status: 'in_progress' }, { content: '  ', status: 'pending' }, { content: 'Çalıştır', status: 'garip' },
+        ] }) } }] });
+        chunk(res, {}, 'tool_calls');
+      } else if (last.role === 'user' && String(last.content).includes('notu değiştir')) {
         chunk(res, { tool_calls: [{ index: 0, id: 'call_w', type: 'function', function: { name: 'write_file', arguments: JSON.stringify({ path: 'not.txt', content: 'AJAN-YAZDI' }) } }] });
         chunk(res, {}, 'tool_calls');
       } else if (last.role === 'user' && String(last.content).includes('notu oku')) {
@@ -151,5 +156,24 @@ describe('ajan akışında geri alma noktası', () => {
     expect(fs.readFileSync(file, 'utf8')).toBe('AJAN-YAZDI');
     await undoCheckpoint('akış', async () => true);
     expect(fs.readFileSync(file, 'utf8')).toBe('GIZLI-ICERIK-42');
+  });
+});
+
+describe('yapılacaklar listesi', () => {
+  it('todo_write listesi arayüze gider, sohbet akışına araç adımı düşmez, modele özet döner', async () => {
+    const events: string[] = [];
+    const lists: { content: string; status: string }[][] = [];
+    const toolCalls: string[] = [];
+    await runAgent(settings(), 'liste tut', 'plan', [], { ...cb(events), onToolCall: (t) => toolCalls.push(t), onTodos: (items) => lists.push(items) });
+    expect(events).toEqual(['done']);
+    expect(toolCalls).toEqual([]);
+    expect(lists[0]).toEqual([
+      { content: 'Dosyayı oku', status: 'completed' },
+      { content: 'Testi yaz', status: 'in_progress' },
+      { content: 'Çalıştır', status: 'pending' },
+    ]);
+    const toolMsg = requests[1].messages.find((m) => m.role === 'tool');
+    expect(String(toolMsg?.content)).toContain('(1/3 bitti)');
+    expect(String(toolMsg?.content)).toContain('[~] Testi yaz');
   });
 });

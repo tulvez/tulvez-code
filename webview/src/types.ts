@@ -70,6 +70,7 @@ export type HostToWebviewMessage =
   | { type: 'modelsList'; models: string[]; error?: string }
   | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
   | { type: 'cancelled' }
+  | { type: 'todos'; items: { content: string; status: 'pending' | 'in_progress' | 'completed' }[] }
   | { type: 'fileMatches'; query: string; files: string[] }
   | { type: 'checkpoint'; id: string; files: string[] }
   | { type: 'checkpointUndone'; id: string; restored: number; cancelled: boolean; error?: string }

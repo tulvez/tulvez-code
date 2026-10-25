@@ -15,7 +15,7 @@ import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   ArrowDown, ArrowUp, Brain, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy,
   FolderOpen, Hammer, Lightbulb, MessageSquare, RotateCcw, Save, Search, Settings, Undo2,
-  Square, SquarePen, Terminal, Trash2, X, Zap, FileText, FilePen, FolderTree, Ban, LoaderCircle,
+  Square, SquarePen, Terminal, Trash2, X, Zap, FileText, FilePen, FolderTree, Ban, LoaderCircle, Circle, ListChecks,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -479,6 +479,37 @@ function AssistantBody({ msg, copied, animate, live, showThinking, onCopy, onAni
   );
 }
 
+interface Todo { content: string; status: 'pending' | 'in_progress' | 'completed' }
+
+function TodoPanel({ items }: { items: Todo[] }) {
+  const done = items.filter((t) => t.status === 'completed').length;
+  const allDone = done === items.length;
+  const [open, setOpen] = useState(true);
+  // Liste bitince kendiliğinden katlanır; yeni madde gelince yeniden açılır
+  useEffect(() => { setOpen(!allDone); }, [allDone]);
+  const current = items.find((t) => t.status === 'in_progress');
+  return (
+    <div className={`tz-todos ${open ? 'is-open' : ''}`}>
+      <button type="button" className="tz-todos-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <ListChecks size={13} />
+        <span className="tz-todos-title">{open || !current ? 'Yapılacaklar' : current.content}</span>
+        <span className="tz-todos-count">{done}/{items.length}</span>
+        <ChevronDown size={12} className="tz-todos-chev" />
+      </button>
+      {open && (
+        <ul className="tz-todos-list">
+          {items.map((t, i) => (
+            <li key={i} className={`tz-todo is-${t.status}`}>
+              {t.status === 'completed' ? <Check size={12} /> : t.status === 'in_progress' ? <LoaderCircle size={12} className="tz-step-spin" /> : <Circle size={12} />}
+              <span>{t.content}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function UndoBar({ cp, onUndo }: { cp: Checkpoint; onUndo: (id: string) => void }) {
   const n = cp.files.length;
   const list = cp.files.join('\n');
@@ -603,6 +634,7 @@ export function App(): JSX.Element {
   const [slashIndex, setSlashIndex] = useState(0);
   const [skillItems, setSkillItems] = useState<SkillItem[]>([]);
   const [fileMatches, setFileMatches] = useState<{ query: string; files: string[] } | null>(null);
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [waiting, setWaiting] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [historyQuery, setHistoryQuery] = useState('');
@@ -801,6 +833,7 @@ export function App(): JSX.Element {
     saveCurrentSession(messages);
     sessionIdRef.current = Date.now();
     setMessages([]);
+    setTodos([]);
     setRunConfirm(null);
     setWaiting(false);
     setStreaming(false);
@@ -862,6 +895,8 @@ export function App(): JSX.Element {
         setMessages((prev) => prev.map((m) => (m.checkpoint?.id === msg.id
           ? { ...m, checkpoint: { ...m.checkpoint, state: msg.error ? 'error' : msg.cancelled ? 'ready' : 'done', note: msg.error } }
           : m)));
+      } else if (msg.type === 'todos') {
+        setTodos(msg.items);
       } else if (msg.type === 'fileMatches') {
         setFileMatches({ query: msg.query, files: msg.files });
       } else if (msg.type === 'skillsStatus') {
@@ -1165,6 +1200,7 @@ export function App(): JSX.Element {
     sessionIdRef.current = s.id;
     nextId.current = Math.max(nextId.current, s.messages.reduce((mx, m) => Math.max(mx, m.id), 0) + 1);
     setMessages(s.messages);
+    setTodos([]);
     setMode(s.mode);
     followRef.current = true;
     setPage('chat');
@@ -1452,6 +1488,7 @@ export function App(): JSX.Element {
 
   const renderComposer = () => (
     <div className="tz-composer-area">
+      {todos.length > 0 && <TodoPanel items={todos} />}
       {menu && (
         <div className="tz-slash" role="listbox" aria-label={menu.title}>
           <p className="tz-section-label">{menu.title}</p>

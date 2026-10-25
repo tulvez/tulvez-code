@@ -142,6 +142,21 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     }),
   },
   {
+    name: 'todo_write',
+    description: 'Çok adımlı işlerde yapılacaklar listesini yazar ve günceller; liste kullanıcıya canlı gösterilir. ' +
+      'Her çağrıda listenin TAMAMINI gönder. Aynı anda yalnız bir madde in_progress olsun; biten maddeyi hemen completed yap. ' +
+      'Tek adımlık ya da basit işlerde kullanma.',
+    requiresApproval: false,
+    readOnly: true,
+    schema: z.object({
+      todos: z.array(z.object({
+        content: z.string().describe('Maddenin kısa açıklaması (emir kipinde, ör. "Testleri çalıştır")'),
+        // enum değil: zayıf modellerin yazım hatası bütün çağrıyı düşürmesin (normalizeTodos düzeltir)
+        status: z.string().describe('pending (bekliyor) | in_progress (yapılıyor) | completed (bitti)'),
+      })).describe('Listenin tamamı, sırayla'),
+    }),
+  },
+  {
     name: 'stop_background',
     description: 'Arka planda çalışan bir süreci sonlandırır.',
     requiresApproval: true,
@@ -149,6 +164,29 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     schema: z.object({ command: z.string().optional().describe('Durdurulacak komut parçası') }),
   },
 ];
+export interface TodoItem { content: string; status: 'pending' | 'in_progress' | 'completed' }
+
+/** Modelden gelen listeyi temizler: boş maddeler atılır, en çok 30 madde, bilinmeyen durum "bekliyor". */
+export function normalizeTodos(args: Record<string, unknown>): TodoItem[] {
+  const list = Array.isArray(args.todos) ? args.todos : [];
+  return list
+    .map((t) => {
+      const o = (t ?? {}) as Record<string, unknown>;
+      const status = o.status === 'in_progress' || o.status === 'completed' ? o.status : 'pending';
+      return { content: String(o.content ?? '').trim().slice(0, 200), status } as TodoItem;
+    })
+    .filter((t) => t.content)
+    .slice(0, 30);
+}
+
+/** Modele dönen özet: listeyi kendisi de görür. */
+export function formatTodos(items: TodoItem[]): string {
+  if (!items.length) return 'Yapılacaklar listesi boşaltıldı.';
+  const done = items.filter((t) => t.status === 'completed').length;
+  const mark = { pending: '[ ]', in_progress: '[~]', completed: '[x]' } as const;
+  return `Yapılacaklar güncellendi (${done}/${items.length} bitti):\n${items.map((t) => `${mark[t.status]} ${t.content}`).join('\n')}`;
+}
+
 /** Arka planda başlatılan süreçler (pid → komut). */
 const backgroundProcesses = new Map<number, string>();
 

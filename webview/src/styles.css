@@ -854,6 +854,30 @@ details[open] > summary .tz-fold-icon { transform: rotate(90deg); }
 /* ── Giriş kutusu ─────────────────────────────────────────────── */
 .tz-composer-area { position: relative; flex-shrink: 0; padding: 0 10px 8px; }
 
+/* Ajanın yapılacaklar listesi: giriş kutusunun hemen üstünde */
+.tz-todos {
+  margin-bottom: 6px;
+  border: 1px solid var(--tn-line);
+  border-radius: var(--r-lg);
+  background: var(--tn-surface-2);
+  overflow: hidden;
+}
+.tz-todos-head {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 10px; font-size: 12px; color: var(--tn-text-2); text-align: left;
+}
+.tz-todos-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.tz-todos-count { font-family: var(--mono); font-size: 11px; color: var(--tn-text-3); }
+.tz-todos-chev { color: var(--tn-text-3); transition: transform var(--dur); transform: rotate(-90deg); }
+.tz-todos.is-open .tz-todos-chev { transform: none; }
+.tz-todos-list { list-style: none; margin: 0; padding: 0 10px 8px; max-height: 180px; overflow-y: auto; }
+.tz-todo { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; font-size: 12px; line-height: 1.45; color: var(--tn-text-2); }
+.tz-todo svg { flex-shrink: 0; margin-top: 2px; color: var(--tn-text-3); }
+.tz-todo.is-in_progress { color: var(--tn-text); font-weight: 600; }
+.tz-todo.is-in_progress svg { color: var(--tn-accent); }
+.tz-todo.is-completed { color: var(--tn-text-3); text-decoration: line-through; }
+.tz-todo.is-completed svg { color: var(--tn-success); }
+
 .tz-slash {
   position: absolute; left: 10px; right: 10px; bottom: calc(100% - 2px); z-index: 10;
   padding: 8px 6px 6px;

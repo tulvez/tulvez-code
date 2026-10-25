@@ -4,7 +4,7 @@ import type { TulvezSettings } from './messages';
 import { calcCost } from './cost';
 import { buildPrompt } from './ai';
 import type { AgentMode, ChatTurn } from './types';
-import { TOOL_DEFINITIONS, applyBudget, executeTool, resolveEditPath, snapshotBeforeEdit } from './tools';
+import { TOOL_DEFINITIONS, applyBudget, executeTool, formatTodos, normalizeTodos, resolveEditPath, snapshotBeforeEdit, type TodoItem } from './tools';
 import { buildRepoMap } from './repomap';
 import { resolveModel } from './providers';
 import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
@@ -19,6 +19,8 @@ export interface AgentCallbacks {
   onToolRequest: (id: string, tool: string, args: string) => Promise<boolean>;
   onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number; model: string }) => void;
   onCancelled?: () => void;
+  /** Ajanın yapılacaklar listesi (todo_write) değişti */
+  onTodos?: (items: TodoItem[]) => void;
   onReasoning?: (text: string) => void;
   onError: (err: string) => void;
 }
@@ -108,6 +110,12 @@ function buildToolSet(
       description: def.description,
       inputSchema: def.schema as ToolSet[string]['inputSchema'],
       execute: async (args: Record<string, unknown>, options?: { abortSignal?: AbortSignal }) => {
+        // Yapılacaklar listesi sohbet akışına adım olarak düşmez; giriş kutusunun üstünde gösterilir
+        if (def.name === 'todo_write') {
+          const items = normalizeTodos(args);
+          cb.onTodos?.(items);
+          return formatTodos(items);
+        }
         const callId = nextToolReqId();
         const report = (output: string, status: ToolResult['status'], exitCode?: number): void => {
           cb.onToolResult?.({ callId, tool: def.name, output: previewOutput(output), status, exitCode });

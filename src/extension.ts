@@ -169,6 +169,7 @@ export function activate(context: vscode.ExtensionContext): void {
         void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage);
       },
       onReasoning: (chunk) => void webview.postMessage({ type: 'assistantReasoning', text: chunk } satisfies HostToWebviewMessage),
+      onTodos: (items) => void webview.postMessage({ type: 'todos', items } satisfies HostToWebviewMessage),
       onToolCall: (tool, summary, id) => {
         lastEditedFile = tool === 'write_file' || tool === 'replace_in_file' ? summary : lastEditedFile;
         void webview.postMessage({ type: 'toolCall', tool, summary, id } satisfies HostToWebviewMessage);
