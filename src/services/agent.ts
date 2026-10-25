@@ -8,6 +8,7 @@ import { TOOL_DEFINITIONS, applyBudget, executeTool, resolveEditPath, snapshotBe
 import { buildRepoMap } from './repomap';
 import { resolveModel } from './providers';
 import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
+import { compactConversation, withoutReasoning } from './conversation';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -143,6 +144,16 @@ function buildToolSet(
   return tools;
 }
 
+/** Tek istekte en çok adım (araç çağrısı + yanıt). Durdur her an keser. */
+export const MAX_STEPS = 50;
+
+export interface AgentMemory {
+  /** Önceki turların tam konuşması (araç sonuçları dahil); yoksa düz metin geçmişi kullanılır. */
+  prior?: ModelMessage[] | null;
+  /** Tur başarıyla bitince bu turla birlikte güncel konuşma. */
+  onConversation?: (messages: ModelMessage[]) => void;
+}
+
 export async function runAgent(
   settings: TulvezSettings,
   userMessage: string,
@@ -150,6 +161,7 @@ export async function runAgent(
   history: ChatTurn[],
   callbacks: AgentCallbacks,
   signal?: AbortSignal,
+  memory?: AgentMemory,
 ): Promise<void> {
   if (settings.aiProvider === 'custom' && !settings.baseUrl) {
     callbacks.onError('Base URL boş. Ayarlar\'dan OpenAI uyumlu endpoint adresini girin.');
@@ -174,11 +186,17 @@ export async function runAgent(
     return;
   }
 
-  const messages: ModelMessage[] = [
-    ...history.map<ModelMessage>((t) => ({
+  // Konuşma bağlam penceresinin yaklaşık yarısına sığdırılır (1 token ≈ 3–4 karakter); çok büyük
+  // pencerelerde de maliyet şişmesin diye üst sınır var.
+  const budget = Math.min(contextWindow(resolved.id) * 2, 400_000);
+  const past: ModelMessage[] = memory?.prior?.length
+    ? memory.prior
+    : history.map<ModelMessage>((t) => ({
       role: t.role === 'assistant' ? 'assistant' : 'user',
       content: [{ type: 'text', text: t.text }],
-    })),
+    }));
+  const messages: ModelMessage[] = [
+    ...compactConversation(past, budget),
     { role: 'user', content: userMessage },
   ];
 
@@ -201,21 +219,13 @@ export async function runAgent(
         system,
         messages,
         tools,
-        stopWhen: stepCountIs(12),
+        stopWhen: stepCountIs(MAX_STEPS),
         abortSignal: signal,
         maxRetries: 0,
         // Bazı OpenAI-uyumlu uç noktalar (örn. gpt-oss-20b) önceki adımın
         // düşünme (reasoning) parçalarını geri kabul etmez. Düşünme hâlâ
         // üretilir ve arayüzde gösterilir; sadece isteğe geri eklenmez.
-        prepareStep: async ({ messages }) => ({
-          messages: messages.map((m) => {
-            if (m.role !== 'assistant' || typeof m.content === 'string') return m;
-            const content = m.content.filter(
-              (p) => p.type === 'text' || p.type === 'tool-call',
-            );
-            return { ...m, content };
-          }),
-        }),
+        prepareStep: async ({ messages }) => ({ messages: withoutReasoning(messages) }),
       });
 
       let sawText = false;
@@ -247,6 +257,13 @@ export async function runAgent(
         cb.onChunk('_(Model boş yanıt döndü. Modeli değiştirmeyi veya isteği kısaltmayı dene.)_');
       } else if (finishReason === 'length') {
         cb.onChunk('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmek için "devam" yazabilirsin._');
+      } else if (finishReason === 'tool-calls') {
+        cb.onChunk(`\n\n_⚠️ Bu istekte ${MAX_STEPS} adım sınırına ulaştım. Kaldığım yerden sürdürmem için "devam" yaz._`);
+      }
+
+      if (memory?.onConversation) {
+        const produced = await result.responseMessages;
+        memory.onConversation(withoutReasoning([...messages, ...produced]));
       }
 
       cb.onDone({

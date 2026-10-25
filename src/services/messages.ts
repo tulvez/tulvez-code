@@ -29,8 +29,8 @@ export type WebviewToHostMessage =
   | { type: 'importSkill' }
   | { type: 'exportSkill'; id: string }
   | { type: 'openFolder' }
-  | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[]; model?: string }
-  | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain' | 'skill'; arg?: string; mode: 'ask' | 'plan' | 'build' }
+  | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[]; model?: string; sessionId?: string; turns?: number }
+  | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain' | 'skill'; arg?: string; mode: 'ask' | 'plan' | 'build'; sessionId?: string; turns?: number }
   | { type: 'openSkillsFile' }
   | { type: 'getSkills' }
   | { type: 'openFolder' }

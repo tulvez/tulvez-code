@@ -9,6 +9,7 @@ import { chatFileName } from './services/chatExport';
 import { devLog, initDevLog, step } from './services/devLog';
 import { fetchRegistry, installedSkills, installSkill, registryBase, removeSkill, type RegistrySkill } from './services/skillsRegistry';
 import { runAgent, invalidateRepoMap } from './services/agent';
+import { getConversation, saveConversation } from './services/conversation';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 import { listProviderModels } from './services/models';
@@ -131,7 +132,14 @@ export function activate(context: vscode.ExtensionContext): void {
     prompt: string,
     mode: 'ask' | 'plan' | 'build',
     history: { role: 'user' | 'assistant'; text: string }[],
+    session?: { sessionId?: string; turns?: number },
   ): Promise<void> => {
+    // Sohbet hafızası: tur sayısı tutuyorsa önceki turların araç sonuçları da modele gider
+    const turns = session?.turns ?? 0;
+    const memory = session?.sessionId ? {
+      prior: getConversation(session.sessionId, turns),
+      onConversation: (msgs: import('ai').ModelMessage[]) => saveConversation(session.sessionId, turns + 1, msgs),
+    } : undefined;
     activeAbort?.abort();
     activeAbort = new AbortController();
     const signal = activeAbort.signal;
@@ -200,7 +208,7 @@ export function activate(context: vscode.ExtensionContext): void {
           } satisfies HostToWebviewMessage);
         }
       },
-    }, signal);
+    }, signal, memory);
   };
 
   const handleMessage = async (
@@ -525,7 +533,7 @@ export function activate(context: vscode.ExtensionContext): void {
           '',
           `git diff${staged ? ' --cached' : ''}:\n${diff.slice(0, 12000)}`,
         ].join('\n');
-        await runAgentFor(webview, settings, prompt, 'build', []);
+        await runAgentFor(webview, settings, prompt, 'build', [], message);
         return;
       } else if (message.name === 'review') {
         let diff = await git('diff --cached');
@@ -569,7 +577,7 @@ export function activate(context: vscode.ExtensionContext): void {
         if (hit.request) prompt += `\n\nKullanıcının isteği: ${hit.request}`;
       }
 
-      await runAgentFor(webview, settings, prompt, mode, []);
+      await runAgentFor(webview, settings, prompt, mode, [], message);
       return;
     }
 
@@ -591,7 +599,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       const effective = { ...settings, model: message.model?.trim() ? message.model : settings.model };
-      await runAgentFor(webview, effective, userText, message.mode, message.history ?? []);
+      await runAgentFor(webview, effective, userText, message.mode, message.history ?? [], message);
     }
   };
 

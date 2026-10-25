@@ -1003,6 +1003,12 @@ export function App(): JSX.Element {
     }, [])
     .slice(-20);
 
+  // Eklentideki sohbet hafızası bu kimlik ve önceki kullanıcı mesajı sayısıyla eşleşir
+  const sessionInfo = (msgs: ChatMessage[]) => ({
+    sessionId: String(sessionIdRef.current),
+    turns: msgs.filter((m) => m.role === 'user').length,
+  });
+
   const pushUser = (text: string) => {
     lastAssistantIdRef.current = null;
     setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }]);
@@ -1017,7 +1023,7 @@ export function App(): JSX.Element {
     const slashMatch = /^\/(commit|review|diff|explain)\s*$/i.exec(text);
     if (slashMatch) {
       pushUser(text);
-      vscode.postMessage({ type: 'slash', name: slashMatch[1].toLowerCase() as 'commit' | 'review' | 'diff' | 'explain', mode });
+      vscode.postMessage({ type: 'slash', name: slashMatch[1].toLowerCase() as 'commit' | 'review' | 'diff' | 'explain', mode, ...sessionInfo(messages) });
       setWaiting(true);
       setStreaming(true);
       resetInput();
@@ -1027,7 +1033,7 @@ export function App(): JSX.Element {
     const skillMatch = /^\/skills?\s+(.+)$/i.exec(text);
     if (skillMatch) {
       pushUser(text);
-      vscode.postMessage({ type: 'slash', name: 'skill', arg: skillMatch[1].trim(), mode });
+      vscode.postMessage({ type: 'slash', name: 'skill', arg: skillMatch[1].trim(), mode, ...sessionInfo(messages) });
       setWaiting(true);
       setStreaming(true);
       resetInput();
@@ -1046,7 +1052,7 @@ export function App(): JSX.Element {
     pushUser(text);
     const chosen = model === DEFAULT_MODEL ? undefined : model;
     lastPromptRef.current = { text, mode, model: chosen };
-    vscode.postMessage({ type: 'sendMessage', text, mode, history: historyFor(messages), model: chosen });
+    vscode.postMessage({ type: 'sendMessage', text, mode, history: historyFor(messages), model: chosen, ...sessionInfo(messages) });
     setWaiting(true);
     setStreaming(true);
     resetInput();
@@ -1094,7 +1100,7 @@ export function App(): JSX.Element {
     const before = messagesRef.current;
     setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text: p.text }]);
     followNow();
-    vscode.postMessage({ type: 'sendMessage', text: p.text, mode: p.mode, history: historyFor(before), model: p.model });
+    vscode.postMessage({ type: 'sendMessage', text: p.text, mode: p.mode, history: historyFor(before), model: p.model, ...sessionInfo(before) });
     setWaiting(true);
     setStreaming(true);
   }, [followNow]);
