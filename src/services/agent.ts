@@ -6,11 +6,12 @@ import { buildPrompt } from './ai';
 import type { AgentMode, ChatTurn } from './types';
 import { TOOL_DEFINITIONS, applyBudget, executeTool, formatTodos, normalizeTodos, resolveEditPath, snapshotBeforeEdit, type TodoItem } from './tools';
 import { buildRepoMap } from './repomap';
-import { resolveModel } from './providers';
+import { resolveModel, type ClientInfo } from './providers';
 import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
 import { compactConversation, withoutReasoning } from './conversation';
 import { recordBefore } from './checkpoint';
 import type { McpTool } from './mcp';
+import { isFreeOnlyError } from './opencode';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -196,6 +197,8 @@ export interface AgentOptions {
   onConversation?: (messages: ModelMessage[]) => void;
   /** Bağlı MCP sunucularının araçları (yalnız Build modunda verilir). */
   mcpTools?: McpTool[];
+  /** Sağlayıcıya kendimizi tanıtmak için: eklenti sürümü ve sohbet kimliği */
+  client?: ClientInfo;
 }
 
 export async function runAgent(
@@ -224,7 +227,7 @@ export async function runAgent(
 
   let resolved;
   try {
-    resolved = resolveModel(settings);
+    resolved = resolveModel(settings, memory?.client);
   } catch (err) {
     callbacks.onError(err instanceof Error ? err.message : String(err));
     return;
@@ -313,7 +316,7 @@ export async function runAgent(
       cb.onDone({
         inputTokens: usage.inputTokens ?? 0,
         outputTokens: usage.outputTokens ?? 0,
-        costUsd: calcCost(resolved.id, usage.inputTokens ?? 0, usage.outputTokens ?? 0),
+        costUsd: resolved.cost?.(usage.inputTokens ?? 0, usage.outputTokens ?? 0) ?? calcCost(resolved.id, usage.inputTokens ?? 0, usage.outputTokens ?? 0),
         contextWindow: contextWindow(resolved.id),
         model: resolved.id,
       });
@@ -334,6 +337,8 @@ export async function runAgent(
 }
 
 function isRetryable(message: string): boolean {
+  // OpenCode'un "ücretsiz modeller yalnız OpenCode'da" yanıtı 429 olsa da beklemekle geçmez
+  if (isFreeOnlyError(message)) return false;
   const m = message.toLowerCase();
   // Günlük kota tükendiyse tekrar denemenin anlamı yok (saatlerce sürebilir)
   if (m.includes('exceeded your current quota') || m.includes('quota exceeded') || m.includes('billing')) {

@@ -1307,7 +1307,8 @@ export function App(): JSX.Element {
               <select value={setupProvider}
                 onChange={(e) => setSetupProvider(e.target.value as TulvezSettings['aiProvider'])}>
                 <option value="gemini">Google Gemini (ücretsiz katman)</option>
-                <option value="opencode">OpenCode Zen (kendi bakiyen)</option>
+                <option value="opencode">OpenCode (kullandıkça öde; ücretsiz modelleri yalnız OpenCode’da)</option>
+                <option value="opencode-go">OpenCode Go (aylık abonelik)</option>
                 <option value="custom">Özel (OpenAI uyumlu)</option>
                 <option value="openai">OpenAI</option>
                 <option value="anthropic">Anthropic</option>

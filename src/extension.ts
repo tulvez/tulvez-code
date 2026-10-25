@@ -12,6 +12,7 @@ import { runAgent, invalidateRepoMap } from './services/agent';
 import { getConversation, saveConversation } from './services/conversation';
 import { beginCheckpoint, endCheckpoint, undoCheckpoint } from './services/checkpoint';
 import { mentionContext } from './services/mentions';
+import { FREE_ONLY_MESSAGE, isFreeOnlyError, loadOpencodeCatalog, refreshOpencodeCatalog } from './services/opencode';
 import { McpManager, parseMcpServers, projectApprovalKey, readProjectMcp, type McpServerEntry } from './services/mcp';
 import { aiEditHooks, aiLineCountForActiveEditor, forgetAiEdits, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
@@ -57,6 +58,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const skillsRoot = vscode.Uri.joinPath(context.globalStorageUri, 'skills').fsPath;
   setSkillsRoot(skillsRoot);
+
+  // OpenCode model kataloğu (hangi model hangi biçimle çağrılır, fiyat, ücretsiz mi): günde bir
+  const ocFile = vscode.Uri.joinPath(context.globalStorageUri, 'opencode-catalog.json').fsPath;
+  const ocSaved = loadOpencodeCatalog(ocFile);
+  if (!ocSaved || Date.now() - ocSaved.savedAt > 24 * 60 * 60 * 1000) {
+    void refreshOpencodeCatalog(ocFile).then(() => devLog('✓ OpenCode kataloğu'), (e) => devLog('✗ OpenCode kataloğu', String(e)));
+  }
 
   // GitHub becerileri: aynı anda tek eşitleme; açılışta 12 saatte bir, Ayarlar açılınca her zaman.
   let skillSync: Promise<SyncResult> | null = null;
@@ -179,6 +187,7 @@ export function activate(context: vscode.ExtensionContext): void {
         ? (msgs: import('ai').ModelMessage[]) => saveConversation(session.sessionId, turns + 1, msgs)
         : undefined,
       mcpTools,
+      client: { version: String(context.extension.packageJSON.version ?? ''), sessionId: session?.sessionId },
     };
     activeAbort?.abort();
     activeAbort = new AbortController();
@@ -249,7 +258,8 @@ export function activate(context: vscode.ExtensionContext): void {
         reportCheckpoint();
         void webview.postMessage({ type: 'error', message: friendlyError(err) } satisfies HostToWebviewMessage);
         const lower = err.toLowerCase();
-        if (lower.includes('429') || lower.includes('quota') || lower.includes('503')) {
+        // "Yalnız OpenCode'da" bir kota değil: kota şeridi gösterilmez
+        if (!isFreeOnlyError(err) && (lower.includes('429') || lower.includes('quota') || lower.includes('503'))) {
           const retry = /retry in (\d+)h(\d+)m/.exec(err);
           let retryAt: number | undefined;
           if (retry) {
@@ -937,6 +947,8 @@ function safeCommand<T>(command: string, ...args: unknown[]): Promise<T> {
 function friendlyError(err: string): string {
   const m = err.toLowerCase();
 
+  if (isFreeOnlyError(err) || err === FREE_ONLY_MESSAGE) return FREE_ONLY_MESSAGE;
+
   if (m.includes('no output generated')) {
     return 'Sağlayıcı boş yanıt döndürdü. Bu genelde kota, geçici yoğunluk veya model hatasıdır. Model değiştirip tekrar deneyebilirsin.';
   }
@@ -960,7 +972,7 @@ function friendlyError(err: string): string {
   if (m.includes('fetch failed') || m.includes('econnreset') || m.includes('network') || m.includes('enotfound')) {
     return 'Sağlayıcıya ulaşılamadı. İnternet bağlantını kontrol et veya Ollama kullanıyorsan sunucunun açık olduğundan emin ol.';
   }
-  if (m.includes('api key') || m.includes('api anahtarı') || m.includes('unauthorized') || m.includes('401')) {
+  if (m.includes('api key') || m.includes('api anahtarı') || m.includes('unauthorized') || m.includes('401') || m.includes('invalid credential')) {
     return 'API anahtarı eksik veya geçersiz. Ayarlar\'dan anahtarını kontrol et.';
   }
   if (m.includes('model') && (m.includes('not found') || m.includes('404'))) {

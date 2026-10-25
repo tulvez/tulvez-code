@@ -1,4 +1,5 @@
 import type { TulvezSettings } from './messages';
+import { listOpencodeModels } from './opencode';
 
 /**
  * Sağlayıcının hesabında gerçekten kullanılabilen modelleri döndürür.
@@ -31,9 +32,12 @@ export async function listProviderModels(settings: TulvezSettings): Promise<stri
     return (json.models ?? []).map((m) => m.name).sort();
   }
 
+  if (provider === 'opencode' || provider === 'opencode-go') {
+    return listOpencodeModels(provider === 'opencode-go' ? 'go' : 'console', key);
+  }
+
   const baseURL =
     provider === 'groq' ? 'https://api.groq.com/openai/v1'
-    : provider === 'opencode' ? 'https://opencode.ai/zen/v1'
     : provider === 'custom' ? (settings.baseUrl || '').replace(/\/$/, '')
     : 'https://api.openai.com/v1';
 

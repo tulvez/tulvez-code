@@ -52,7 +52,8 @@ const PROVIDERS: ProviderDef[] = [
   { id: 'anthropic', label: 'Anthropic',     hint: 'Claude Opus · Sonnet · Haiku',  icon: Bot,      keyHint: 'sk-ant-…' },
   { id: 'gemini',    label: 'Google Gemini', hint: 'Ücretsiz katman var',           icon: Gem,      keyHint: 'AIza…' },
   { id: 'groq',      label: 'Groq',          hint: 'Açık modeller, çok hızlı',      icon: Zap,      keyHint: 'gsk_…' },
-  { id: 'opencode',  label: 'OpenCode Zen',  hint: 'Tek anahtarla birçok model',    icon: Boxes,    keyHint: 'zen-…' },
+  { id: 'opencode',  label: 'OpenCode',      hint: 'Kullandıkça öde; ücretsiz modeller yalnız OpenCode’da', icon: Boxes, keyHint: 'OpenCode Console anahtarı' },
+  { id: 'opencode-go', label: 'OpenCode Go',  hint: 'Aylık abonelik, açık modeller',  icon: Boxes,    keyHint: 'OpenCode Go anahtarı' },
   { id: 'custom',    label: 'Özel uç nokta', hint: 'OpenRouter, LM Studio, vLLM…',  icon: Server,   keyHint: 'sk-…' },
   { id: 'ollama',    label: 'Ollama',        hint: 'Yerel, anahtarsız',             icon: Home },
 ];
