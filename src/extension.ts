@@ -480,7 +480,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const sidebarProvider = new TulvezSidebarProvider(context, createWebview, handleMessage);
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('tulvez.sidebar', sidebarProvider),
+    // Panel gizlenince webview kapanmasın: ajan çalışırken başka görünüme geçilirse
+    // (ör. git oturum açma penceresi) komut sonucu ve yanıt kayboluyor, adım "Yarıda kaldı" görünüyordu
+    vscode.window.registerWebviewViewProvider('tulvez.sidebar', sidebarProvider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
   );
 
   // Kenar çubuğu başlığındaki düğmeler (yeni sohbet, geçmiş, ayarlar) webview'a yönlendirilir;
@@ -495,7 +499,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const openPanel = () => {
     const panel = vscode.window.createWebviewPanel(
-      'tulvezPanel', 'Tulvez Code', vscode.ViewColumn.Beside, { enableScripts: true },
+      'tulvezPanel', 'Tulvez Code', vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true },
     );
     createWebview(panel.webview);
     panel.webview.onDidReceiveMessage(
