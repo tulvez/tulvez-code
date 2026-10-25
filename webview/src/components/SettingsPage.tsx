@@ -351,10 +351,11 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
   const renderSkills = () => (
     <>
       <p className="cx-intro">
-        Skills, Tulvez Code'a belirli bir işi nasıl yapacağını öğreten talimatlardır. Kurulan skill
-        <code>/skill &lt;ad&gt;</code> ile çalışır.
+        Skills, Tulvez Code'a belirli bir işi nasıl yapacağını öğreten talimatlardır. Tulvez'in GitHub'daki
+        becerileri kendiliğinden kurulur ve güncellenir; isteğin bir beceriye uyarsa Tulvez Code onu kendisi
+        kullanır. İstersen <code>/skill &lt;ad&gt;</code> ile de çalıştırabilirsin.
       </p>
-      <Section title="Tulvez skills deposu">
+      <Section title="Tulvez becerileri">
         <Row title={registry.loading ? 'Yükleniyor…' : registry.error ? 'Depoya ulaşılamadı' : `${registry.skills.length} skill`}
           desc={registry.error ?? (registry.installed.length ? `${registry.installed.length} kurulu` : 'Henüz kurulu skill yok')}
           control={(
@@ -531,7 +532,7 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
 
       <Section title="Skills">
         <Row title="Skill'leri yönet"
-          desc={registry.installed.length ? `${registry.installed.length} kurulu · depodan ekle ya da kaldır` : 'Depodan skill ekle'}
+          desc={registry.installed.length ? `${registry.installed.length} kurulu · Tulvez Code gerektiğinde kendisi kullanır` : 'Tulvez becerilerini gör'}
           control={<ChevronRight size={15} className="cx-chev" />}
           onClick={() => setView('skills')} />
       </Section>

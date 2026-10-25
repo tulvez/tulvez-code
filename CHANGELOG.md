@@ -1,5 +1,17 @@
 # Changelog
 
+## Yayınlanmadı
+
+- Yeni — Tulvez'in GitHub'daki becerileri kendiliğinden kurulur: github.com/tulvez altında kökünde
+  SKILL.md olan her herkese açık depo bir beceridir. Becerinin bütün klasörü (betikler, belgeler)
+  eklentinin kendi alanına iner, her projede çalışır ve 12 saatte bir güncellenir
+- Yeni — Tulvez Code kurulu becerileri kendisi kullanır: isteğin bir becerinin açıklamasına uyarsa
+  önce o becerinin SKILL.md dosyasını okur ve talimatına göre çalışır. `/skill <ad>` de çalışır
+- Düzeltme — varsayılan skills deposu (tulvez/tulvez-code-skills) hiç yayımlanmamıştı, Ayarlar'daki
+  liste hep "Depoya ulaşılamadı" gösteriyordu. Varsayılan artık https://github.com/tulvez
+- Düzeltme — `/skill` bilinmeyen bir adla çağrılınca ilk beceriyi sessizce çalıştırıyordu; artık
+  kurulu becerileri listeler
+
 ## 0.2.3
 
 - Düzeltme — "Durdur" düğmesi çalışmıyordu: durdurma sinyali ajana hiç iletilmiyordu, yanıt

@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { installedSkills } from './skillsRegistry';
+import { getSkillsRoot, localSkills, skillBody } from './orgSkills';
 
 export const SKILLS_FILE = 'code_skills.md';
 
@@ -79,10 +81,18 @@ export function getInstructions(): string {
   return withoutSkills;
 }
 
-/** code_skills.md içindeki skill'ler + depodan kurulanlar (.tulvez/skills/*.md). */
+/** code_skills.md içindeki skill'ler + depodan kurulanlar (.tulvez/skills/*.md) + GitHub becerileri. */
 export function parseSkills(): Skill[] {
   const installed = installedSkills().map((s) => ({ name: s.id, text: s.text }));
-  return [...parseFileSkills(), ...installed];
+  const org = localSkills(getSkillsRoot()).flatMap((s) => {
+    try {
+      const body = skillBody(fs.readFileSync(path.join(s.dir, 'SKILL.md'), 'utf8'));
+      return [{ name: s.id, text: `${body}\n\n(Becerinin klasörü: ${s.dir} — göreli yollar buna göredir.)` }];
+    } catch {
+      return [];
+    }
+  });
+  return [...parseFileSkills(), ...installed, ...org];
 }
 
 function parseFileSkills(): Skill[] {

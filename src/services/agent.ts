@@ -7,6 +7,7 @@ import type { AgentMode, ChatTurn } from './types';
 import { TOOL_DEFINITIONS, applyBudget, executeTool, resolveEditPath, snapshotBeforeEdit } from './tools';
 import { buildRepoMap } from './repomap';
 import { resolveModel } from './providers';
+import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -156,7 +157,8 @@ export async function runAgent(
 
   const trivial = isTrivialRequest(userMessage);
   const repoMap = trivial ? '' : await repoMapFor();
-  const system = buildPrompt(mode, repoMap);
+  const skills = trivial ? '' : skillsPromptBlock(localSkills(getSkillsRoot()));
+  const system = buildPrompt(mode, repoMap, skills);
   const allowed = TOOL_DEFINITIONS.filter((t) => (mode !== 'ask' || t.readOnly) && !trivial);
 
   let resolved;

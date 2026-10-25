@@ -14,10 +14,31 @@ import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } fr
 import { listProviderModels } from './services/models';
 import { isBotIdentity, readIdentity, removeBotIdentity, repoRoot, withCoAuthor } from './services/gitIdentity';
 import { activateCoAuthorScm, noteAiEdit } from './services/coAuthorScm';
+import { githubOwner, localSkills, removeLocalSkill, setSkillsRoot, syncOrgSkills, type SyncResult } from './services/orgSkills';
+
+const SKILLS_DISABLED_KEY = 'tulvez.skills.disabled';
+const SKILLS_SYNCED_KEY = 'tulvez.skills.syncedAt';
+const SKILLS_SYNC_EVERY_MS = 12 * 60 * 60 * 1000;
 
 export function activate(context: vscode.ExtensionContext): void {
   initDevLog(context);
   devLog('activate başladı');
+  const skillsRoot = vscode.Uri.joinPath(context.globalStorageUri, 'skills').fsPath;
+  setSkillsRoot(skillsRoot);
+
+  // GitHub becerileri: aynı anda tek eşitleme; açılışta 12 saatte bir, Ayarlar açılınca her zaman.
+  let skillSync: Promise<SyncResult> | null = null;
+  const syncSkills = (owner: string): Promise<SyncResult> => {
+    skillSync ??= syncOrgSkills(owner, skillsRoot, context.globalState.get<string[]>(SKILLS_DISABLED_KEY, []))
+      .then(async (r) => {
+        await context.globalState.update(SKILLS_SYNCED_KEY, Date.now());
+        if (r.updated.length) devLog('✓ beceriler güncellendi', r.updated.join(', '));
+        if (r.errors.length) devLog('✗ beceri', r.errors.join(' | '));
+        return r;
+      })
+      .finally(() => { skillSync = null; });
+    return skillSync;
+  };
   const createWebview = (webview: vscode.Webview, host: 'sidebar' | 'panel' = 'panel'): void => {
     devLog('webview hazırlanıyor', host);
     try {
@@ -187,8 +208,36 @@ export function activate(context: vscode.ExtensionContext): void {
     message: WebviewToHostMessage,
   ): Promise<void> => {
     if (message.type === 'getSkillsRegistry' || message.type === 'installSkill' || message.type === 'removeSkill') {
-      // Skills deposu: liste, kur, kaldır. Her işlemden sonra güncel durum webview'a gider.
       const source = registryBase();
+      const owner = githubOwner(source);
+      if (owner) {
+        // GitHub hesabı: SKILL.md taşıyan her depo bir beceri, kendiliğinden kurulur.
+        // Kaldırılan kapatılır (bir sonraki eşitlemede geri gelmez); Kur yeniden açar.
+        const disabled = new Set(context.globalState.get<string[]>(SKILLS_DISABLED_KEY, []));
+        if (message.type === 'removeSkill') { disabled.add(message.id); removeLocalSkill(skillsRoot, message.id); }
+        if (message.type === 'installSkill') disabled.delete(message.id);
+        await context.globalState.update(SKILLS_DISABLED_KEY, [...disabled]);
+        let error: string | undefined;
+        let catalog: SyncResult['catalog'] = [];
+        try {
+          const r = await syncSkills(owner);
+          catalog = r.catalog;
+          if (r.errors.length) error = r.errors[0];
+        } catch (err) {
+          error = err instanceof Error ? err.message : String(err);
+        }
+        const installed = localSkills(skillsRoot).filter((s) => !disabled.has(s.id));
+        await webview.postMessage({
+          type: 'skillsRegistry',
+          source,
+          // Ayarlarda açıklamanın ilk cümlesi yeter; tamamı istemde.
+          skills: catalog.map(({ id, name, description, repo }) => ({ id, name, description: description.split(/(?<=\.)\s/)[0], tags: [repo], version: undefined })),
+          installed: installed.map((s) => ({ id: s.id, name: s.name })),
+          error,
+        } satisfies HostToWebviewMessage);
+        return;
+      }
+      // index.json deposu: liste, kur, kaldır. Her işlemden sonra güncel durum webview'a gider.
       const installedList = () => installedSkills().map((s) => ({ id: s.id, name: s.name }));
       let error: string | undefined;
       let catalog: RegistrySkill[] = [];
@@ -455,11 +504,15 @@ export function activate(context: vscode.ExtensionContext): void {
         const wanted = (message.arg ?? '').trim().toLowerCase();
         const skills = parseSkills();
         if (skills.length === 0) {
-          await webview.postMessage({ type: 'error', message: 'code_skills.md bulunamadı veya içinde Skills bölümü yok. Ayarlar\'dan oluşturabilirsin.' } satisfies HostToWebviewMessage);
+          await webview.postMessage({ type: 'error', message: 'Kurulu beceri yok. Ayarlar > Skills\'ten GitHub becerilerini yükleyebilir ya da code_skills.md oluşturabilirsin.' } satisfies HostToWebviewMessage);
           return;
         }
-        const found = skills.find((s) => s.name.toLowerCase() === wanted) ?? skills[0];
-        prompt = `${found.text}\n\n(Bu talimat code_skills.md içindeki "${found.name}" skill'inden geldi.)`;
+        const found = wanted ? skills.find((s) => s.name.toLowerCase() === wanted) : skills[0];
+        if (!found) {
+          await webview.postMessage({ type: 'error', message: `"${message.arg}" adlı beceri yok. Kurulu olanlar: ${skills.map((s) => s.name).join(', ')}` } satisfies HostToWebviewMessage);
+          return;
+        }
+        prompt = `${found.text}\n\n(Bu talimat "${found.name}" becerisinden geldi.)`;
       }
 
       await runAgentFor(webview, settings, prompt, mode, []);
@@ -551,6 +604,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   void migrateBotIdentity(context).then(() => devLog('✓ bot kimliği denetimi'), (e) => devLog('✗ bot kimliği denetimi', String(e)));
   void activateCoAuthorScm(context).then(() => devLog('✓ ek katkıcı (Kaynak Denetimi)'), (e) => devLog('✗ ek katkıcı', String(e)));
+  const skillsOwner = githubOwner(registryBase());
+  const lastSync = context.globalState.get<number>(SKILLS_SYNCED_KEY, 0);
+  if (skillsOwner && (Date.now() - lastSync > SKILLS_SYNC_EVERY_MS || localSkills(skillsRoot).length === 0)) {
+    void syncSkills(skillsOwner).catch((e) => devLog('✗ beceri eşitleme', String(e)));
+  }
   devLog('activate bitti');
 }
 

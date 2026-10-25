@@ -39,8 +39,9 @@ const ROLES: Record<AgentMode, string> = {
 };
 
 // code_skills.md her istekte okunur: düzenleme eklenti yeniden yüklenmeden geçerli olur
-export function buildPrompt(mode: AgentMode, repoMap: string): string {
-  const base = `${identity()}\n\n${MODES_LINE}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}`;
+export function buildPrompt(mode: AgentMode, repoMap: string, skills = ''): string {
+  let base = `${identity()}\n\n${MODES_LINE}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}`;
+  if (skills) base += `\n\n${skills}`;
   if (!repoMap || mode === 'ask') return base;
   return `${base}\n\n${repoMap}\n\nYukarıdaki harita yalnızca yol gösterir. Dosya içeriği için read_file / read_files, arama için grep_files kullan.`;
 }

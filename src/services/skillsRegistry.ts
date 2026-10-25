@@ -19,7 +19,8 @@ import * as vscode from 'vscode';
  * Dosyanın ilk `# Başlık` satırı görünen addır, gerisi talimattır.
  */
 
-export const DEFAULT_REGISTRY = 'https://raw.githubusercontent.com/tulvez/tulvez-code-skills/main';
+// Varsayılan: GitHub hesabı (orgSkills.ts). https://…/index.json taşıyan başka bir adres verilirse eski depo biçimi.
+export const DEFAULT_REGISTRY = 'https://github.com/tulvez';
 const MAX_INDEX_BYTES = 256 * 1024;
 const MAX_SKILL_BYTES = 64 * 1024;
 const TIMEOUT_MS = 10_000;
