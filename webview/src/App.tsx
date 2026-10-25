@@ -1428,7 +1428,7 @@ export function App(): JSX.Element {
         </button>
       )}
 
-      <p className="tz-welcome-hint"><kbd>/</kbd> komutlar · <kbd>Shift</kbd>+<kbd>Enter</kbd> yeni satır</p>
+      <p className="tz-welcome-hint"><kbd>/</kbd> komutlar · <kbd>@</kbd> dosya · <kbd>Shift</kbd>+<kbd>Enter</kbd> yeni satır</p>
     </div>
   );
 
