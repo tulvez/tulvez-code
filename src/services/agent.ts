@@ -86,6 +86,11 @@ function toolSummary(name: string, args: Record<string, unknown>): string {
   return JSON.stringify(args).slice(0, 120);
 }
 
+/** Ask ve Plan salt okur: yazma ve komut araçları yalnız Build modunda modele verilir. */
+export function toolsForMode(mode: AgentMode): typeof TOOL_DEFINITIONS {
+  return TOOL_DEFINITIONS.filter((t) => mode === 'build' || t.readOnly);
+}
+
 let toolReqCounter = 0;
 const nextToolReqId = () => `tool-${Date.now()}-${toolReqCounter++}`;
 
@@ -159,7 +164,7 @@ export async function runAgent(
   const repoMap = trivial ? '' : await repoMapFor();
   const skills = trivial ? '' : skillsPromptBlock(localSkills(getSkillsRoot()));
   const system = buildPrompt(mode, repoMap, skills);
-  const allowed = TOOL_DEFINITIONS.filter((t) => (mode !== 'ask' || t.readOnly) && !trivial);
+  const allowed = trivial ? [] : toolsForMode(mode);
 
   let resolved;
   try {

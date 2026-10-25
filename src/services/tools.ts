@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { z } from 'zod';
 import { BOT_AUTHOR_ENV, addUserCoAuthorToCommand, isCommitCommand, readIdentity } from './gitIdentity';
+import { getSkillsRoot } from './orgSkills';
 
 export interface ToolDefinition {
   name: string;
@@ -155,9 +156,43 @@ function workspaceRoot(): string {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
 }
 
-function resolvePath(p: string): string {
+/** Var olan en yakın üst klasörün gerçek yolu + kalan kısım: sembolik bağla dışarı kaçış yakalanır. */
+function realish(p: string): string {
+  let current = p;
+  const rest: string[] = [];
+  for (;;) {
+    try {
+      return path.join(fsSync.realpathSync.native(current), ...rest.reverse());
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return p;
+      rest.push(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+function isInside(target: string, root: string): boolean {
+  const rel = path.relative(root, target);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+/**
+ * Araçlar yalnız açık çalışma alanında çalışır. Okumada ayrıca kurulu becerilerin klasörüne
+ * (SKILL.md, references/) izin verilir. Dışarı çıkan yol hata verir; ajan bunu araç sonucu olarak görür.
+ */
+function resolvePath(p: string, access: 'read' | 'write' = 'read'): string {
   const root = workspaceRoot();
-  return path.isAbsolute(p) ? p : path.join(root, p);
+  if (!root) throw new Error('Önce bir klasör aç: Tulvez Code dosyalara yalnız açık çalışma alanında dokunur.');
+  const target = path.resolve(root, p);
+  const real = realish(target);
+  const roots = [root];
+  const skills = getSkillsRoot();
+  if (access === 'read' && skills) roots.push(skills);
+  if (!roots.some((r) => isInside(real, realish(r)))) {
+    throw new Error(`${p} çalışma alanının dışında. Tulvez Code yalnız açık klasördeki dosyalara ${access === 'read' ? 'bakar' : 'yazar'}.`);
+  }
+  return target;
 }
 
 const aiEdits = new Map<string, { start: number; end: number }[]>();
@@ -199,7 +234,7 @@ export function aiLineCountForActiveEditor(): number | null {
 /** Düzenleme araçları için hedef dosyanın mutlak yolunu verir. */
 export function resolveEditPath(p: string): string | null {
   if (!p) return null;
-  return resolvePath(p);
+  try { return resolvePath(p, 'write'); } catch { return null; }
 }
 
 export const aiEditHooks: { onEdit?: (filePath: string) => void } = {};
@@ -333,8 +368,8 @@ export async function executeTool(
           try {
             const content = await fs.readFile(resolvePath(p), 'utf8');
             out.push(`=== ${p} ===\n${withLineNumbers(content)}`);
-          } catch {
-            out.push(`=== ${p} ===\n(okunamadı)`);
+          } catch (err) {
+            out.push(`=== ${p} ===\n(okunamadı: ${err instanceof Error ? err.message : String(err)})`);
           }
         }
         return out.join('\n\n') || 'Dosya verilmedi.';
@@ -400,7 +435,7 @@ export async function executeTool(
         return out.join('\n') || '(boş)';
       }
       case 'replace_in_file': {
-        const target = resolvePath(String(args.path ?? ''));
+        const target = resolvePath(String(args.path ?? ''), 'write');
         const content = await fs.readFile(target, 'utf8');
         const oldStr = String(args.old_string ?? '');
         const newStr = String(args.new_string ?? '');
@@ -427,39 +462,12 @@ export async function executeTool(
         return `Düzenlendi: ${path.relative(workspaceRoot() || '.', target).replace(/\\/g, '/')}`;
       }
       case 'write_file': {
-        const target = resolvePath(String(args.path ?? ''));
+        const target = resolvePath(String(args.path ?? ''), 'write');
         await fs.mkdir(path.dirname(target), { recursive: true });
         await fs.writeFile(target, String(args.content ?? ''), 'utf8');
         const lines = String(args.content ?? '').split('\n').length;
         markAiEdit(target, 0, Math.max(0, lines - 1));
         return `Yazıldı: ${target}`;
-      }
-      case 'replace_in_file': {
-        const target = resolvePath(String(args.path ?? ''));
-        const content = await fs.readFile(target, 'utf8');
-        const oldStr = String(args.old_string ?? '');
-        const newStr = String(args.new_string ?? '');
-        if (!oldStr) return 'Hata: old_string boş.';
-        const occurrences = content.split(oldStr).length - 1;
-        if (occurrences === 0) {
-          return `Hata: eski metin bulunamadı. Şu satırları kontrol et:\n${firstLines(oldStr)}`;
-        }
-        if (occurrences > 1) {
-          const lines = content.split('\n');
-          const numbers = lines
-            .map((l, i) => (l.includes(oldStr.split('\n')[0]) ? i + 1 : 0))
-            .filter(Boolean);
-          return `Hata: eski metin ${occurrences} yerde geçiyor (satırlar: ${numbers.slice(0, 8).join(', ')}). Daha fazla bağlam ekleyerek tekilleştir.`;
-        }
-        const updated = content.replace(oldStr, newStr);
-        await fs.writeFile(target, updated, 'utf8');
-        const idx = updated.indexOf(newStr);
-        if (idx >= 0) {
-          const startLine = updated.slice(0, idx).split('\n').length - 1;
-          const span = newStr.split('\n').length;
-          markAiEdit(target, startLine, Math.max(startLine, startLine + span - 1));
-        }
-        return `Düzenlendi: ${path.relative(workspaceRoot() || '.', target).replace(/\\/g, '/')}`;
       }
       case 'list_files': {
         const dir = resolvePath(String(args.directory ?? '.'));
@@ -549,7 +557,7 @@ export async function executeTool(
         if (!allowShell) return 'Hata: Terminal komutları kapalı. Ayarlar\'dan açın.';
         const cwd = workspaceRoot() || undefined;
         const logFile = args.logFile
-          ? resolvePath(String(args.logFile))
+          ? resolvePath(String(args.logFile), 'write')
           : path.join(cwd ?? '.', 'tulvez-bg.log');
         const out = fsSync.openSync(logFile, 'a');
         const bgRun = await agentCommand(String(args.command ?? ''), cwd);
