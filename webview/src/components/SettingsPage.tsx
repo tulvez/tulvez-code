@@ -4,7 +4,7 @@ import { vscode } from '../services/vscode';
 import type { TulvezSettings } from '../types';
 import {
   AlertTriangle, Bot, Boxes, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Eye, EyeOff,
-  FileText, Gem, Home, Loader2, RefreshCw, Server, Sparkles, Trash2, Zap,
+  Download, FileText, Gem, Home, Loader2, RefreshCw, Server, Sparkles, Trash2, Upload, Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -29,7 +29,7 @@ interface RegistryState {
   loading: boolean;
   source: string;
   skills: { id: string; name: string; description: string; tags: string[]; version?: string }[];
-  installed: { id: string; name: string }[];
+  installed: { id: string; name: string; source?: 'github' | 'local'; description?: string }[];
   error?: string;
   busy?: string;
 }
@@ -327,6 +327,13 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
     vscode.postMessage({ type, id });
   };
 
+  // Dosya seçme penceresi eklenti tarafında açılır; sonuçta güncel liste gelir
+  const importSkill = () => {
+    setRegistry((r) => ({ ...r, busy: '__import', error: undefined }));
+    vscode.postMessage({ type: 'importSkill' });
+  };
+  const exportSkill = (id: string) => vscode.postMessage({ type: 'exportSkill', id });
+
   const reloadRegistry = () => {
     setRegistry((r) => ({ ...r, loading: true, error: undefined }));
     vscode.postMessage({ type: 'getSkillsRegistry' });
@@ -356,7 +363,7 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
         kullanır. İstersen <code>/skill &lt;ad&gt;</code> ile de çalıştırabilirsin.
       </p>
       <Section title="Tulvez becerileri">
-        <Row title={registry.loading ? 'Yükleniyor…' : registry.error ? 'Depoya ulaşılamadı' : `${registry.skills.length} skill`}
+        <Row title={registry.loading ? 'Yükleniyor…' : registry.error ? 'Depoya ulaşılamadı' : `${registry.source.startsWith('https://github.com/') ? 'GitHub’da ' : ''}${registry.skills.length} beceri`}
           desc={registry.error ?? (registry.installed.length ? `${registry.installed.length} kurulu` : 'Henüz kurulu skill yok')}
           control={(
             <button className="cx-btn" type="button" onClick={reloadRegistry} disabled={registry.loading} title="Yenile">
@@ -371,17 +378,40 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
               title={<>{s.name}{s.version && <span className="cx-ver">{s.version}</span>}</>}
               desc={s.description}
               control={(
-                <button className={`cx-btn ${isIn ? '' : 'cx-btn-primary'}`} type="button" disabled={busy}
-                  onClick={() => skillAction(isIn ? 'removeSkill' : 'installSkill', s.id)}>
-                  {busy ? <Loader2 size={12} className="spin" /> : isIn ? 'Kaldır' : 'Kur'}
-                </button>
+                <>
+                  {isIn && (
+                    <button className="cx-btn" type="button" title="Bilgisayara indir" aria-label="Bilgisayara indir" onClick={() => exportSkill(s.id)}>
+                      <Download size={12} />
+                    </button>
+                  )}
+                  <button className={`cx-btn ${isIn ? '' : 'cx-btn-primary'}`} type="button" disabled={busy}
+                    onClick={() => skillAction(isIn ? 'removeSkill' : 'installSkill', s.id)}>
+                    {busy ? <Loader2 size={12} className="spin" /> : isIn ? 'Kaldır' : 'Kur'}
+                  </button>
+                </>
               )} />
           );
         })}
         {registry.installed.filter((s) => !registry.skills.some((r) => r.id === s.id)).map((s) => (
-          <Row key={s.id} title={s.name} desc={`.tulvez/skills/${s.id}.md`}
-            control={<button className="cx-btn" type="button" onClick={() => skillAction('removeSkill', s.id)}>Kaldır</button>} />
+          <Row key={s.id} title={s.name}
+            desc={s.source === 'local' ? `${s.description ? `${s.description} · ` : ''}Bilgisayardan yüklendi` : `.tulvez/skills/${s.id}.md`}
+            control={(
+              <>
+                {s.source && (
+                  <button className="cx-btn" type="button" title="Bilgisayara indir" aria-label="Bilgisayara indir" onClick={() => exportSkill(s.id)}>
+                    <Download size={12} />
+                  </button>
+                )}
+                <button className="cx-btn" type="button" onClick={() => skillAction('removeSkill', s.id)}>Kaldır</button>
+              </>
+            )} />
         ))}
+        <Row title="Bilgisayardan yükle" desc="İçinde SKILL.md olan bir klasör ya da tek bir .md dosyası seç"
+          control={(
+            <button className="cx-btn" type="button" onClick={importSkill} disabled={registry.busy === '__import'}>
+              {registry.busy === '__import' ? <Loader2 size={12} className="spin" /> : <Upload size={12} />} Yükle
+            </button>
+          )} />
       </Section>
       <Section title="Bu proje">
         <Row title="code_skills.md" desc={skills?.exists ? 'Projeye özel kimlik, kurallar ve skill\'ler' : 'Henüz yok — oluşturunca düzenlemek için açılır'}

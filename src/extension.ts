@@ -10,11 +10,11 @@ import { devLog, initDevLog, step } from './services/devLog';
 import { fetchRegistry, installedSkills, installSkill, registryBase, removeSkill, type RegistrySkill } from './services/skillsRegistry';
 import { runAgent, invalidateRepoMap } from './services/agent';
 import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
-import { createSkillsTemplate, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
+import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 import { listProviderModels } from './services/models';
 import { isBotIdentity, readIdentity, removeBotIdentity, repoRoot, withCoAuthor } from './services/gitIdentity';
 import { activateCoAuthorScm, noteAiEdit } from './services/coAuthorScm';
-import { githubOwner, localSkills, removeLocalSkill, setSkillsRoot, syncOrgSkills, type SyncResult } from './services/orgSkills';
+import { exportLocalSkill, githubOwner, importLocalSkill, localSkills, removeLocalSkill, setSkillsRoot, syncOrgSkills, type SyncResult } from './services/orgSkills';
 
 const SKILLS_DISABLED_KEY = 'tulvez.skills.disabled';
 const SKILLS_SYNCED_KEY = 'tulvez.skills.syncedAt';
@@ -207,6 +207,44 @@ export function activate(context: vscode.ExtensionContext): void {
     webview: vscode.Webview,
     message: WebviewToHostMessage,
   ): Promise<void> => {
+    if (message.type === 'importSkill' || message.type === 'exportSkill') {
+      // Bilgisayardan beceri yükle / kurulu beceriyi bilgisayara indir; sonra güncel liste gider.
+      try {
+        if (message.type === 'importSkill') {
+          const picked = await vscode.window.showOpenDialog({
+            title: 'Beceri yükle: SKILL.md içeren klasör ya da .md dosyası',
+            openLabel: 'Yükle',
+            canSelectFiles: true,
+            canSelectFolders: true,
+            canSelectMany: false,
+          });
+          if (picked?.[0]) {
+            const skill = importLocalSkill(picked[0].fsPath, skillsRoot);
+            const disabled = context.globalState.get<string[]>(SKILLS_DISABLED_KEY, []).filter((d) => d !== skill.id);
+            await context.globalState.update(SKILLS_DISABLED_KEY, disabled);
+            void vscode.window.showInformationMessage(`Tulvez Code: "${skill.id}" becerisi yüklendi.`);
+          }
+        } else {
+          const picked = await vscode.window.showOpenDialog({
+            title: `"${message.id}" becerisini kaydet: bir klasör seç`,
+            openLabel: 'Buraya kaydet',
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+          });
+          if (picked?.[0]) {
+            const dest = exportLocalSkill(skillsRoot, message.id, picked[0].fsPath);
+            const open = await vscode.window.showInformationMessage(`Tulvez Code: beceri kaydedildi — ${dest}`, 'Klasörü aç');
+            if (open) void vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(dest));
+          }
+        }
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Tulvez Code: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      await handleMessage(webview, { type: 'getSkillsRegistry' });
+      return;
+    }
+
     if (message.type === 'getSkillsRegistry' || message.type === 'installSkill' || message.type === 'removeSkill') {
       const source = registryBase();
       const owner = githubOwner(source);
@@ -214,7 +252,12 @@ export function activate(context: vscode.ExtensionContext): void {
         // GitHub hesabı: SKILL.md taşıyan her depo bir beceri, kendiliğinden kurulur.
         // Kaldırılan kapatılır (bir sonraki eşitlemede geri gelmez); Kur yeniden açar.
         const disabled = new Set(context.globalState.get<string[]>(SKILLS_DISABLED_KEY, []));
-        if (message.type === 'removeSkill') { disabled.add(message.id); removeLocalSkill(skillsRoot, message.id); }
+        if (message.type === 'removeSkill') {
+          // Yalnız GitHub'dan gelen kapatılır (yoksa bir sonraki eşitlemede geri iner); yüklenen sadece silinir.
+          const fromGithub = localSkills(skillsRoot).find((s) => s.id === message.id)?.source !== 'local';
+          if (fromGithub) disabled.add(message.id);
+          removeLocalSkill(skillsRoot, message.id);
+        }
         if (message.type === 'installSkill') disabled.delete(message.id);
         await context.globalState.update(SKILLS_DISABLED_KEY, [...disabled]);
         let error: string | undefined;
@@ -232,7 +275,7 @@ export function activate(context: vscode.ExtensionContext): void {
           source,
           // Ayarlarda açıklamanın ilk cümlesi yeter; tamamı istemde.
           skills: catalog.map(({ id, name, description, repo }) => ({ id, name, description: description.split(/(?<=\.)\s/)[0], tags: [repo], version: undefined })),
-          installed: installed.map((s) => ({ id: s.id, name: s.name })),
+          installed: installed.map((s) => ({ id: s.id, name: s.name, source: s.source, description: s.description.split(/(?<=\.)\s/)[0] })),
           error,
         } satisfies HostToWebviewMessage);
         return;
@@ -363,6 +406,7 @@ export function activate(context: vscode.ExtensionContext): void {
         exists: skillsFileExists(),
         path: uri?.fsPath ?? '',
         skills: parseSkills().map((s) => s.name),
+        items: parseSkills().map((s) => ({ name: s.name, description: s.description })),
       } satisfies HostToWebviewMessage);
       return;
     }
@@ -501,18 +545,18 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         prompt = `Aşağıdaki kodu Türkçe olarak açıkla; ne yaptığını, önemli noktaları ve olası sorunları yaz:\n\n\`\`\`\n${sel.slice(0, 8000)}\n\`\`\``;
       } else if (message.name === 'skill') {
-        const wanted = (message.arg ?? '').trim().toLowerCase();
         const skills = parseSkills();
         if (skills.length === 0) {
           await webview.postMessage({ type: 'error', message: 'Kurulu beceri yok. Ayarlar > Skills\'ten GitHub becerilerini yükleyebilir ya da code_skills.md oluşturabilirsin.' } satisfies HostToWebviewMessage);
           return;
         }
-        const found = wanted ? skills.find((s) => s.name.toLowerCase() === wanted) : skills[0];
-        if (!found) {
+        const hit = matchSkill(skills, message.arg ?? '');
+        if (!hit) {
           await webview.postMessage({ type: 'error', message: `"${message.arg}" adlı beceri yok. Kurulu olanlar: ${skills.map((s) => s.name).join(', ')}` } satisfies HostToWebviewMessage);
           return;
         }
-        prompt = `${found.text}\n\n(Bu talimat "${found.name}" becerisinden geldi.)`;
+        prompt = `${hit.skill.text}\n\n(Bu talimat "${hit.skill.name}" becerisinden geldi.)`;
+        if (hit.request) prompt += `\n\nKullanıcının isteği: ${hit.request}`;
       }
 
       await runAgentFor(webview, settings, prompt, mode, []);

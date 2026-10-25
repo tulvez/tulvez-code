@@ -26,6 +26,8 @@ export interface LocalSkill extends SkillMeta {
   id: string;
   dir: string;
   repo?: string;
+  /** github: hesaptan indi · local: bilgisayardan yüklendi */
+  source: 'github' | 'local';
 }
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -76,10 +78,15 @@ export function skillBody(content: string): string {
   return content.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
 }
 
+/** "Kod İnceleme" → "kod-inceleme": Türkçe harfler sadeleşir, kalan her şey tireye döner. */
+function slug(text: string): string {
+  return text.replace(/[İı]/g, 'i').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+}
+
 function skillId(name: string, repo: string): string {
-  const fromName = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
-  if (ID_RE.test(fromName)) return fromName;
-  return repo.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  const fromName = slug(name);
+  return ID_RE.test(fromName) ? fromName : slug(repo);
 }
 
 /** Depodan inen yol klasör dışına çıkamaz; gizli dosyalar (.git*, .github) atlanır. */
@@ -134,7 +141,7 @@ export async function discoverOrgSkills(owner: string): Promise<OrgSkill[]> {
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function readStamp(dir: string): { repo?: string; sha?: string } {
+function readStamp(dir: string): { repo?: string; sha?: string; source?: string } {
   try { return JSON.parse(fs.readFileSync(path.join(dir, STAMP), 'utf8')); } catch { return {}; }
 }
 
@@ -145,11 +152,13 @@ function readStamp(dir: string): { repo?: string; sha?: string } {
  */
 export async function syncOrgSkill(skill: OrgSkill, root: string): Promise<boolean> {
   if (!ID_RE.test(skill.id)) throw new Error('Geçersiz beceri kimliği');
+  const dest = path.join(root, skill.id);
+  const stamp = readStamp(dest);
+  // Aynı adla bilgisayardan yüklenen beceri GitHub'dakinin üstüne yazılmaz.
+  if (stamp.source === 'local' && fs.existsSync(path.join(dest, 'SKILL.md'))) return false;
   const [owner, repo] = skill.repo.split('/');
   type Tree = { sha: string; truncated: boolean; tree: { path: string; type: string; size?: number }[] };
   const tree = await getJson<Tree>(`https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(skill.branch)}?recursive=1`);
-  const dest = path.join(root, skill.id);
-  const stamp = readStamp(dest);
   if (stamp.sha === tree.sha && stamp.repo === skill.repo && fs.existsSync(path.join(dest, 'SKILL.md'))) return false;
 
   const files = tree.tree.filter((t) => t.type === 'blob' && safeRelPath(t.path));
@@ -187,7 +196,8 @@ export function localSkills(root: string | undefined): LocalSkill[] {
     const dir = path.join(root, id);
     try {
       const meta = parseFrontmatter(fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8'));
-      if (meta) out.push({ ...meta, id, dir, repo: readStamp(dir).repo });
+      const stamp = readStamp(dir);
+      if (meta) out.push({ ...meta, id, dir, repo: stamp.repo, source: stamp.source === 'local' ? 'local' : 'github' });
     } catch { /* SKILL.md yok ya da okunamadı */ }
   }
   return out;
@@ -196,6 +206,86 @@ export function localSkills(root: string | undefined): LocalSkill[] {
 export function removeLocalSkill(root: string | undefined, id: string): void {
   if (!root || !ID_RE.test(id)) return;
   fs.rmSync(path.join(root, id), { recursive: true, force: true });
+}
+
+/** Klasörü sınırlar içinde kopyalar; gizli dosyalar ve sembolik bağlar atlanır. */
+function copyTree(src: string, dest: string, budget = { files: 0, bytes: 0 }): void {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    if (e.name.startsWith('.') || e.isSymbolicLink()) continue;
+    const from = path.join(src, e.name);
+    const to = path.join(dest, e.name);
+    if (e.isDirectory()) {
+      if (e.name === 'node_modules' || e.name === '__pycache__') continue;
+      copyTree(from, to, budget);
+    } else if (e.isFile()) {
+      const size = fs.statSync(from).size;
+      budget.files += 1;
+      budget.bytes += size;
+      if (budget.files > MAX_FILES || size > MAX_FILE_BYTES || budget.bytes > MAX_TOTAL_BYTES) {
+        throw new Error('Beceri çok büyük (en çok 300 dosya, 8 MB)');
+      }
+      fs.copyFileSync(from, to);
+    }
+  }
+}
+
+/**
+ * Bilgisayardaki bir beceriyi kurar: içinde SKILL.md olan klasör ya da tek .md dosyası.
+ * Ön bilgisi (name/description) olmayan .md dosyasına dosya adından ve ilk satırından üretilir.
+ */
+export function importLocalSkill(src: string, root: string): LocalSkill {
+  const stat = fs.statSync(src);
+  let meta: SkillMeta | null;
+  let fromDir: string | null = null;
+  let body = '';
+  if (stat.isDirectory()) {
+    const md = path.join(src, 'SKILL.md');
+    if (!fs.existsSync(md)) throw new Error('Klasörde SKILL.md yok');
+    meta = parseFrontmatter(fs.readFileSync(md, 'utf8'));
+    if (!meta) throw new Error('SKILL.md’nin başında name ve description içeren ön bilgi (---) yok');
+    fromDir = src;
+  } else {
+    if (!/\.md$/i.test(src)) throw new Error('Yalnız .md dosyası ya da SKILL.md içeren klasör yüklenebilir');
+    if (stat.size > MAX_SKILL_MD_BYTES) throw new Error('Dosya çok büyük');
+    const content = fs.readFileSync(src, 'utf8');
+    meta = parseFrontmatter(content);
+    if (!meta) {
+      const base = path.basename(src).replace(/\.md$/i, '');
+      const firstLine = skillBody(content).split(/\r?\n/).map((l) => l.replace(/^#+\s*/, '').trim()).find(Boolean) ?? base;
+      meta = { name: base, description: firstLine.slice(0, 300) };
+      body = `---\nname: ${slug(base)}\ndescription: ${JSON.stringify(meta.description)}\n---\n\n${skillBody(content)}\n`;
+    } else {
+      body = content;
+    }
+  }
+  const id = skillId(meta.name, path.basename(src).replace(/\.md$/i, ''));
+  if (!ID_RE.test(id)) throw new Error('Becerinin adı geçersiz');
+  fs.mkdirSync(root, { recursive: true });
+  const tmp = fs.mkdtempSync(path.join(root, `.${id}-`));
+  try {
+    if (fromDir) copyTree(fromDir, tmp);
+    else fs.writeFileSync(path.join(tmp, 'SKILL.md'), body, 'utf8');
+    fs.writeFileSync(path.join(tmp, STAMP), JSON.stringify({ source: 'local', importedAt: new Date().toISOString() }));
+    const dest = path.join(root, id);
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.renameSync(tmp, dest);
+    return { ...meta, id, dir: dest, source: 'local' };
+  } catch (err) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    throw err;
+  }
+}
+
+/** Kurulu beceriyi <hedef>/<ad> klasörüne kopyalar (eklentinin iç dosyası hariç). Dönüş: yeni klasör. */
+export function exportLocalSkill(root: string, id: string, destParent: string): string {
+  if (!ID_RE.test(id)) throw new Error('Geçersiz beceri kimliği');
+  const src = path.join(root, id);
+  if (!fs.existsSync(path.join(src, 'SKILL.md'))) throw new Error('Beceri kurulu değil');
+  const dest = path.join(destParent, id);
+  if (fs.existsSync(dest)) throw new Error(`${dest} zaten var`);
+  copyTree(src, dest);
+  return dest;
 }
 
 // Eklenti açılışta ayarlar (globalStorage/skills). Testler kendi klasörünü verir.

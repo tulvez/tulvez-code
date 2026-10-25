@@ -26,6 +26,8 @@ export type WebviewToHostMessage =
   | { type: 'clientLog'; level: 'info' | 'error'; text: string }
   | { type: 'installSkill'; id: string }
   | { type: 'removeSkill'; id: string }
+  | { type: 'importSkill' }
+  | { type: 'exportSkill'; id: string }
   | { type: 'openFolder' }
   | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[]; model?: string }
   | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain' | 'skill'; arg?: string; mode: 'ask' | 'plan' | 'build' }
@@ -49,7 +51,7 @@ export type HostToWebviewMessage =
       type: 'skillsRegistry';
       source: string;
       skills: { id: string; name: string; description: string; tags: string[]; version?: string }[];
-      installed: { id: string; name: string }[];
+      installed: { id: string; name: string; source?: 'github' | 'local'; description?: string }[];
       error?: string;
       busy?: string;
     }
@@ -66,6 +68,6 @@ export type HostToWebviewMessage =
   | { type: 'modelsList'; models: string[]; error?: string }
   | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
   | { type: 'cancelled' }
-  | { type: 'skillsStatus'; exists: boolean; path: string; skills: string[] };
+  | { type: 'skillsStatus'; exists: boolean; path: string; skills: string[]; items?: { name: string; description: string }[] };
 
 

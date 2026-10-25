@@ -9,6 +9,7 @@ import { TulvezMark } from './components/TulvezMark';
 import { EarthGlobe } from './components/EarthGlobe';
 import { prettyModel } from './lib/modelName';
 import { chatTitle, chatToMarkdown } from './lib/chatMarkdown';
+import { slashMenu, type SkillItem } from './lib/slashMenu';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
@@ -69,7 +70,7 @@ const SLASH_COMMANDS = [
   { cmd: '/commit',  hint: "Değişiklikleri commit'le" },
   { cmd: '/diff',    hint: 'Git değişikliklerini göster' },
   { cmd: '/explain', hint: 'Seçili kodu açıkla' },
-  { cmd: '/skill',   hint: 'code_skills.md içindeki bir skill çalıştır' },
+  { cmd: '/skill',   hint: 'Kurulu bir beceriyi seç ve çalıştır' },
 ];
 
 // Akan yanıt parçaları bu aralıkla toplanıp tek seferde çizilir.
@@ -576,6 +577,8 @@ export function App(): JSX.Element {
   const [toolApproval, setToolApproval] = useState<{ id: string; tool: string; args: string } | null>(null);
   const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [skillItems, setSkillItems] = useState<SkillItem[]>([]);
   const [waiting, setWaiting] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [historyQuery, setHistoryQuery] = useState('');
@@ -823,6 +826,8 @@ export function App(): JSX.Element {
         // Her basışta ilgili sayfayı açar (aç/kapa değil): ikinci basış "açılmadı" gibi görünüyordu
         else if (msg.to === 'history') setPage('history');
         else setPage('settings');
+      } else if (msg.type === 'skillsStatus') {
+        setSkillItems(msg.items ?? msg.skills.map((name) => ({ name, description: '' })));
       } else if (msg.type === 'settingsData') {
         setHasApiKey(msg.settings.aiProvider === 'ollama' || !!msg.settings.apiKey);
         setSettings(msg.settings);
@@ -959,8 +964,25 @@ export function App(): JSX.Element {
 
   const handleInputChange = (val: string) => {
     setInput(val);
-    setSlashOpen(val === '/');
-    if (val !== '/' && slashOpen) setSlashOpen(false);
+    setSlashOpen(val.startsWith('/'));
+    setSlashIndex(0);
+  };
+
+  const menu = slashOpen ? slashMenu(input, SLASH_COMMANDS, skillItems) : null;
+  const menuIsSkills = menu?.title === 'Beceriler';
+  // Beceri listesi her açılışta tazelenir (Ayarlar'dan kurulan/kaldırılan hemen görünsün)
+  useEffect(() => {
+    if (menuIsSkills) vscode.postMessage({ type: 'getSkills' });
+  }, [menuIsSkills]);
+
+  const pickSlash = (index: number) => {
+    const item = menu?.items[index];
+    if (!item || item.disabled) return;
+    setInput(item.insert);
+    // "/skill" seçilince menü beceri listesine geçer; diğerlerinde kapanır
+    setSlashOpen(item.insert.trim().toLowerCase() === '/skill');
+    setSlashIndex(0);
+    textareaRef.current?.focus();
   };
 
   const resetInput = () => {
@@ -1002,7 +1024,7 @@ export function App(): JSX.Element {
       return;
     }
 
-    const skillMatch = /^\/skill\s+(.+)$/i.exec(text);
+    const skillMatch = /^\/skills?\s+(.+)$/i.exec(text);
     if (skillMatch) {
       pushUser(text);
       vscode.postMessage({ type: 'slash', name: 'skill', arg: skillMatch[1].trim(), mode });
@@ -1372,16 +1394,22 @@ export function App(): JSX.Element {
 
   const renderComposer = () => (
     <div className="tz-composer-area">
-      {slashOpen && (
-        <div className="tz-slash">
-          <p className="tz-section-label">Komutlar</p>
-          {SLASH_COMMANDS.map((s) => (
-            <button key={s.cmd} type="button" className="tz-slash-item"
-              onClick={() => { setInput(s.cmd + ' '); setSlashOpen(false); textareaRef.current?.focus(); }}>
-              <span className="tz-slash-cmd">{s.cmd}</span>
-              <span className="tz-slash-hint">{s.hint}</span>
-            </button>
-          ))}
+      {menu && (
+        <div className="tz-slash" role="listbox" aria-label={menu.title}>
+          <p className="tz-section-label">{menu.title}</p>
+          <div className="tz-slash-list">
+            {menu.items.map((item, i) => (
+              <button key={item.label} type="button" role="option" aria-selected={i === slashIndex}
+                className={`tz-slash-item ${i === slashIndex ? 'is-active' : ''} ${menuIsSkills ? 'is-skill' : ''}`}
+                disabled={item.disabled}
+                onMouseEnter={() => setSlashIndex(i)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pickSlash(i)}>
+                <span className="tz-slash-cmd">{item.label}</span>
+                {item.hint && <span className="tz-slash-hint">{item.hint}</span>}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1397,6 +1425,19 @@ export function App(): JSX.Element {
           onChange={(e) => { handleInputChange(e.target.value); autoResize(); }}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setSlashOpen(false);
+            if (menu && menu.items.length) {
+              const n = menu.items.length;
+              if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIndex((i) => (i + 1) % n); return; }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIndex((i) => (i - 1 + n) % n); return; }
+              const item = menu.items[Math.min(slashIndex, n - 1)];
+              // Tam yazılmış komut (ör. "/commit") Enter'la doğrudan gider; yarım yazılan tamamlanır
+              const complete = item && !item.disabled && item.insert.trim().toLowerCase() !== input.trim().toLowerCase();
+              if ((e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) && complete) {
+                e.preventDefault();
+                pickSlash(Math.min(slashIndex, n - 1));
+                return;
+              }
+            }
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
           }}
         />

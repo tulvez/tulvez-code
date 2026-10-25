@@ -9,6 +9,14 @@ export const SKILLS_FILE = 'code_skills.md';
 export interface Skill {
   name: string;
   text: string;
+  /** Seçim listesinde görünen kısa açıklama */
+  description: string;
+}
+
+/** Talimatın ilk dolu satırı (başlık işaretleri atılır), kısaltılmış. */
+function firstLine(text: string): string {
+  const line = text.split(/\r?\n/).map((l) => l.replace(/^#+\s*/, '').trim()).find(Boolean) ?? '';
+  return line.length > 140 ? `${line.slice(0, 139)}…` : line;
 }
 
 const DEFAULT_TEMPLATE = `# Tulvez Code Skills
@@ -83,11 +91,11 @@ export function getInstructions(): string {
 
 /** code_skills.md içindeki skill'ler + depodan kurulanlar (.tulvez/skills/*.md) + GitHub becerileri. */
 export function parseSkills(): Skill[] {
-  const installed = installedSkills().map((s) => ({ name: s.id, text: s.text }));
+  const installed = installedSkills().map((s) => ({ name: s.id, text: s.text, description: firstLine(s.text) }));
   const org = localSkills(getSkillsRoot()).flatMap((s) => {
     try {
       const body = skillBody(fs.readFileSync(path.join(s.dir, 'SKILL.md'), 'utf8'));
-      return [{ name: s.id, text: `${body}\n\n(Becerinin klasörü: ${s.dir} — göreli yollar buna göredir.)` }];
+      return [{ name: s.id, text: `${body}\n\n(Becerinin klasörü: ${s.dir} — göreli yollar buna göredir.)`, description: s.description }];
     } catch {
       return [];
     }
@@ -106,7 +114,24 @@ function parseFileSkills(): Skill[] {
   matches.forEach((m, i) => {
     const start = (m.index ?? 0) + m[0].length;
     const end = i + 1 < matches.length ? (matches[i + 1].index ?? skillsBlock.length) : skillsBlock.length;
-    skills.push({ name: m[1].trim(), text: skillsBlock.slice(start, end).trim() });
+    const text = skillsBlock.slice(start, end).trim();
+    skills.push({ name: m[1].trim(), text, description: firstLine(text) });
   });
   return skills;
+}
+/**
+ * "/skill <ad> [istek]" argümanını çözer: en uzun eşleşen beceri adı (adlarda boşluk olabilir),
+ * kalan metin kullanıcının isteğidir. Eşleşme yoksa null.
+ */
+export function matchSkill(skills: Skill[], arg: string): { skill: Skill; request: string } | null {
+  const text = arg.trim();
+  const lower = text.toLowerCase();
+  const hits = skills
+    .filter((s) => {
+      const n = s.name.toLowerCase();
+      return lower === n || lower.startsWith(`${n} `);
+    })
+    .sort((a, b) => b.name.length - a.name.length);
+  if (!hits[0]) return null;
+  return { skill: hits[0], request: text.slice(hits[0].name.length).trim() };
 }
