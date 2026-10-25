@@ -1,0 +1,93 @@
+[
+  {
+    "surum": "0.3.0",
+    "tarih": "2026-10-25",
+    "tur": "ekleme",
+    "baslik": {
+      "tr": "Hafıza, Geri al, yapılacaklar, @dosya ve MCP",
+      "en": "Memory, Undo, to-do list, @file and MCP"
+    },
+    "ozet": {
+      "tr": "Tulvez Code artık önceki mesajlarda okuduğu dosyaları ve komut çıktılarını hatırlıyor. Bir yanıttaki bütün dosya değişikliklerini tek düğmeyle geri alabilirsiniz. Çok adımlı işlerde canlı bir yapılacaklar listesi görünüyor; @ yazarak dosya ekleyebiliyor, MCP sunucularıyla dış araçlar bağlayabiliyorsunuz. AGENTS.md ve CLAUDE.md gibi proje talimatları okunuyor, bir istekte 50 adıma kadar çalışıyor.",
+      "en": "Tulvez Code now remembers the files it read and the command output from earlier messages. You can undo all file changes in a reply with one button. Multi-step work shows a live to-do list; you can add files by typing @ and connect external tools with MCP servers. Project instructions such as AGENTS.md and CLAUDE.md are read, and a single request can take up to 50 steps."
+    }
+  },
+  {
+    "surum": "0.2.5",
+    "tarih": "2026-10-25",
+    "tur": "ekleme",
+    "baslik": {
+      "tr": "Beceri seçme, yükleme ve indirme",
+      "en": "Picking, uploading and downloading skills"
+    },
+    "ozet": {
+      "tr": "/skill yazınca kurulu beceriler açıklamalarıyla listeleniyor ve klavyeyle seçiliyor. Ayarlar → Skills’ten bir beceriyi bilgisayara indirebilir ya da bilgisayarınızdan beceri yükleyebilirsiniz.",
+      "en": "Typing /skill lists the installed skills with their descriptions, and you pick one with the keyboard. From Settings → Skills you can download a skill to your computer or upload one from it."
+    }
+  },
+  {
+    "surum": "0.2.4",
+    "tarih": "2026-10-25",
+    "tur": "ekleme",
+    "baslik": {
+      "tr": "Beceriler kendiliğinden, daha güvenli araçlar",
+      "en": "Skills on their own, safer tools"
+    },
+    "ozet": {
+      "tr": "Tulvez’in GitHub’daki becerileri (ilk olarak scale-engineer) kendiliğinden kurulur ve güncellenir; isteğiniz bir beceriye uyarsa Tulvez Code onu kendisi kullanır. Dosya araçları artık yalnız açık klasörün içinde çalışır, Plan modu dosya değiştirmez ve komut çalıştırmaz.",
+      "en": "Tulvez’s skills on GitHub (scale-engineer first) install and update themselves; if your request matches a skill, Tulvez Code uses it on its own. File tools now only work inside the open folder, and Plan mode changes no files and runs no commands."
+    }
+  },
+  {
+    "surum": "0.2.3",
+    "tarih": "2026-10-25",
+    "tur": "duzeltme",
+    "baslik": {
+      "tr": "Durdur düğmesi ve arka planda süren yanıtlar",
+      "en": "Stop button and replies that keep going in the background"
+    },
+    "ozet": {
+      "tr": "“Durdur” artık gerçekten durduruyor: yanıt hemen kesilir, çalışan terminal komutu kapatılır. İstek gönderip Kaynak Denetimi gibi başka bir görünüme geçince yanıt kaybolmuyor; geri döndüğünüzde tamamı yerinde.",
+      "en": "“Stop” now really stops: the reply is cut off at once and a running terminal command is closed. If you send a request and switch to another view such as Source Control, the reply is no longer lost; it is all there when you come back."
+    }
+  },
+  {
+    "surum": "0.2.2",
+    "tarih": "2026-10-25",
+    "tur": "duzeltme",
+    "baslik": {
+      "tr": "Windows’ta komutlar",
+      "en": "Commands on Windows"
+    },
+    "ozet": {
+      "tr": "Windows’ta çift tırnak içeren komutlar (ör. git commit -m \"…\") bölünüp hata veriyordu; çok satırlı komutların yalnız ilk satırı çalışıyordu. İkisi de düzeldi.",
+      "en": "On Windows, commands with double quotes (such as git commit -m \"…\") were split and failed, and only the first line of multi-line commands ran. Both are fixed."
+    }
+  },
+  {
+    "surum": "0.2.1",
+    "tarih": "2026-10-25",
+    "tur": "ekleme",
+    "baslik": {
+      "tr": "Yeni arayüz, GitHub’da ek katkıcı",
+      "en": "New interface, co-author on GitHub"
+    },
+    "ozet": {
+      "tr": "Arayüz Tulvez Noir ile baştan tasarlandı. Copilot gibi: Tulvez Code’un yazdığı dosya commit’e girince Tulvez Code ek katkıcı olarak eklenir; /commit ile commit’i yardımcı kendisi atar. İzin kartına “Her zaman izin ver” geldi; Ayarlar’da üç izin kipi (Yalnız sohbet, Onaylı, Tam erişim). Beceri deposundan tek tıkla kurulum, sohbeti Markdown olarak kaydetme, komutlar sonucuyla birlikte sırasıyla gösteriliyor.",
+      "en": "The interface was redesigned with Tulvez Noir. Like Copilot: when a file written by Tulvez Code goes into a commit, Tulvez Code is added as a co-author; with /commit the assistant makes the commit itself. The approval card gained “Always allow”, and Settings has three permission modes (chat only, approved, full access). One-click install from the skills repository, saving a chat as Markdown, and commands shown in order together with their results."
+    }
+  },
+  {
+    "surum": "0.1.0",
+    "tarih": "2026-10-17",
+    "tur": "ekleme",
+    "baslik": {
+      "tr": "İlk sürüm",
+      "en": "First release"
+    },
+    "ozet": {
+      "tr": "VS Code için yapay zekâ kodlama asistanı, Marketplace’te. Kendi API anahtarınızla çalışır (anahtar VS Code’un güvenli deposunda kalır); OpenAI, Anthropic, Google Gemini, Groq ve Ollama destekli. Sor / Planla / Yap kipleri, dosya okuma-yazma ve komut çalıştırma araçları, /commit · /review · /diff · /explain · /run Git yardımcıları.",
+      "en": "An AI coding assistant for VS Code, on the Marketplace. Works with your own API key (kept in VS Code’s secret storage); supports OpenAI, Anthropic, Google Gemini, Groq and Ollama. Ask / Plan / Build modes, file read-write and command tools, and the /commit · /review · /diff · /explain · /run Git helpers."
+    }
+  }
+]

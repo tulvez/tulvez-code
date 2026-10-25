@@ -23,3 +23,5 @@ resources/make-png.mjs
 tulvez-noir/**
 *.html
 !dist/webview/index.html
+scripts/**
+surumler.json

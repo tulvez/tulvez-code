@@ -30,3 +30,16 @@ npx @vscode/vsce package # VSIX üret
 - Commit mesajı: Türkçe, küçük harf, `[kapsam]:` öneki (örn. `[ai]: gemini retry eklendi`)
 - Tip güvenliği: `strict` varsayılan; `npm run check` temiz geçmeden commit atılmaz
 - Yeni bağımlılık eklemeden önce mevcut paketlerle çözülüp çözülemediğini kontrol et
+
+## Sürüm yayınlama (kural)
+
+Bir sürüm, bilgileri hazırlanmadan yayınlanmaz. `v*` etiketi atmadan önce üç yer birlikte güncellenir:
+
+1. `package.json` → `version`
+2. `CHANGELOG.md` → `## <sürüm>` bölümü (ayrıntılı değişiklik listesi; `## Yayınlanmadı` kalmamalı)
+3. `surumler.json` → **en üste** yeni kayıt: `surum`, `tarih` (YYYY-AA-GG), `tur` (ekleme · duzeltme · degisiklik),
+   `baslik.tr` / `baslik.en` (kısa ad) ve `ozet.tr` / `ozet.en` (kullanıcının okuyacağı 1–3 cümle)
+
+`npm run surum:denetle` (ve `npm test`) eksikleri gösterir; yayın işi (`publish.yml`) aynı denetimden geçmeyen etiketi
+yayınlamaz. `surumler.json` releases.tulvez.com, download.tulvez.com ve docs.tulvez.com/tulvez-code'un tek kaynağıdır:
+sürüm Marketplace'te doğrulanınca siteler kendiliğinden güncellenir, elle düzeltme gerekmez.

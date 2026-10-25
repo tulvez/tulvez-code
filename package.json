@@ -232,6 +232,7 @@
     "watch:webview": "vite build --watch",
     "dev": "npm run build && \"%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\bin\\code.cmd\" --extensionDevelopmentPath=\"%CD%\" --new-window --skip-welcome",
     "test": "vitest run",
+    "surum:denetle": "node scripts/surum-denetimi.mjs",
     "test:watch": "vitest"
   },
   "devDependencies": {

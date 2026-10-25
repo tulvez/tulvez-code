@@ -22,6 +22,10 @@ jobs:
       - name: Install
         run: npm ci
 
+      # Kural: bilgileri hazırlanmamış sürüm yayınlanmaz (package.json, CHANGELOG.md, surumler.json)
+      - name: Sürüm bilgisi denetimi
+        run: node scripts/surum-denetimi.mjs "${GITHUB_REF#refs/tags/}"
+
       - name: Tip kontrolü
         run: npm run check
 
