@@ -9,7 +9,7 @@ import { TulvezMark } from './components/TulvezMark';
 import { EarthGlobe } from './components/EarthGlobe';
 import { prettyModel } from './lib/modelName';
 import { chatTitle, chatToMarkdown } from './lib/chatMarkdown';
-import { slashMenu, type SkillItem } from './lib/slashMenu';
+import { mentionMenu, mentionQuery, slashMenu, type SkillItem } from './lib/slashMenu';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
@@ -602,6 +602,7 @@ export function App(): JSX.Element {
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
   const [skillItems, setSkillItems] = useState<SkillItem[]>([]);
+  const [fileMatches, setFileMatches] = useState<{ query: string; files: string[] } | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [historyQuery, setHistoryQuery] = useState('');
@@ -861,6 +862,8 @@ export function App(): JSX.Element {
         setMessages((prev) => prev.map((m) => (m.checkpoint?.id === msg.id
           ? { ...m, checkpoint: { ...m.checkpoint, state: msg.error ? 'error' : msg.cancelled ? 'ready' : 'done', note: msg.error } }
           : m)));
+      } else if (msg.type === 'fileMatches') {
+        setFileMatches({ query: msg.query, files: msg.files });
       } else if (msg.type === 'skillsStatus') {
         setSkillItems(msg.items ?? msg.skills.map((name) => ({ name, description: '' })));
       } else if (msg.type === 'settingsData') {
@@ -999,11 +1002,21 @@ export function App(): JSX.Element {
 
   const handleInputChange = (val: string) => {
     setInput(val);
-    setSlashOpen(val.startsWith('/'));
+    setSlashOpen(val.startsWith('/') || mentionQuery(val) !== null);
     setSlashIndex(0);
   };
 
-  const menu = slashOpen ? slashMenu(input, SLASH_COMMANDS, skillItems) : null;
+  const atQuery = slashOpen ? mentionQuery(input) : null;
+  // Dosya araması yazmayı yavaşlatmasın diye kısa bekleyip sorulur; eski yanıt yeni sorguya gösterilmez
+  useEffect(() => {
+    if (atQuery === null) return;
+    const t = window.setTimeout(() => vscode.postMessage({ type: 'findFiles', query: atQuery }), 120);
+    return () => window.clearTimeout(t);
+  }, [atQuery]);
+  const menu = slashOpen
+    ? slashMenu(input, SLASH_COMMANDS, skillItems)
+      ?? mentionMenu(input, fileMatches && fileMatches.query === atQuery ? fileMatches.files : null)
+    : null;
   const menuIsSkills = menu?.title === 'Beceriler';
   // Beceri listesi her açılışta tazelenir (Ayarlar'dan kurulan/kaldırılan hemen görünsün)
   useEffect(() => {

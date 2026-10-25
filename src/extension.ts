@@ -11,6 +11,7 @@ import { fetchRegistry, installedSkills, installSkill, registryBase, removeSkill
 import { runAgent, invalidateRepoMap } from './services/agent';
 import { getConversation, saveConversation } from './services/conversation';
 import { beginCheckpoint, endCheckpoint, undoCheckpoint } from './services/checkpoint';
+import { mentionContext } from './services/mentions';
 import { aiEditHooks, aiLineCountForActiveEditor, forgetAiEdits, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 import { listProviderModels } from './services/models';
@@ -233,6 +234,26 @@ export function activate(context: vscode.ExtensionContext): void {
     webview: vscode.Webview,
     message: WebviewToHostMessage,
   ): Promise<void> => {
+    if (message.type === 'findFiles') {
+      // @ menüsü: adında yazılan metin geçen dosyalar (gizli klasörler ve bağımlılıklar hariç)
+      const q = message.query.replace(/[\\[\]{}*?!]/g, '');
+      const exclude = '{**/node_modules/**,**/.git/**,**/dist/**,**/out/**,**/build/**,**/.next/**,**/target/**,**/.venv/**,**/__pycache__/**}';
+      let files: string[] = [];
+      try {
+        const uris = await vscode.workspace.findFiles(q ? `**/*${q}*` : '**/*', exclude, 400);
+        const lower = q.toLowerCase();
+        files = uris.map((u) => vscode.workspace.asRelativePath(u, false))
+          .sort((a, b) => {
+            const an = path.basename(a).toLowerCase().startsWith(lower) ? 0 : 1;
+            const bn = path.basename(b).toLowerCase().startsWith(lower) ? 0 : 1;
+            return an - bn || a.length - b.length || a.localeCompare(b);
+          })
+          .slice(0, 30);
+      } catch { /* klasör açık değil */ }
+      await webview.postMessage({ type: 'fileMatches', query: message.query, files } satisfies HostToWebviewMessage);
+      return;
+    }
+
     if (message.type === 'undoCheckpoint') {
       try {
         const r = await undoCheckpoint(message.id, async (changed) => {
@@ -636,6 +657,9 @@ export function activate(context: vscode.ExtensionContext): void {
           }
         }
       }
+
+      const mentioned = await mentionContext(text, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
+      if (mentioned) userText = `${userText}\n\n${mentioned}`;
 
       const effective = { ...settings, model: message.model?.trim() ? message.model : settings.model };
       await runAgentFor(webview, effective, userText, message.mode, message.history ?? [], message);

@@ -53,3 +53,24 @@ export function slashMenu(input: string, commands: SlashCommand[], skills: Skill
     .map((c) => ({ label: c.cmd, hint: c.hint, insert: `${c.cmd} ` }));
   return items.length ? { title: 'Komutlar', items } : null;
 }
+
+/** Giriş sonundaki "@yarım" yazı: dosya menüsünün arama metni; yoksa null. */
+export function mentionQuery(input: string): string | null {
+  const m = /(?:^|\s)@([^\s@]*)$/.exec(input);
+  return m ? m[1] : null;
+}
+
+/**
+ * "@" menüsü: eklentiden gelen dosya listesi. `files` null ise arama sürüyor.
+ * Seçilen dosya "@yol " olarak yazılır; gönderilince içeriği mesaja eklenir.
+ */
+export function mentionMenu(input: string, files: string[] | null): SlashMenu | null {
+  const q = mentionQuery(input);
+  if (q === null) return null;
+  const head = input.slice(0, input.length - q.length - 1);
+  const items: SlashEntry[] = files === null
+    ? [{ label: 'Aranıyor…', hint: '', insert: input, disabled: true }]
+    : files.map((f) => ({ label: f, hint: '', insert: `${head}@${f} ` }));
+  if (files !== null && items.length === 0) items.push({ label: 'Eşleşen dosya yok', hint: '', insert: input, disabled: true });
+  return { title: 'Dosyalar', items };
+}
