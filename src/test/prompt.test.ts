@@ -1,8 +1,27 @@
-import { describe, expect, it } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { setWorkspaceRoot } from './setup';
 
 const { buildPrompt } = await import('../services/ai');
 
 describe('sistem istemi', () => {
+  // Varsayılan istem sınanır: depodaki code_skills.md (ya da başka bir çalışma alanı dosyası) okunmasın
+  let root = '';
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'tz-prompt-'));
+    setWorkspaceRoot(root);
+  });
+
+  it('code_skills.md her istekte okunur; düzenleme yeniden yüklemeden geçerli olur', () => {
+    expect(buildPrompt('build', '')).toContain('Adın Tulvez Code.');
+    fs.writeFileSync(path.join(root, 'code_skills.md'), '# Kimlik\n\nProje kuralı: yalnız Rust yaz.\n', 'utf8');
+    const p = buildPrompt('build', '');
+    expect(p).toContain('Proje kuralı: yalnız Rust yaz.');
+    expect(p).toContain('Konuşma kuralları:');
+  });
+
   it('model kendi modunu bilir (kullanıcı "hangi moddasın" diye sorabilir)', () => {
     expect(buildPrompt('ask', '')).toContain('Şu anki modun: Ask');
     expect(buildPrompt('plan', '')).toContain('Şu anki modun: Plan');

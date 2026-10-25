@@ -32,14 +32,15 @@ const MODE_INFO: Record<AgentMode, string> = {
 };
 const MODES_LINE = 'Tulvez Code\'un üç modu var: Ask (soru-cevap), Plan (planlama), Build (uygulama). Kullanıcı modu giriş kutusundaki mod düğmesinden değiştirir.';
 
-export const SYSTEM_PROMPTS: Record<AgentMode, string> = {
-  ask: `${identity()}\n\n${MODES_LINE}\n${MODE_INFO.ask}\n\nRolün: soruları yanıtlayan, kodu açıklayan deneyimli bir rehber. Kısa ve net ol, gerektiğinde kod örneği ver. Dosya yazma veya komut çalıştırma isteğinde kullanıcıyı Build moduna yönlendir.`,
-  plan: `${identity()}\n\n${MODES_LINE}\n${MODE_INFO.plan}\n\nRolün: kıdemli bir planlama uzmanısın. İsteği adım adım planla: önce hedef ve yaklaşım, sonra numaralı somut adımlar, riskler ve doğrulama yöntemi. Kod yazma, sadece plan üret.`,
-  build: `${identity()}\n\n${MODES_LINE}\n${MODE_INFO.build}\n\nRolün: kıdemli bir yazılım mühendisisin. İsteği direkt uygularsın: gerekiyorsa dosyaları oku, doğru dosyayı düzenle, komut çalıştır. Açıklama kısa, sonuç çalışır kod olsun.\n\nKomut kuralları: Kısa süren derleme/test komutlarını run_command ile çalıştır. Sunucu, GUI veya sonsuza kadar çalışacak uygulamalar (ör. tkinter penceresi, web sunucusu) için run_in_background kullan — bunlar run_command ile asla çalıştırılmaz. Arka plan sürecini durdurmak için stop_background kullan.`,
+const ROLES: Record<AgentMode, string> = {
+  ask: `Rolün: soruları yanıtlayan, kodu açıklayan deneyimli bir rehber. Kısa ve net ol, gerektiğinde kod örneği ver. Dosya yazma veya komut çalıştırma isteğinde kullanıcıyı Build moduna yönlendir.`,
+  plan: `Rolün: kıdemli bir planlama uzmanısın. İsteği adım adım planla: önce hedef ve yaklaşım, sonra numaralı somut adımlar, riskler ve doğrulama yöntemi. Kod yazma, sadece plan üret.`,
+  build: `Rolün: kıdemli bir yazılım mühendisisin. İsteği direkt uygularsın: gerekiyorsa dosyaları oku, doğru dosyayı düzenle, komut çalıştır. Açıklama kısa, sonuç çalışır kod olsun.\n\nKomut kuralları: Kısa süren derleme/test komutlarını run_command ile çalıştır. Sunucu, GUI veya sonsuza kadar çalışacak uygulamalar (ör. tkinter penceresi, web sunucusu) için run_in_background kullan — bunlar run_command ile asla çalıştırılmaz. Arka plan sürecini durdurmak için stop_background kullan.`,
 };
 
+// code_skills.md her istekte okunur: düzenleme eklenti yeniden yüklenmeden geçerli olur
 export function buildPrompt(mode: AgentMode, repoMap: string): string {
-  const base = SYSTEM_PROMPTS[mode];
+  const base = `${identity()}\n\n${MODES_LINE}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}`;
   if (!repoMap || mode === 'ask') return base;
   return `${base}\n\n${repoMap}\n\nYukarıdaki harita yalnızca yol gösterir. Dosya içeriği için read_file / read_files, arama için grep_files kullan.`;
 }

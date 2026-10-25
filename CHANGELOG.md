@@ -113,6 +113,8 @@ Arayüz sıfırdan yeniden tasarlandı (Tulvez Noir). Eklentinin davranışı de
   ile anlık; yukarı kaydırınca bırakılıyor, alta inince geri geliyor
 - Düzeltme — "en alta git" düğmesi: kaydırma alanının dışında sabit; akış sırasında
   tıklanınca alta inip takibe dönüyor. Geçmiş/ayarlardan dönünce de çalışıyor
+- Düzeltme — `code_skills.md` artık her istekte okunur: kimlik ve kurallar yalnız eklenti açılırken
+  okunuyordu, dosyadaki değişiklik VS Code yeniden yüklenene kadar ajana ulaşmıyordu
 
 ## 0.1.0
 
