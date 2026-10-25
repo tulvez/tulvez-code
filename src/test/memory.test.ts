@@ -10,6 +10,7 @@ import { baseSettings } from './vsmock';
 
 const { runAgent } = await import('../services/agent');
 const { compactConversation, getConversation, saveConversation, withoutReasoning } = await import('../services/conversation');
+const { beginCheckpoint, endCheckpoint, undoCheckpoint } = await import('../services/checkpoint');
 
 /**
  * Sohbet hafızası: 1. turda okunan dosyanın içeriği 2. turda modele yeniden gitmeli
@@ -33,7 +34,10 @@ beforeAll(async () => {
       requests.push(j);
       res.writeHead(200, { 'content-type': 'text/event-stream' });
       const last = j.messages[j.messages.length - 1];
-      if (last.role === 'user' && String(last.content).includes('notu oku')) {
+      if (last.role === 'user' && String(last.content).includes('notu değiştir')) {
+        chunk(res, { tool_calls: [{ index: 0, id: 'call_w', type: 'function', function: { name: 'write_file', arguments: JSON.stringify({ path: 'not.txt', content: 'AJAN-YAZDI' }) } }] });
+        chunk(res, {}, 'tool_calls');
+      } else if (last.role === 'user' && String(last.content).includes('notu oku')) {
         chunk(res, { tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: 'not.txt' }) } }] });
         chunk(res, {}, 'tool_calls');
       } else {
@@ -132,5 +136,20 @@ describe('konuşmayı sıkıştırma', () => {
   it('düşünme parçaları kaydedilmez', () => {
     const out = withoutReasoning([{ role: 'assistant', content: [{ type: 'reasoning', text: 'iç ses' }, { type: 'text', text: 'yanıt' }] }]);
     expect(JSON.stringify(out)).not.toContain('iç ses');
+  });
+});
+
+describe('ajan akışında geri alma noktası', () => {
+  it('Build modunda yazılan dosya kaydedilir ve geri alınır', async () => {
+    const events: string[] = [];
+    beginCheckpoint('akış');
+    await runAgent(settings(), 'notu değiştir', 'build', [], cb(events));
+    const cp = await endCheckpoint();
+    expect(events).toEqual(['done']);
+    expect(cp?.files).toHaveLength(1);
+    const file = cp!.files[0];
+    expect(fs.readFileSync(file, 'utf8')).toBe('AJAN-YAZDI');
+    await undoCheckpoint('akış', async () => true);
+    expect(fs.readFileSync(file, 'utf8')).toBe('GIZLI-ICERIK-42');
   });
 });

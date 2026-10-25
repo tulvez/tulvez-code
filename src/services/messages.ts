@@ -28,6 +28,7 @@ export type WebviewToHostMessage =
   | { type: 'removeSkill'; id: string }
   | { type: 'importSkill' }
   | { type: 'exportSkill'; id: string }
+  | { type: 'undoCheckpoint'; id: string }
   | { type: 'openFolder' }
   | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[]; model?: string; sessionId?: string; turns?: number }
   | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain' | 'skill'; arg?: string; mode: 'ask' | 'plan' | 'build'; sessionId?: string; turns?: number }
@@ -68,6 +69,8 @@ export type HostToWebviewMessage =
   | { type: 'modelsList'; models: string[]; error?: string }
   | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
   | { type: 'cancelled' }
+  | { type: 'checkpoint'; id: string; files: string[] }
+  | { type: 'checkpointUndone'; id: string; restored: number; cancelled: boolean; error?: string }
   | { type: 'skillsStatus'; exists: boolean; path: string; skills: string[]; items?: { name: string; description: string }[] };
 
 

@@ -9,6 +9,7 @@ import { buildRepoMap } from './repomap';
 import { resolveModel } from './providers';
 import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
 import { compactConversation, withoutReasoning } from './conversation';
+import { recordBefore } from './checkpoint';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -125,7 +126,10 @@ function buildToolSet(
         }
         if (def.name === 'write_file' || def.name === 'replace_in_file') {
           const target = resolveEditPath(String(args.path ?? ''));
-          if (target) await snapshotBeforeEdit(target);
+          if (target) {
+            await recordBefore(target);
+            await snapshotBeforeEdit(target);
+          }
         }
         const meta: { exitCode?: number; signal?: AbortSignal } = { signal: options?.abortSignal };
         let result: string;

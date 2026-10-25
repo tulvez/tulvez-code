@@ -200,6 +200,12 @@ const aiEdits = new Map<string, { start: number; end: number }[]>();
 let aiDecorationType: vscode.TextEditorDecorationType | null = null;
 const AI_DECORATION_COLOR = 'rgba(63,185,80,0.10)';
 
+/** Geri alınan dosyanın "Tulvez yazdı" işaretleri kaldırılır. */
+export function forgetAiEdits(fsPath: string): void {
+  aiEdits.delete(fsPath);
+  refreshAiDecorations();
+}
+
 export function refreshAiDecorations(): void {
   if (!aiDecorationType) {
     aiDecorationType = vscode.window.createTextEditorDecorationType({

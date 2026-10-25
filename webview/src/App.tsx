@@ -14,7 +14,7 @@ import { vscode } from './services/vscode';
 import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   ArrowDown, ArrowUp, Brain, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy,
-  FolderOpen, Hammer, Lightbulb, MessageSquare, RotateCcw, Save, Search, Settings,
+  FolderOpen, Hammer, Lightbulb, MessageSquare, RotateCcw, Save, Search, Settings, Undo2,
   Square, SquarePen, Terminal, Trash2, X, Zap, FileText, FilePen, FolderTree, Ban, LoaderCircle,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -53,7 +53,10 @@ interface ChatMessage {
   durationMs?: number;
   /** Aynı yanıtın araç çağrısından sonra gelen devamı: başlık tekrar yazılmaz */
   cont?: boolean;
+  /** Bu yanıtta Tulvez'in yazdığı dosyalar: tek düğmeyle geri alınır */
+  checkpoint?: Checkpoint;
 }
+interface Checkpoint { id: string; files: string[]; state: 'ready' | 'busy' | 'done' | 'error'; note?: string }
 type ToolStatus = 'running' | 'ok' | 'error' | 'rejected';
 interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode: AgentMode; ts: number; }
 interface RunConfirm { command: string; }
@@ -476,12 +479,30 @@ function AssistantBody({ msg, copied, animate, live, showThinking, onCopy, onAni
   );
 }
 
+function UndoBar({ cp, onUndo }: { cp: Checkpoint; onUndo: (id: string) => void }) {
+  const n = cp.files.length;
+  const list = cp.files.join('\n');
+  if (cp.state === 'done') return <div className="tz-undo is-done" title={list}><Check size={12} /> {n} dosya geri alındı</div>;
+  return (
+    <div className="tz-undo" title={list}>
+      <span className="tz-undo-files">{n === 1 ? cp.files[0] : `${n} dosya değişti`}</span>
+      {cp.state === 'error'
+        ? <span className="tz-undo-note">{cp.note}</span>
+        : (
+          <button className="tz-btn tz-btn-ghost tz-btn-sm" type="button" disabled={cp.state === 'busy'} onClick={() => onUndo(cp.id)}>
+            <Undo2 size={12} /> {cp.state === 'busy' ? 'Geri alınıyor…' : 'Geri al'}
+          </button>
+        )}
+    </div>
+  );
+}
+
 // Tek mesaj. memo: akış sırasında yalnız değişen (akan) mesaj yeniden çizilir;
 // uzun sohbetlerde kaydırmanın takılmasının asıl nedeni her parçada bütün
 // mesajların markdown'ının yeniden işlenmesiydi.
-const MessageItem = memo(function MessageItem({ msg, copied, animate, live, showThinking, onCopy, onRetry, onAnimationEnd }: {
+const MessageItem = memo(function MessageItem({ msg, copied, animate, live, showThinking, onCopy, onRetry, onUndo, onAnimationEnd }: {
   msg: ChatMessage; copied: boolean; animate: boolean; live: boolean; showThinking: boolean;
-  onCopy: (msg: ChatMessage) => void; onRetry: () => void; onAnimationEnd: (id: number) => void;
+  onCopy: (msg: ChatMessage) => void; onRetry: () => void; onUndo: (id: string) => void; onAnimationEnd: (id: number) => void;
 }) {
   if (msg.role === 'command' || (msg.role === 'tool' && isShellTool(msg.toolName))) return <CommandStep msg={msg} />;
   if (msg.role === 'tool' && msg.toolName && msg.toolName !== 'tulvez') return <ToolStep msg={msg} />;
@@ -517,6 +538,7 @@ const MessageItem = memo(function MessageItem({ msg, copied, animate, live, show
             <RotateCcw size={12} /> Tekrar dene
           </button>
         </div>
+        {msg.checkpoint && <UndoBar cp={msg.checkpoint} onUndo={onUndo} />}
       </div>
     );
   }
@@ -525,6 +547,7 @@ const MessageItem = memo(function MessageItem({ msg, copied, animate, live, show
       {!msg.cont && <AiHead mode={m} />}
       <AssistantBody msg={msg} copied={copied} animate={animate} live={live}
         showThinking={showThinking} onCopy={onCopy} onAnimationEnd={onAnimationEnd} />
+      {msg.checkpoint && !live && <UndoBar cp={msg.checkpoint} onUndo={onUndo} />}
     </div>
   );
 });
@@ -826,6 +849,18 @@ export function App(): JSX.Element {
         // Her basışta ilgili sayfayı açar (aç/kapa değil): ikinci basış "açılmadı" gibi görünüyordu
         else if (msg.to === 'history') setPage('history');
         else setPage('settings');
+      } else if (msg.type === 'checkpoint') {
+        // Yanıtın son metin bölümüne bağlanır
+        setMessages((prev) => {
+          const i = [...prev].reverse().findIndex((m) => m.role === 'assistant');
+          if (i < 0) return prev;
+          const at = prev.length - 1 - i;
+          return prev.map((m, k) => (k === at ? { ...m, checkpoint: { id: msg.id, files: msg.files, state: 'ready' } } : m));
+        });
+      } else if (msg.type === 'checkpointUndone') {
+        setMessages((prev) => prev.map((m) => (m.checkpoint?.id === msg.id
+          ? { ...m, checkpoint: { ...m.checkpoint, state: msg.error ? 'error' : msg.cancelled ? 'ready' : 'done', note: msg.error } }
+          : m)));
       } else if (msg.type === 'skillsStatus') {
         setSkillItems(msg.items ?? msg.skills.map((name) => ({ name, description: '' })));
       } else if (msg.type === 'settingsData') {
@@ -1107,6 +1142,10 @@ export function App(): JSX.Element {
 
   const markAnimated = useCallback((id: number) => { animatedIdsRef.current.add(id); }, []);
   const onCopy = useCallback((m: ChatMessage) => { void copy(m); }, [copy]);
+  const onUndo = useCallback((id: string) => {
+    setMessages((prev) => prev.map((m) => (m.checkpoint?.id === id ? { ...m, checkpoint: { ...m.checkpoint, state: 'busy' } } : m)));
+    vscode.postMessage({ type: 'undoCheckpoint', id });
+  }, []);
 
   const restoreSession = (s: ChatSession) => {
     saveCurrentSession(messages);
@@ -1566,6 +1605,7 @@ export function App(): JSX.Element {
                     showThinking={showThinking}
                     onCopy={onCopy}
                     onRetry={retry}
+                    onUndo={onUndo}
                     onAnimationEnd={markAnimated}
                   />
                 ))}

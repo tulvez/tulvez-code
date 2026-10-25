@@ -10,7 +10,8 @@ import { devLog, initDevLog, step } from './services/devLog';
 import { fetchRegistry, installedSkills, installSkill, registryBase, removeSkill, type RegistrySkill } from './services/skillsRegistry';
 import { runAgent, invalidateRepoMap } from './services/agent';
 import { getConversation, saveConversation } from './services/conversation';
-import { aiEditHooks, aiLineCountForActiveEditor, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
+import { beginCheckpoint, endCheckpoint, undoCheckpoint } from './services/checkpoint';
+import { aiEditHooks, aiLineCountForActiveEditor, forgetAiEdits, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 import { listProviderModels } from './services/models';
 import { isBotIdentity, readIdentity, removeBotIdentity, repoRoot, withCoAuthor } from './services/gitIdentity';
@@ -125,6 +126,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   let activeAbort: AbortController | null = null;
   let lastEditedFile: string | null = null;
+  // Geri alma sonrası bir sonraki isteğe eklenen not (ajan hafızasındaki dosya halleri artık geçersiz)
+  let undoNote = '';
 
   const runAgentFor = async (
     webview: vscode.Webview,
@@ -142,6 +145,18 @@ export function activate(context: vscode.ExtensionContext): void {
     } : undefined;
     activeAbort?.abort();
     activeAbort = new AbortController();
+    // Bu yanıtta yazılan dosyalar için geri alma noktası; yanıt nasıl biterse bitsin arayüze bildirilir
+    const runId = `run-${Date.now()}`;
+    beginCheckpoint(runId);
+    const reportCheckpoint = (): void => {
+      void endCheckpoint().then((cp) => {
+        if (cp) void webview.postMessage({ type: 'checkpoint', id: cp.id, files: cp.files.map((f) => vscode.workspace.asRelativePath(f)) } satisfies HostToWebviewMessage);
+      });
+    };
+    if (undoNote) {
+      prompt = `${undoNote}\n\n${prompt}`;
+      undoNote = '';
+    }
     const signal = activeAbort.signal;
     // Durdur: bekleyen izin kartı "reddedildi" sayılır, yoksa ajan kartın cevabını sonsuza dek bekler
     signal.addEventListener('abort', () => {
@@ -172,6 +187,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
       onDone: (usage) => {
         activeAbort = null;
+        reportCheckpoint();
         if (lastEditedFile) {
           const target = lastEditedFile;
           lastEditedFile = null;
@@ -187,10 +203,12 @@ export function activate(context: vscode.ExtensionContext): void {
       },
       onCancelled: () => {
         activeAbort = null;
+        reportCheckpoint();
         void webview.postMessage({ type: 'cancelled' } satisfies HostToWebviewMessage);
       },
       onError: (err) => {
         activeAbort = null;
+        reportCheckpoint();
         void webview.postMessage({ type: 'error', message: friendlyError(err) } satisfies HostToWebviewMessage);
         const lower = err.toLowerCase();
         if (lower.includes('429') || lower.includes('quota') || lower.includes('503')) {
@@ -215,6 +233,27 @@ export function activate(context: vscode.ExtensionContext): void {
     webview: vscode.Webview,
     message: WebviewToHostMessage,
   ): Promise<void> => {
+    if (message.type === 'undoCheckpoint') {
+      try {
+        const r = await undoCheckpoint(message.id, async (changed) => {
+          const names = changed.map((f) => vscode.workspace.asRelativePath(f)).join(', ');
+          const ok = await vscode.window.showWarningMessage(
+            `Tulvez Code: şu dosyalar yanıttan sonra değişmiş: ${names}. Geri alınca bu değişiklikler de kaybolur.`,
+            { modal: true }, 'Yine de geri al',
+          );
+          return ok === 'Yine de geri al';
+        });
+        for (const f of r.restored) forgetAiEdits(f);
+        if (r.restored.length) {
+          undoNote = `(Not: kullanıcı önceki yanıtındaki dosya değişikliklerini geri aldı; şu dosyalar o yanıttan önceki haline döndü: ${r.restored.map((f) => vscode.workspace.asRelativePath(f)).join(', ')}. Bu dosyaları yeniden okumadan içerikleri hakkında varsayımda bulunma.)`;
+        }
+        await webview.postMessage({ type: 'checkpointUndone', id: message.id, restored: r.restored.length, cancelled: r.cancelled } satisfies HostToWebviewMessage);
+      } catch (err) {
+        await webview.postMessage({ type: 'checkpointUndone', id: message.id, restored: 0, cancelled: false, error: err instanceof Error ? err.message : String(err) } satisfies HostToWebviewMessage);
+      }
+      return;
+    }
+
     if (message.type === 'importSkill' || message.type === 'exportSkill') {
       // Bilgisayardan beceri yükle / kurulu beceriyi bilgisayara indir; sonra güncel liste gider.
       try {

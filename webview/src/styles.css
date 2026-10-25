@@ -573,6 +573,14 @@ body.vscode-light .tz-beam > span {
 .tz-ai-mode { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--m-color, var(--tn-text-4)); opacity: 0.85; }
 
 .tz-ai-foot { display: flex; align-items: center; gap: 6px; margin-top: 6px; min-height: 24px; }
+.tz-undo {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 4px 4px 4px 10px;
+  border: 1px solid var(--tn-line); border-radius: var(--r-md);
+  font-size: 11.5px; color: var(--tn-text-3);
+}
+.tz-undo-files { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+.tz-undo-note { color: var(--tn-warning); }
+.tz-undo.is-done { padding: 6px 10px; gap: 6px; }
 .tz-ai-foot .tz-ghost-icon { margin-left: -4px; }
 .tz-usage {
   display: inline-flex; align-items: center; gap: 6px; min-width: 0;
