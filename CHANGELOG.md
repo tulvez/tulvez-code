@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.3
+
+- Düzeltme — "Durdur" düğmesi çalışmıyordu: durdurma sinyali ajana hiç iletilmiyordu, yanıt
+  akmaya ve komutlar çalışmaya devam ediyordu. Artık yanıt hemen kesilir, çalışan terminal
+  komutu kapatılır, açık izin kartı reddedilmiş sayılır ve "Yanıt durduruldu" görünür
+- Düzeltme — istek gönderip başka bir görünüme (Kaynak Denetimi, Gezgin…) geçince yanıt ya da
+  komut sonucu kayboluyordu, adım "Yarıda kaldı" görünüyordu. Panel artık gizlenince kapanmaz;
+  geri dönünce yanıtın tamamı yerinde durur
+
 ## 0.2.2
 
 - Düzeltme — Windows'ta çift tırnaklı komutlar bozuluyordu: `git commit -m "iki kelime"` gibi
