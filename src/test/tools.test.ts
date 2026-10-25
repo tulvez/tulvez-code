@@ -140,18 +140,26 @@ describe('run_command güvenliği', () => {
   });
 
   it('kabuk platforma uygun seçilir', () => {
-    const win = shellInvocation('npm test');
-    const unix = shellInvocation('npm test');
-    if (process.platform === 'win32') {
-      expect(win.file).toBe('cmd.exe');
-      expect(win.args).toContain('/c');
-    } else {
-      expect(unix.file).toBe('/bin/sh');
-      expect(unix.args).toContain('-c');
-    }
-    // Komut her iki platformda da aynı sırada ve bozulmadan taşınmalı
-    expect(win.args[win.args.length - 1]).toBe('npm test');
-    expect(unix.args[unix.args.length - 1]).toBe('npm test');
+    const unix = shellInvocation('npm test', 'linux');
+    expect(unix).toEqual({ file: '/bin/sh', args: ['-c', 'npm test'] });
+    const win = shellInvocation('npm test', 'win32');
+    expect(win.file.toLowerCase()).toMatch(/cmd\.exe$/);
+    expect(win.args.slice(0, 3)).toEqual(['/d', '/s', '/c']);
+  });
+
+  it('Windows: çift tırnaklı argümanlar bölünmeden cmd.exe\'ye olduğu gibi gider', () => {
+    // Node, verbatim olmadan her " işaretini \" yapıyordu; cmd.exe bunu tanımadığı için
+    // git commit -m "iki kelime" → pathspec 'kelime' hatası veriyordu.
+    const cmd = 'git commit --trailer "Co-authored-by: Deniz Yılmaz <deniz@example.com>" -m "ilk sürüm: testler"';
+    const win = shellInvocation(cmd, 'win32');
+    expect(win.windowsVerbatimArguments).toBe(true);
+    expect(win.args[3]).toBe(`"${cmd}"`);
+    expect(win.args[3]).not.toContain('\\"');
+  });
+
+  it('Windows: çok satırlı komut && ile bağlanır (cmd.exe ilk satırdan sonrasını çalıştırmaz)', () => {
+    const win = shellInvocation('git add .\r\ngit commit -m "x"\n\ngit push', 'win32');
+    expect(win.args[3]).toBe('"git add . && git commit -m "x" && git push"');
   });
 });
 

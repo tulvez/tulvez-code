@@ -19,12 +19,30 @@ export interface ToolDefinition {
  *
  * Windows'ta cmd.exe, macOS/Linux'ta sh kullanılır. Sabit cmd.exe çağırmak
  * macOS ve Linux'ta "spawn cmd.exe ENOENT" hatası veriyordu.
+ *
+ * Windows'ta komut olduğu gibi (`windowsVerbatimArguments`) `/s /c "…"` içinde verilir;
+ * Node'un `shell: true` seçeneğinin yaptığı budur. Yoksa Node komuttaki her `"` işaretini
+ * `\"` yapar, cmd.exe bunu tanımaz ve çift tırnaklı her argüman bölünür
+ * (`git commit -m "iki kelime"` → "pathspec 'kelime' did not match").
+ * cmd.exe satır sonundan sonrasını çalıştırmadığı için satırlar `&&` ile bağlanır.
  */
-export function shellInvocation(command: string): { file: string; args: string[] } {
-  return process.platform === 'win32'
-    ? { file: 'cmd.exe', args: ['/d', '/s', '/c', command] }
-    : { file: '/bin/sh', args: ['-c', command] };
+export function shellInvocation(
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+): { file: string; args: string[]; windowsVerbatimArguments?: boolean } {
+  if (platform !== 'win32') return { file: '/bin/sh', args: ['-c', command] };
+  const oneLine = command.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join(' && ');
+  return {
+    file: process.env.ComSpec || 'cmd.exe',
+    args: ['/d', '/s', '/c', `"${oneLine}"`],
+    windowsVerbatimArguments: true,
+  };
 }
+
+/** Modelin komutu yazacağı kabuk; Windows'ta cmd.exe kuralları farklı. */
+const SHELL_HINT = process.platform === 'win32'
+  ? ' Windows: komut cmd.exe ile çalışır; argümanlarda tek tırnak değil çift tırnak kullan, birden çok komutu && ile bağla.'
+  : '';
 
 /**
  * Ajanın çalıştırdığı komut. İçinde `git commit` varsa commit'i Tulvez Code kendisi
@@ -107,7 +125,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'run_command',
-    description: 'Çalışma alanında terminal komutu çalıştırır. Uzun süreli komutlar (sunucu, GUI) otomatik sonlandırılır.',
+    description: `Çalışma alanında terminal komutu çalıştırır. Uzun süreli komutlar (sunucu, GUI) otomatik sonlandırılır.${SHELL_HINT}`,
     requiresApproval: true,
     readOnly: false,
     schema: z.object({ command: z.string().describe('Çalıştırılacak komut') }),
@@ -461,6 +479,7 @@ export async function executeTool(
             cwd,
             env: run.env,
             windowsHide: true,
+            windowsVerbatimArguments: shell.windowsVerbatimArguments,
           });
 
           let stdout = '';
@@ -530,6 +549,7 @@ export async function executeTool(
           detached: true,
           stdio: ['ignore', out, out],
           windowsHide: true,
+          windowsVerbatimArguments: bgShell.windowsVerbatimArguments,
         });
         child.unref();
         fsSync.closeSync(out);

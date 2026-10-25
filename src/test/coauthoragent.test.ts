@@ -21,7 +21,7 @@ const git = (...args: string[]): string => execFileSync('git', args, { cwd: dir,
 async function runAsAgent(raw: string): Promise<void> {
   const run = await agentCommand(raw, dir);
   const sh = shellInvocation(run.command);
-  const res = spawnSync(sh.file, sh.args, { cwd: dir, env: run.env, encoding: 'utf8' });
+  const res = spawnSync(sh.file, sh.args, { cwd: dir, env: run.env, encoding: 'utf8', windowsVerbatimArguments: sh.windowsVerbatimArguments });
   expect(res.status, res.stderr).toBe(0);
 }
 
