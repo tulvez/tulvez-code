@@ -36,4 +36,21 @@ describe('sistem istemi', () => {
       expect(p).toContain('hangi modda olduğunu sorarsa');
     }
   });
+
+  it('AGENTS.md ve CLAUDE.md proje talimatı olarak her istekte okunur', () => {
+    expect(buildPrompt('build', '')).not.toContain('Proje talimatları');
+    fs.writeFileSync(path.join(root, 'AGENTS.md'), 'Testleri pnpm ile çalıştır.', 'utf8');
+    fs.writeFileSync(path.join(root, 'CLAUDE.md'), 'Commit mesajı İngilizce.', 'utf8');
+    const p = buildPrompt('ask', '');
+    expect(p).toContain('### AGENTS.md\nTestleri pnpm ile çalıştır.');
+    expect(p).toContain('### CLAUDE.md\nCommit mesajı İngilizce.');
+    expect(p.indexOf('AGENTS.md')).toBeLessThan(p.indexOf('CLAUDE.md'));
+  });
+
+  it('büyük talimat dosyası kısaltılır', () => {
+    fs.writeFileSync(path.join(root, 'AGENTS.md'), 'a'.repeat(50_000), 'utf8');
+    const p = buildPrompt('build', '');
+    expect(p).toContain('AGENTS.md kısaltıldı');
+    expect(p.length).toBeLessThan(25_000);
+  });
 });

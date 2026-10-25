@@ -1,5 +1,37 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import * as vscode from 'vscode';
 import type { AgentMode } from './types';
 import { getInstructions } from './skills';
+
+// Başka yardımcıların da okuduğu proje talimat dosyaları (ilk bulunanlar, sırayla)
+const RULE_FILES = ['AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md', '.cursorrules', '.clinerules', '.windsurfrules'];
+const RULES_MAX_CHARS = 16_000;
+
+/** Çalışma alanındaki proje talimatları; her istekte okunur, toplam 16.000 karakterle sınırlı. */
+export function projectRules(): string {
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!root) return '';
+  const parts: string[] = [];
+  let left = RULES_MAX_CHARS;
+  for (const name of RULE_FILES) {
+    if (left <= 0) break;
+    let text = '';
+    try {
+      const file = path.join(root, name);
+      if (!fs.statSync(file).isFile()) continue;
+      text = fs.readFileSync(file, 'utf8').trim();
+    } catch {
+      continue;
+    }
+    if (!text) continue;
+    const cut = text.length > left ? `${text.slice(0, left)}\n… (${name} kısaltıldı; devamı için dosyayı oku)` : text;
+    left -= cut.length;
+    parts.push(`### ${name}\n${cut}`);
+  }
+  if (!parts.length) return '';
+  return `Proje talimatları (çalışma alanındaki dosyalardan; bunlara uy):\n\n${parts.join('\n\n')}`;
+}
 
 const DEFAULT_IDENTITY = 'Adın Tulvez Code. VS Code içinde çalışan bir yapay zekâ kodlama asistanısın.';
 
@@ -41,6 +73,8 @@ const ROLES: Record<AgentMode, string> = {
 // code_skills.md her istekte okunur: düzenleme eklenti yeniden yüklenmeden geçerli olur
 export function buildPrompt(mode: AgentMode, repoMap: string, skills = ''): string {
   let base = `${identity()}\n\n${MODES_LINE}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}`;
+  const rules = projectRules();
+  if (rules) base += `\n\n${rules}`;
   if (skills) base += `\n\n${skills}`;
   if (!repoMap || mode === 'ask') return base;
   return `${base}\n\n${repoMap}\n\nYukarıdaki harita yalnızca yol gösterir. Dosya içeriği için read_file / read_files, arama için grep_files kullan.`;
