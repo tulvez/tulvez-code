@@ -1,5 +1,18 @@
 [
   {
+    "surum": "0.3.1",
+    "tarih": "2026-10-25",
+    "tur": "duzeltme",
+    "baslik": {
+      "tr": "OpenCode ve OpenCode Go düzeltmeleri",
+      "en": "OpenCode and OpenCode Go fixes"
+    },
+    "ozet": {
+      "tr": "OpenCode’un ücretsiz modelleri yalnız OpenCode uygulamasında çalıştığı için Tulvez Code’da “kota tükendi” hatası veriyordu; artık bu modeller listede yok ve seçiliyse ne yapılacağı açıkça anlatılıyor. OpenCode modelleri yeni adreslerinden doğru biçimle çağrılıyor ve OpenCode Go aboneliği destekleniyor.",
+      "en": "OpenCode’s free models only work in the OpenCode app, so Tulvez Code showed a “quota used up” error for them; they are no longer listed, and if one is selected the fix is explained clearly. OpenCode models are now called at their new addresses in the right format, and the OpenCode Go subscription is supported."
+    }
+  },
+  {
     "surum": "0.3.0",
     "tarih": "2026-10-25",
     "tur": "ekleme",

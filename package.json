@@ -2,7 +2,7 @@
   "name": "tulvez-code",
   "displayName": "Tulvez Code",
   "description": "VS Code için odaklı yapay zeka kodlama yardımcısı.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "tulvez",
   "repository": {
     "type": "git",
@@ -130,6 +130,7 @@
             "anthropic",
             "groq",
             "opencode",
+            "opencode-go",
             "custom",
             "ollama"
           ],

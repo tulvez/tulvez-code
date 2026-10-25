@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1
+
+- Düzeltme — OpenCode: ücretsiz modeller (big-pickle, *-free) OpenCode'un kuralı gereği yalnız OpenCode
+  uygulamasında çalışıyor; Tulvez Code bu hatayı "ücretsiz kota tükendi" diye gösteriyor ve 3 kez boşuna
+  deniyordu. Artık ücretsiz modeller listede yok, seçiliyse istek gönderilmeden ne yapılacağı anlatılır,
+  hata tekrar denenmez ve kota uyarısı çıkmaz
+- Düzeltme — OpenCode modelleri doğru biçim ve adresle çağrılır: Claude → Anthropic, GPT/Grok → OpenAI
+  Responses, Gemini → Google, açık modeller → OpenAI uyumlu (yeni opencode.ai/inference adresleri).
+  Hangi modelin nasıl çağrılacağı OpenCode'un da kullandığı models.dev kataloğundan günde bir alınır;
+  maliyet de oradan hesaplanır
+- Yeni — OpenCode Go sağlayıcısı (aylık abonelik). Tulvez Code OpenCode'a kendini tanıtır (User-Agent
+  tulvez-code/<sürüm>) ve her sohbet için sabit oturum kimliği (x-opencode-session) gönderir; Go bunu ister
+- Değişiklik — OpenCode'da model seçilmezse varsayılan claude-sonnet-4-5 yerine ucuz deepseek-v4.1-flash
+- Düzeltme — "Invalid credential" yanıtı artık "API anahtarı geçersiz" olarak gösterilir
+
 ## 0.3.0
 
 - Yeni — Sohbet hafızası: Tulvez Code sonraki mesajlarda önceki turlarda okuduğu dosyaları ve komut
