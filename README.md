@@ -12,6 +12,13 @@ Gizlilik odaklı, BYOK yapay zeka kodlama asistanı — VS Code için.
 - **Çoklu sağlayıcı** — OpenAI, Anthropic, Google Gemini, Groq, Ollama (yerel/çevrimdışı)
 - **Gerçek araç kullanımı** — `read_file`, `grep_files`, `write_file`, `replace_in_file`, `run_command` ile dosyalarına gerçekten dokunur; yalnız açık klasörde çalışır, Ask ve Plan modları salt okur
 - **Beceriler (skills)** — Tulvez'in GitHub'daki becerileri ([scale-engineer](https://github.com/tulvez/scale-engineer) gibi) kendiliğinden kurulur ve güncellenir; isteğin bir beceriye uyarsa Tulvez onu kendisi kullanır; `/skill` yazınca listeden seçebilir, kendi becerini bilgisayardan yükleyebilir ya da indirebilirsin
+- **Sohbet hafızası** — Tulvez önceki mesajlarda okuduğu dosyaları ve komut çıktılarını hatırlar; bağlam dolunca eski araç çıktılarını kendisi kısaltır
+- **Geri al** — Bir yanıtta Tulvez'in değiştirdiği bütün dosyalar tek düğmeyle eski haline döner
+- **Yapılacaklar listesi** — Çok adımlı işlerde ne yapıldığını, ne kaldığını canlı gösterir
+- **`@dosya`** — `@` yazınca projedeki dosyaları seç; içerikleri mesajla birlikte gider
+- **MCP** — Model Context Protocol sunucularıyla dış araçlar ekle (GitHub, veritabanı, tarayıcı…); Claude Code / Cursor yapılandırmasıyla aynı biçim
+- **Proje talimatları** — `AGENTS.md`, `CLAUDE.md`, `.cursorrules` gibi dosyalar her istekte okunur
+- **`web_fetch`** — Belge ve sürüm notu sayfalarını okuyabilir (onaylı)
 - **Onay akışı** — Dosya düzenlemeleri otomatik uygulanır; terminal komutları onay ister (ayarlanabilir)
 - **Git kısayolları** — `/commit`, `/review`, `/diff`, `/explain`
 - **Markdown render**, düşünüş animasyonu, token / maliyet / bağlam istatistikleri
@@ -83,6 +90,13 @@ Privacy-focused, BYOK AI coding assistant for VS Code.
 - **Multi-provider** — OpenAI, Anthropic, Google Gemini, Groq, Ollama (local/offline)
 - **Real tool use** — `read_file`, `grep_files`, `write_file`, `replace_in_file`, `run_command` — Tulvez actually touches your files, only inside the open folder; Ask and Plan modes are read-only
 - **Skills** — Tulvez's skills on GitHub (such as [scale-engineer](https://github.com/tulvez/scale-engineer)) install and update themselves; when your request matches one, Tulvez uses it on its own; type `/skill` to pick one from a list, or upload and download your own skills
+- **Conversation memory** — Tulvez remembers the files it read and the command output from earlier messages; when the context fills up it trims old tool output on its own
+- **Undo** — One button restores every file Tulvez changed in a reply
+- **To-do list** — For multi-step work, shows live what is done and what is left
+- **`@file`** — Type `@` to pick files from your project; their contents go with your message
+- **MCP** — Add external tools with Model Context Protocol servers (GitHub, databases, browsers…); same configuration format as Claude Code / Cursor
+- **Project instructions** — Files such as `AGENTS.md`, `CLAUDE.md`, `.cursorrules` are read on every request
+- **`web_fetch`** — Can read documentation and release-note pages (with approval)
 - **Approval flow** — File edits are applied automatically; terminal commands require your confirmation (configurable)
 - **Git shortcuts** — `/commit`, `/review`, `/diff`, `/explain`
 - **Markdown rendering**, reasoning animation, token / cost / context-window stats

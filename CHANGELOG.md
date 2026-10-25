@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0
+
+- Yeni — Sohbet hafızası: Tulvez Code sonraki mesajlarda önceki turlarda okuduğu dosyaları ve komut
+  çıktılarını hatırlar (önceden yalnız düz metin gidiyordu, ajan okuduğu her şeyi unutuyordu). Bağlam
+  dolunca önce eski araç çıktıları kısaltılır, gerekirse en eski turlar atılır
+- Yeni — Geri al: bir yanıtta Tulvez'in yazdığı bütün dosyalar tek düğmeyle önceki haline döner
+  (oluşturduğu dosya silinir). Dosyayı sonradan sen değiştirdiysen önce onay istenir
+- Yeni — Yapılacaklar listesi: çok adımlı işlerde ajan bir liste tutar; giriş kutusunun üstünde canlı
+  görünür, iş bitince katlanır. Plan modu adımlarını da listeye yazar
+- Yeni — `@dosya`: `@` yazınca projedeki dosyalar listelenir; seçilen dosyanın içeriği (klasörse
+  içindekiler) mesajla birlikte gider
+- Yeni — MCP sunucuları: `tulvez.mcpServers` ayarı ve projedeki `.mcp.json` (Claude Code / Cursor ile
+  aynı biçim), yerel (stdio) ve uzak (http/sse). Proje sunucuları izin verilmeden başlamaz; araçlar
+  yalnız Build modunda ve onayla çalışır. Ayarlar'da durum, araç sayısı ve hata görünür
+- Yeni — Proje talimatları: `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`,
+  `.cursorrules`, `.clinerules`, `.windsurfrules` her istekte okunur
+- Yeni — `web_fetch` aracı: ajan belge, sürüm notu ve hata çözümü sayfalarını okuyabilir (onaylı)
+- Değişiklik — Bir istekte en çok 12 yerine 50 adım; sınıra gelinirse "devam" yazman söylenir.
+  Build modunda değişiklikten sonra derleme, tip denetimi ya da testle doğrulaması istenir
+- Değişiklik — Beceri yükleme: herhangi bir adla .md dosyaları, birden çok seçim ve beceri koleksiyonu
+  klasörü (içindeki her .md ve alt klasör ayrı beceri). Windows'ta .md dosyası seçilemiyordu, düzeldi
+
 ## 0.2.5
 
 - Yeni — `/skill` (ya da `/skills`) yazınca kurulu beceriler açıklamalarıyla listelenir; yazdıkça
