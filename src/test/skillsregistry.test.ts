@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-const { parseIndex, splitSkillFile } = await import('../services/skillsRegistry');
+const { parseIndex, registryBase, splitSkillFile } = await import('../services/skillsRegistry');
 
 describe('skills deposu: index.json', () => {
   it('geçerli kayıtları okur', () => {
@@ -43,5 +43,27 @@ describe('skill dosyası', () => {
 
   it('başlık yoksa kimlik ad olur', () => {
     expect(splitSkillFile('x', 'Sadece talimat')).toEqual({ id: 'x', name: 'x', text: 'Sadece talimat' });
+  });
+});
+
+describe('beceri adresi', () => {
+  const setValue = async (v: string | undefined) => {
+    const vscode = await import('vscode');
+    (vscode.workspace as unknown as { getConfiguration: () => unknown }).getConfiguration = () => ({ get: () => v });
+  };
+
+  it('ayar yoksa GitHub hesabı', async () => {
+    await setValue(undefined);
+    expect(registryBase()).toBe('https://github.com/tulvez');
+  });
+
+  it('ayar dosyasında eski (hiç yayımlanmamış) varsayılan kalmışsa yenisi kullanılır', async () => {
+    await setValue('https://raw.githubusercontent.com/tulvez/tulvez-code-skills/main/');
+    expect(registryBase()).toBe('https://github.com/tulvez');
+  });
+
+  it('kullanıcının kendi adresine dokunulmaz', async () => {
+    await setValue('https://ornek.dev/skills/');
+    expect(registryBase()).toBe('https://ornek.dev/skills');
   });
 });

@@ -42,9 +42,12 @@ export interface InstalledSkill {
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
+// 0.2.3'e kadarki varsayılan; bu depo hiç yayımlanmadı. Ayar dosyasına bu değer yazılmışsa yeni varsayılan kullanılır.
+const LEGACY_DEFAULT = 'https://raw.githubusercontent.com/tulvez/tulvez-code-skills/main';
+
 export function registryBase(): string {
-  const raw = vscode.workspace.getConfiguration('tulvez').get<string>('skillsRegistry')?.trim() || DEFAULT_REGISTRY;
-  return raw.replace(/\/+$/, '');
+  const raw = (vscode.workspace.getConfiguration('tulvez').get<string>('skillsRegistry')?.trim() || DEFAULT_REGISTRY).replace(/\/+$/, '');
+  return raw === LEGACY_DEFAULT ? DEFAULT_REGISTRY : raw;
 }
 
 /** index.json'u doğrular; bozuk ya da tehlikeli (../ içeren yol, geçersiz kimlik) kayıtları atar. */

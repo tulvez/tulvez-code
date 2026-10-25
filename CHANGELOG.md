@@ -1,5 +1,10 @@
 # Changelog
 
+## Yayınlanmadı
+
+- Düzeltme — ayar dosyasında eski beceri deposu adresi (tulvez-code-skills, hiç yayımlanmadı) kayıtlı
+  kalmışsa Ayarlar → Skills "404" gösteriyordu; bu adres artık yeni varsayılana (github.com/tulvez) çevrilir
+
 ## 0.2.4
 
 - Yeni — Tulvez'in GitHub'daki becerileri kendiliğinden kurulur: github.com/tulvez altında kökünde
