@@ -230,42 +230,39 @@ function copyTree(src: string, dest: string, budget = { files: 0, bytes: 0 }): v
   }
 }
 
+/** .md içeriğini beceriye çevirir: ön bilgi yoksa ad dosya adından, açıklama ilk dolu satırdan üretilir. */
+function mdToSkill(content: string, fileBase: string): { meta: SkillMeta; skillMd: string } {
+  const meta = parseFrontmatter(content);
+  if (meta) return { meta, skillMd: content };
+  const body = skillBody(content);
+  const first = body.split(/\r?\n/).map((l) => l.replace(/^#+\s*/, '').trim()).find(Boolean) ?? fileBase;
+  const made = { name: fileBase, description: first.slice(0, 300) };
+  return { meta: made, skillMd: `---\nname: ${slug(fileBase)}\ndescription: ${JSON.stringify(made.description)}\n---\n\n${body}\n` };
+}
+
+const isMd = (name: string): boolean => /\.md$/i.test(name) && !name.startsWith('.');
+
 /**
- * Bilgisayardaki bir beceriyi kurar: içinde SKILL.md olan klasör ya da tek .md dosyası.
- * Ön bilgisi (name/description) olmayan .md dosyasına dosya adından ve ilk satırından üretilir.
+ * Klasörün beceri dosyası: SKILL.md (harf büyüklüğü fark etmez) ya da klasördeki tek .md.
+ * Birden çok .md varsa ve hiçbiri SKILL.md değilse klasör tek beceri sayılmaz (koleksiyondur).
  */
-export function importLocalSkill(src: string, root: string): LocalSkill {
-  const stat = fs.statSync(src);
-  let meta: SkillMeta | null;
-  let fromDir: string | null = null;
-  let body = '';
-  if (stat.isDirectory()) {
-    const md = path.join(src, 'SKILL.md');
-    if (!fs.existsSync(md)) throw new Error('Klasörde SKILL.md yok');
-    meta = parseFrontmatter(fs.readFileSync(md, 'utf8'));
-    if (!meta) throw new Error('SKILL.md’nin başında name ve description içeren ön bilgi (---) yok');
-    fromDir = src;
-  } else {
-    if (!/\.md$/i.test(src)) throw new Error('Yalnız .md dosyası ya da SKILL.md içeren klasör yüklenebilir');
-    if (stat.size > MAX_SKILL_MD_BYTES) throw new Error('Dosya çok büyük');
-    const content = fs.readFileSync(src, 'utf8');
-    meta = parseFrontmatter(content);
-    if (!meta) {
-      const base = path.basename(src).replace(/\.md$/i, '');
-      const firstLine = skillBody(content).split(/\r?\n/).map((l) => l.replace(/^#+\s*/, '').trim()).find(Boolean) ?? base;
-      meta = { name: base, description: firstLine.slice(0, 300) };
-      body = `---\nname: ${slug(base)}\ndescription: ${JSON.stringify(meta.description)}\n---\n\n${skillBody(content)}\n`;
-    } else {
-      body = content;
-    }
-  }
-  const id = skillId(meta.name, path.basename(src).replace(/\.md$/i, ''));
-  if (!ID_RE.test(id)) throw new Error('Becerinin adı geçersiz');
+function skillFileIn(dir: string): string | null {
+  const mds = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile() && isMd(e.name)).map((e) => e.name);
+  const named = mds.find((n) => n.toLowerCase() === 'skill.md');
+  if (named) return path.join(dir, named);
+  return mds.length === 1 ? path.join(dir, mds[0]) : null;
+}
+
+function installLocal(meta: SkillMeta, skillMd: string, root: string, fallbackName: string, fromDir?: string, skillFile?: string): LocalSkill {
+  const id = skillId(meta.name, fallbackName);
+  if (!ID_RE.test(id)) throw new Error(`${fallbackName}: becerinin adı geçersiz`);
   fs.mkdirSync(root, { recursive: true });
   const tmp = fs.mkdtempSync(path.join(root, `.${id}-`));
   try {
     if (fromDir) copyTree(fromDir, tmp);
-    else fs.writeFileSync(path.join(tmp, 'SKILL.md'), body, 'utf8');
+    // Beceri dosyası başka adlıysa (ör. rapor.md) SKILL.md olarak yazılır, kopyası kalmaz
+    if (skillFile && path.basename(skillFile) !== 'SKILL.md') fs.rmSync(path.join(tmp, path.basename(skillFile)), { force: true });
+    fs.writeFileSync(path.join(tmp, 'SKILL.md'), skillMd, 'utf8');
     fs.writeFileSync(path.join(tmp, STAMP), JSON.stringify({ source: 'local', importedAt: new Date().toISOString() }));
     const dest = path.join(root, id);
     fs.rmSync(dest, { recursive: true, force: true });
@@ -275,6 +272,51 @@ export function importLocalSkill(src: string, root: string): LocalSkill {
     fs.rmSync(tmp, { recursive: true, force: true });
     throw err;
   }
+}
+
+/**
+ * Bilgisayardaki tek bir beceriyi kurar:
+ * - herhangi bir adla .md dosyası (rapor.md → "rapor"),
+ * - SKILL.md ya da tek .md içeren klasör (betik ve belgeleriyle birlikte).
+ */
+export function importLocalSkill(src: string, root: string): LocalSkill {
+  const stat = fs.statSync(src);
+  if (stat.isDirectory()) {
+    const file = skillFileIn(src);
+    if (!file) throw new Error(`${path.basename(src)}: klasörde beceri dosyası (.md) yok`);
+    if (fs.statSync(file).size > MAX_SKILL_MD_BYTES) throw new Error(`${path.basename(file)} çok büyük`);
+    const { meta, skillMd } = mdToSkill(fs.readFileSync(file, 'utf8'), path.basename(src));
+    return installLocal(meta, skillMd, root, path.basename(src), src, file);
+  }
+  if (!isMd(path.basename(src))) throw new Error(`${path.basename(src)}: yalnız .md dosyası ya da klasör yüklenebilir`);
+  if (stat.size > MAX_SKILL_MD_BYTES) throw new Error(`${path.basename(src)} çok büyük`);
+  const base = path.basename(src).replace(/\.md$/i, '');
+  const { meta, skillMd } = mdToSkill(fs.readFileSync(src, 'utf8'), base);
+  return installLocal(meta, skillMd, root, base);
+}
+
+/**
+ * Seçilen her şeyi kurar. Beceri dosyası olmayan klasör bir koleksiyon sayılır: içindeki her
+ * .md dosyası ve beceri dosyası olan her alt klasör ayrı beceri olur. Biri hata verirse diğerleri sürer.
+ */
+export function importLocalSkills(sources: string[], root: string): { imported: LocalSkill[]; errors: string[] } {
+  const imported: LocalSkill[] = [];
+  const errors: string[] = [];
+  const one = (src: string): void => {
+    try { imported.push(importLocalSkill(src, root)); } catch (err) { errors.push(err instanceof Error ? err.message : String(err)); }
+  };
+  for (const src of sources) {
+    let isDir = false;
+    try { isDir = fs.statSync(src).isDirectory(); } catch { errors.push(`${path.basename(src)} okunamadı`); continue; }
+    if (!isDir || skillFileIn(src)) { one(src); continue; }
+    const entries = fs.readdirSync(src, { withFileTypes: true }).filter((e) => !e.name.startsWith('.'));
+    const items = entries
+      .filter((e) => (e.isFile() && isMd(e.name)) || (e.isDirectory() && skillFileIn(path.join(src, e.name))))
+      .map((e) => path.join(src, e.name));
+    if (items.length === 0) errors.push(`${path.basename(src)}: klasörde beceri bulunamadı`);
+    items.forEach(one);
+  }
+  return { imported, errors };
 }
 
 /** Kurulu beceriyi <hedef>/<ad> klasörüne kopyalar (eklentinin iç dosyası hariç). Dönüş: yeni klasör. */

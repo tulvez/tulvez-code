@@ -406,7 +406,7 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
               </>
             )} />
         ))}
-        <Row title="Bilgisayardan yükle" desc="İçinde SKILL.md olan bir klasör ya da tek bir .md dosyası seç"
+        <Row title="Bilgisayardan yükle" desc="Herhangi bir adla .md dosyaları ya da klasörler; birden çok seçebilirsin"
           control={(
             <button className="cx-btn" type="button" onClick={importSkill} disabled={registry.busy === '__import'}>
               {registry.busy === '__import' ? <Loader2 size={12} className="spin" /> : <Upload size={12} />} Yükle

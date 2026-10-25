@@ -14,7 +14,7 @@ import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skills
 import { listProviderModels } from './services/models';
 import { isBotIdentity, readIdentity, removeBotIdentity, repoRoot, withCoAuthor } from './services/gitIdentity';
 import { activateCoAuthorScm, noteAiEdit } from './services/coAuthorScm';
-import { exportLocalSkill, githubOwner, importLocalSkill, localSkills, removeLocalSkill, setSkillsRoot, syncOrgSkills, type SyncResult } from './services/orgSkills';
+import { exportLocalSkill, githubOwner, importLocalSkills, localSkills, removeLocalSkill, setSkillsRoot, syncOrgSkills, type SyncResult } from './services/orgSkills';
 
 const SKILLS_DISABLED_KEY = 'tulvez.skills.disabled';
 const SKILLS_SYNCED_KEY = 'tulvez.skills.syncedAt';
@@ -211,18 +211,28 @@ export function activate(context: vscode.ExtensionContext): void {
       // Bilgisayardan beceri yükle / kurulu beceriyi bilgisayara indir; sonra güncel liste gider.
       try {
         if (message.type === 'importSkill') {
-          const picked = await vscode.window.showOpenDialog({
-            title: 'Beceri yükle: SKILL.md içeren klasör ya da .md dosyası',
+          // Windows ve Linux'ta tek pencere hem dosya hem klasör seçtiremez (ikisi istenirse yalnız klasör açılır)
+          const kind = await vscode.window.showQuickPick([
+            { label: '$(file) .md dosyaları', description: 'Her dosya bir beceri; adı dosya adından gelir', files: true },
+            { label: '$(folder) Klasörler', description: 'Betik ve belgeleriyle beceri ya da beceri koleksiyonu', files: false },
+          ], { title: 'Beceri yükle', placeHolder: 'Ne yükleyeceksin? (birden çok seçebilirsin)' });
+          const picked = kind && await vscode.window.showOpenDialog({
+            title: kind.files ? 'Beceri yükle: .md dosyaları' : 'Beceri yükle: klasörler',
             openLabel: 'Yükle',
-            canSelectFiles: true,
-            canSelectFolders: true,
-            canSelectMany: false,
+            canSelectFiles: kind.files,
+            canSelectFolders: !kind.files,
+            canSelectMany: true,
+            filters: kind.files ? { 'Beceri (.md)': ['md'] } : undefined,
           });
-          if (picked?.[0]) {
-            const skill = importLocalSkill(picked[0].fsPath, skillsRoot);
-            const disabled = context.globalState.get<string[]>(SKILLS_DISABLED_KEY, []).filter((d) => d !== skill.id);
+          if (picked?.length) {
+            const { imported, errors } = importLocalSkills(picked.map((u) => u.fsPath), skillsRoot);
+            const ids = new Set(imported.map((s) => s.id));
+            const disabled = context.globalState.get<string[]>(SKILLS_DISABLED_KEY, []).filter((d) => !ids.has(d));
             await context.globalState.update(SKILLS_DISABLED_KEY, disabled);
-            void vscode.window.showInformationMessage(`Tulvez Code: "${skill.id}" becerisi yüklendi.`);
+            if (imported.length) {
+              void vscode.window.showInformationMessage(`Tulvez Code: ${imported.length} beceri yüklendi — ${[...ids].join(', ')}`);
+            }
+            if (errors.length) void vscode.window.showWarningMessage(`Tulvez Code: ${errors.length} öğe yüklenemedi — ${errors.join(' · ')}`);
           }
         } else {
           const picked = await vscode.window.showOpenDialog({

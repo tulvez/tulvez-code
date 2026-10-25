@@ -4,7 +4,7 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { slashMenu } from '../../webview/src/lib/slashMenu';
 
-const { importLocalSkill, exportLocalSkill, localSkills, syncOrgSkill } = await import('../services/orgSkills');
+const { importLocalSkill, importLocalSkills, exportLocalSkill, localSkills, syncOrgSkill } = await import('../services/orgSkills');
 const { matchSkill } = await import('../services/skills');
 
 const COMMANDS = [
@@ -107,15 +107,48 @@ describe('bilgisayardan yükle / indir', () => {
     expect(fs.readFileSync(path.join(listed.dir, 'SKILL.md'), 'utf8')).toContain('Hata ve riskleri madde madde yaz.');
   });
 
-  it('geçersiz kaynaklar reddedilir', () => {
+  it('geçersiz kaynaklar reddedilir, yarım klasör kalmaz', () => {
     fs.mkdirSync(path.join(work, 'bos'));
-    expect(() => importLocalSkill(path.join(work, 'bos'), root)).toThrow(/SKILL.md yok/);
+    expect(() => importLocalSkill(path.join(work, 'bos'), root)).toThrow(/beceri dosyası/);
     fs.writeFileSync(path.join(work, 'x.txt'), 'a');
     expect(() => importLocalSkill(path.join(work, 'x.txt'), root)).toThrow(/\.md/);
-    fs.mkdirSync(path.join(work, 'onbilgisiz'));
-    fs.writeFileSync(path.join(work, 'onbilgisiz', 'SKILL.md'), '# Başlık\n');
-    expect(() => importLocalSkill(path.join(work, 'onbilgisiz'), root)).toThrow(/ön bilgi/);
-    expect(fs.readdirSync(root)).toEqual([]); // yarım klasör kalmaz
+    expect(fs.readdirSync(root)).toEqual([]);
+  });
+
+  it('klasördeki beceri dosyası her adla olabilir; SKILL.md olarak kurulur', () => {
+    const src = path.join(work, 'Rapor Becerisi');
+    fs.mkdirSync(path.join(src, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(src, 'rapor.md'), '# Haftalık rapor\n\nKısa yaz.\n');
+    fs.writeFileSync(path.join(src, 'scripts', 'r.py'), '');
+    const skill = importLocalSkill(src, root);
+    expect(skill).toMatchObject({ id: 'rapor-becerisi', description: 'Haftalık rapor' });
+    expect(fs.readdirSync(skill.dir).sort()).toEqual(['.tulvez-skill.json', 'SKILL.md', 'scripts']);
+  });
+
+  it('birden çok seçim ve koleksiyon klasörü: her .md ve her beceri klasörü ayrı beceri', () => {
+    const coll = path.join(work, 'becerilerim');
+    fs.mkdirSync(path.join(coll, 'derin', 'refs'), { recursive: true });
+    fs.mkdirSync(path.join(coll, 'bos-alt'));
+    fs.writeFileSync(path.join(coll, 'commit-mesaji.md'), 'Commit mesajı yazar.\n');
+    fs.writeFileSync(path.join(coll, 'Çeviri.md'), '---\nname: ceviri\ndescription: Metni çevirir.\n---\nx\n');
+    fs.writeFileSync(path.join(coll, 'derin', 'SKILL.md'), '---\nname: derin\ndescription: Derin inceleme.\n---\nx\n');
+    fs.writeFileSync(path.join(coll, 'derin', 'refs', 'a.md'), 'ek');
+    const tek = path.join(work, 'tek.md');
+    fs.writeFileSync(tek, 'Tek başına beceri.\n');
+    const r = importLocalSkills([coll, tek, path.join(work, 'yok.md')], root);
+    expect(r.imported.map((s) => s.id).sort()).toEqual(['ceviri', 'commit-mesaji', 'derin', 'tek']);
+    expect(r.errors).toEqual(['yok.md okunamadı']);
+    expect(fs.existsSync(path.join(root, 'derin', 'refs', 'a.md'))).toBe(true);
+    expect(localSkills(root).map((s) => s.id)).toEqual(['ceviri', 'commit-mesaji', 'derin', 'tek']);
+  });
+
+  it('içinde beceri olmayan klasör hata olarak bildirilir, diğerleri yüklenir', () => {
+    fs.mkdirSync(path.join(work, 'resimler'));
+    fs.writeFileSync(path.join(work, 'resimler', 'a.png'), '');
+    fs.writeFileSync(path.join(work, 'iyi.md'), 'İyi beceri');
+    const r = importLocalSkills([path.join(work, 'resimler'), path.join(work, 'iyi.md')], root);
+    expect(r.imported.map((s) => s.id)).toEqual(['iyi']);
+    expect(r.errors).toEqual(['resimler: klasörde beceri bulunamadı']);
   });
 
   it('indir: beceri seçilen klasöre kopyalanır, iç kayıt dosyası gitmez; aynı ad varsa üstüne yazmaz', () => {
