@@ -1,6 +1,6 @@
 # Changelog
 
-## Yayınlanmadı
+## 0.2.4
 
 - Yeni — Tulvez'in GitHub'daki becerileri kendiliğinden kurulur: github.com/tulvez altında kökünde
   SKILL.md olan her herkese açık depo bir beceridir. Becerinin bütün klasörü (betikler, belgeler)
@@ -11,6 +11,11 @@
   liste hep "Depoya ulaşılamadı" gösteriyordu. Varsayılan artık https://github.com/tulvez
 - Düzeltme — `/skill` bilinmeyen bir adla çağrılınca ilk beceriyi sessizce çalıştırıyordu; artık
   kurulu becerileri listeler
+- Güvenlik — dosya araçları yalnız açık çalışma alanında çalışır. Önceden mutlak yol, `../` ya da
+  sembolik bağla klasör dışındaki dosyalar okunup yazılabiliyordu; artık ajan hata alır. Kurulu
+  becerilerin klasörü yalnız okunabilir
+- Düzeltme — Plan modu artık gerçekten salt okur: dosya yazma ve komut araçları yalnız Build
+  modunda verilir (önceden yalnız istem "kod yazma" diyordu)
 
 ## 0.2.3
 

@@ -10,7 +10,8 @@ Gizlilik odaklı, BYOK yapay zeka kodlama asistanı — VS Code için.
 
 - **Ask / Plan / Build modları** — Soru sor, adım adım plan üret veya Tulvez'in kodu doğrudan yazmasını sağla
 - **Çoklu sağlayıcı** — OpenAI, Anthropic, Google Gemini, Groq, Ollama (yerel/çevrimdışı)
-- **Gerçek araç kullanımı** — `read_file`, `write_file`, `edit_file`, `list_files`, `run_command` ile dosyalarına gerçekten dokunur
+- **Gerçek araç kullanımı** — `read_file`, `grep_files`, `write_file`, `replace_in_file`, `run_command` ile dosyalarına gerçekten dokunur; yalnız açık klasörde çalışır, Ask ve Plan modları salt okur
+- **Beceriler (skills)** — Tulvez'in GitHub'daki becerileri ([scale-engineer](https://github.com/tulvez/scale-engineer) gibi) kendiliğinden kurulur ve güncellenir; isteğin bir beceriye uyarsa Tulvez onu kendisi kullanır
 - **Onay akışı** — Dosya düzenlemeleri otomatik uygulanır; terminal komutları onay ister (ayarlanabilir)
 - **Git kısayolları** — `/commit`, `/review`, `/diff`, `/explain`
 - **Markdown render**, düşünüş animasyonu, token / maliyet / bağlam istatistikleri
@@ -80,7 +81,8 @@ Privacy-focused, BYOK AI coding assistant for VS Code.
 
 - **Ask / Plan / Build modes** — Ask questions, generate step-by-step plans, or let Tulvez actively write and edit your code
 - **Multi-provider** — OpenAI, Anthropic, Google Gemini, Groq, Ollama (local/offline)
-- **Real tool use** — `read_file`, `write_file`, `edit_file`, `list_files`, `run_command` — Tulvez actually touches your files
+- **Real tool use** — `read_file`, `grep_files`, `write_file`, `replace_in_file`, `run_command` — Tulvez actually touches your files, only inside the open folder; Ask and Plan modes are read-only
+- **Skills** — Tulvez's skills on GitHub (such as [scale-engineer](https://github.com/tulvez/scale-engineer)) install and update themselves; when your request matches one, Tulvez uses it on its own
 - **Approval flow** — File edits are applied automatically; terminal commands require your confirmation (configurable)
 - **Git shortcuts** — `/commit`, `/review`, `/diff`, `/explain`
 - **Markdown rendering**, reasoning animation, token / cost / context-window stats
