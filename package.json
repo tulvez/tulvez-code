@@ -179,7 +179,7 @@
         "tulvez.gitCoAuthor": {
           "type": "boolean",
           "default": true,
-          "description": "Tulvez Code'un attığı commit'lere ek katkıcı satırı (Co-authored-by: Tulvez Code) ekle. Commit'in yazarı sen kalırsın; GitHub commit'te yanında tulvez-code[bot] görünür. Git kimliğine dokunulmaz."
+          "description": "Copilot gibi: Tulvez Code'un değiştirdiği bir dosya commit'e girerse commit anında ek katkıcı satırı (Co-authored-by: Tulvez Code) eklenir. Commit'in yazarı sen kalırsın; GitHub'da yanında tulvez-code[bot] görünür. Bunun için deponun .git/hooks klasörüne küçük bir prepare-commit-msg kancası kurulur (depoya girmez); depoda başka kanca ya da core.hooksPath varsa ona dokunulmaz, satır mesaj kutusuna yazılır. Kapatınca kanca silinir. Git kimliğine dokunulmaz."
         },
         "tulvez.allowShellCommands": {
           "type": "boolean",

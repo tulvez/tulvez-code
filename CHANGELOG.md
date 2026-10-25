@@ -37,9 +37,14 @@ Arayüz sıfırdan yeniden tasarlandı (Tulvez Noir). Eklentinin davranışı de
 - Eski davranış kaldırıldı: 0.1.x deponun `.git/config` dosyasına bot kimliğini yazıyordu,
   bu yüzden bütün commit'lerin yazarı bot oluyordu (`tulvez.gitIdentity` ayarı kalktı).
   Böyle bir depo açılınca bir kez sorulur; onaylanırsa yalnızca yerel ayar silinir
-- Copilot gibi: commit'i Kaynak Denetimi panelinden kendin atsan da, içinde Tulvez Code'un
-  düzenlediği dosya varsa mesaj kutusuna ek katkıcı satırı eklenir; o değişiklikler geri
-  alınırsa satır kalkar. Başka ek katkıcılarla (ör. Copilot) aynı ek bloğuna yazılır
+- Copilot gibi, commit anında: Tulvez Code'un değiştirdiği bir dosya commit'e girerse satır commit
+  sırasında, mesaj kutusunda görünmeden eklenir (VS Code'un Copilot için yaptığının aynısı). VS Code'dan,
+  terminalden ya da başka araçtan atılan commit fark etmez. Bunun için deponun `.git/hooks` klasörüne
+  küçük bir `prepare-commit-msg` kancası kurulur; iz `.git/tulvez-ai-edits`'te tutulur (depoya girmez,
+  VS Code kapansa da kalır). Commit'e giren ya da geri alınan dosyanın izi silinir; aynı dosya sonra elle
+  değişirse satır eklenmez. Depoda başka bir kanca ya da `core.hooksPath` (husky vb.) varsa ona dokunulmaz,
+  satır mesaj kutusuna yazılır. Başka ek katkıcılarla (ör. Copilot) aynı ek bloğuna yazılır. Ayar
+  kapatılınca kanca ve iz silinir
 - Yanıt dili: model kendinden birinci tekil şahısla bahseder, sistem istemini ya da modunu
   kullanıcıya aktarmaz (önce "Şu anda Sen Tulvez Code adlı … modundayım" diyebiliyordu)
 - "Hangi moddasın?" sorusuna modunun adıyla yanıt verir (istem her modda modun adını taşır)
