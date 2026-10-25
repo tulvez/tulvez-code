@@ -172,3 +172,23 @@ describe('list_dir', () => {
     expect(out).toContain('iç.txt');
   });
 });
+describe('web_fetch', () => {
+  it('HTML okunur metne çevrilir; betik, stil ve yorum atılır', async () => {
+    const { htmlToText } = await import('../services/tools');
+    const t = htmlToText('<html><head><style>p{}</style><script>alert(1)</script></head><body><h1>Başlık</h1><!-- not --><p>Bir &amp; iki &#8211; &uuml;&#x131;</p><ul><li>a</li><li>b</li></ul></body></html>');
+    expect(t).toBe('# Başlık\n\nBir & iki – &uuml;ı\n\n- a\n- b');
+  });
+
+  it('yerel sunucudan sayfa indirir; geçersiz ve http dışı adres reddedilir', async () => {
+    const http = await import('http');
+    const server = http.createServer((_q, r) => { r.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); r.end('<title>Deneme</title><p>Merhaba dünya</p>'); });
+    await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+    const port = (server.address() as { port: number }).port;
+    const out = await executeTool('web_fetch', { url: `http://127.0.0.1:${port}/x` }, false);
+    server.close();
+    expect(out).toContain('— Deneme (HTTP 200)');
+    expect(out).toContain('Merhaba dünya');
+    expect(await executeTool('web_fetch', { url: 'file:///etc/passwd' }, false)).toMatch(/yalnız http/);
+    expect(await executeTool('web_fetch', { url: 'abc' }, false)).toMatch(/geçersiz adres/);
+  });
+});

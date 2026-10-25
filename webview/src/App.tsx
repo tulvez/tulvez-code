@@ -15,7 +15,7 @@ import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   ArrowDown, ArrowUp, Brain, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy,
   FolderOpen, Hammer, Lightbulb, MessageSquare, RotateCcw, Save, Search, Settings, Undo2,
-  Square, SquarePen, Terminal, Trash2, X, Zap, FileText, FilePen, FolderTree, Ban, LoaderCircle, Circle, ListChecks,
+  Square, SquarePen, Terminal, Trash2, X, Zap, FileText, FilePen, FolderTree, Ban, LoaderCircle, Circle, ListChecks, Globe,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -350,6 +350,7 @@ const TOOL_INFO: Record<string, { label: string; busy: string; icon: ReactNode }
   list_dir:        { label: 'Listelendi', busy: 'Listeleniyor', icon: <FolderTree size={12} /> },
   list_files:      { label: 'Listelendi', busy: 'Listeleniyor', icon: <FolderTree size={12} /> },
   stop_background: { label: 'Durduruldu', busy: 'Durduruluyor', icon: <Square size={11} /> },
+  web_fetch:       { label: 'Sayfa okundu', busy: 'Sayfa açılıyor', icon: <Globe size={12} /> },
 };
 
 function formatDuration(ms?: number): string {
