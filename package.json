@@ -179,12 +179,7 @@
         "tulvez.gitCoAuthor": {
           "type": "boolean",
           "default": true,
-          "description": "Copilot gibi: Tulvez Code'un değiştirdiği bir dosya commit'e girerse commit anında ek katkıcı satırı (Co-authored-by: Tulvez Code) eklenir. Commit'in yazarı sen kalırsın; GitHub'da yanında tulvez-code[bot] görünür. Bunun için deponun .git/hooks klasörüne küçük bir prepare-commit-msg kancası kurulur (depoya girmez); depoda başka kanca ya da core.hooksPath varsa ona dokunulmaz, satır mesaj kutusuna yazılır. Kapatınca kanca silinir. Git kimliğine dokunulmaz."
-        },
-        "tulvez.gitBotAuthor": {
-          "type": "boolean",
-          "default": false,
-          "description": "Copilot gibi: Tulvez Code commit'i kendisi attığında (ajanın çalıştırdığı git commit) commit'in yazarı Tulvez Code olur, sen ek katkıcı olarak eklenirsin; böylece GitHub'da deponun katkıcılar listesinde tulvez-code[bot] görünür. Senin attığın commit'ler değişmez. Git ayarlarına dokunulmaz; kimlik yalnız o komut için verilir."
+          "description": "Copilot gibi: Tulvez Code'un değiştirdiği bir dosya commit'e girerse commit anında ek katkıcı satırı (Co-authored-by: Tulvez Code) eklenir. Commit'in yazarı sen kalırsın; commit'i Tulvez kendisi atarsa yazar Tulvez Code olur, sen ek katkıcı olursun. Kapatınca Tulvez hiçbir commit'te görünmez; GitHub'da yanında tulvez-code[bot] görünür. Bunun için deponun .git/hooks klasörüne küçük bir prepare-commit-msg kancası kurulur (depoya girmez); depoda başka kanca ya da core.hooksPath varsa ona dokunulmaz, satır mesaj kutusuna yazılır. Kapatınca kanca silinir. Git kimliğine dokunulmaz."
         },
         "tulvez.allowShellCommands": {
           "type": "boolean",

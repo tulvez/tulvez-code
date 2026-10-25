@@ -13,8 +13,6 @@ export interface TulvezSettings {
   showThinking: boolean;
   /** Tulvez Code'un attığı commit'lere ek katkıcı (Co-authored-by) satırı ekle */
   gitCoAuthor: boolean;
-  /** Tulvez commit'i kendisi atınca yazar Tulvez Code olsun (kullanıcı ek katkıcı) */
-  gitBotAuthor?: boolean;
 }
 
 /** VS Code başlık çubuğu düğmelerinin webview'a ilettiği komutlar */

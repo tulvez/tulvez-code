@@ -75,7 +75,6 @@ export function activate(context: vscode.ExtensionContext): void {
       showModels: cfg.get('showModels') ?? false,
       showThinking: cfg.get('showThinking') ?? true,
       gitCoAuthor: cfg.get('gitCoAuthor') ?? true,
-      gitBotAuthor: cfg.get('gitBotAuthor') ?? false,
     };
   };
 
@@ -93,7 +92,6 @@ export function activate(context: vscode.ExtensionContext): void {
     await cfg.update('showModels', settings.showModels ?? false, vscode.ConfigurationTarget.Global);
     await cfg.update('showThinking', settings.showThinking ?? true, vscode.ConfigurationTarget.Global);
     await cfg.update('gitCoAuthor', settings.gitCoAuthor ?? true, vscode.ConfigurationTarget.Global);
-    await cfg.update('gitBotAuthor', settings.gitBotAuthor ?? false, vscode.ConfigurationTarget.Global);
     if (settings.apiKey) {
       await context.secrets.store(secretKeyFor(settings.aiProvider), settings.apiKey);
     } else {

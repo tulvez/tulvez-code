@@ -44,15 +44,15 @@ afterEach(() => {
 });
 
 describe('ajanın kendi attığı commit', () => {
-  it('varsayılan: yazar kullanıcı, Tulvez Code ek katkıcı', async () => {
-    setConfig({});
+  it('ek katkıcı ayarı kapalıysa komuta dokunulmaz: yazar kullanıcı, satır yok', async () => {
+    setConfig({ gitCoAuthor: false });
     await runAsAgent('git commit -m "feat: ajan"');
     expect(git('log', '-1', '--format=%an <%ae>').trim()).toBe('Deniz Yılmaz <deniz@example.com>');
-    expect(git('log', '-1', '--format=%B').trim()).toBe(`feat: ajan\n\n${CO_AUTHOR_TRAILER}`);
+    expect(git('log', '-1', '--format=%B').trim()).toBe('feat: ajan');
   });
 
-  it('gitBotAuthor açık: yazar Tulvez Code, kullanıcı ek katkıcı (Copilot gibi); git ayarı değişmez', async () => {
-    setConfig({ gitBotAuthor: true });
+  it('yazar Tulvez Code, kullanıcı ek katkıcı (Copilot gibi); git ayarı değişmez', async () => {
+    setConfig({});
     await runAsAgent('git commit -m "feat: ajan"');
     expect(git('log', '-1', '--format=%an <%ae>').trim()).toBe(`Tulvez Code <${BOT_EMAIL}>`);
     expect(git('log', '-1', '--format=%cn <%ce>').trim()).toBe('Deniz Yılmaz <deniz@example.com>');
@@ -60,8 +60,8 @@ describe('ajanın kendi attığı commit', () => {
     expect(git('config', 'user.name').trim()).toBe('Deniz Yılmaz');
   });
 
-  it('gitBotAuthor açık + kanca kurulu: bot yazar olduğu için bot ek katkıcı olarak eklenmez', async () => {
-    setConfig({ gitBotAuthor: true });
+  it('kanca kurulu: bot yazar olduğu için bot ek katkıcı olarak eklenmez', async () => {
+    setConfig({});
     const paths = (await hook.repoPaths(dir))!;
     expect(await hook.installHook(paths)).toBe(true);
     await hook.addToList(paths, path.join(dir, 'a.txt'));
@@ -72,7 +72,7 @@ describe('ajanın kendi attığı commit', () => {
   });
 
   it('commit olmayan komutlara dokunulmaz', async () => {
-    setConfig({ gitBotAuthor: true });
+    setConfig({});
     expect(await agentCommand('git status', dir)).toEqual({ command: 'git status' });
   });
 });

@@ -41,7 +41,6 @@ const DEFAULT: TulvezSettings = {
   telemetry: false, sendCodeContext: false,
   showAiEdits: true, showModels: false, showThinking: true,
   gitCoAuthor: true,
-  gitBotAuthor: false,
 };
 
 interface ProviderDef { id: TulvezSettings['aiProvider']; label: string; hint: string; icon: LucideIcon; keyHint?: string }
@@ -528,8 +527,6 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
           control={<Switch label="Seçili kodu gönder" checked={cfg.sendCodeContext} onChange={(x) => apply({ sendCodeContext: x })} />} />
         <Row title="GitHub'da ek katkıcı" desc="Commit'lerde yanında tulvez-code[bot] görünür"
           control={<Switch label="GitHub'da ek katkıcı" checked={cfg.gitCoAuthor} onChange={(x) => apply({ gitCoAuthor: x })} />} />
-        <Row title="Kendi commit'inde yazar Tulvez" desc="Tulvez commit'i kendisi atınca yazar Tulvez Code olur, sen ek katkıcı olursun; GitHub katkıcılar listesinde görünür"
-          control={<Switch label="Kendi commit'inde yazar Tulvez" checked={!!cfg.gitBotAuthor} onChange={(x) => apply({ gitBotAuthor: x })} />} />
       </Section>
 
       <Section title="Skills">

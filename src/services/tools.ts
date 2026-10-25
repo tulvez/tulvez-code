@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { z } from 'zod';
-import { BOT_AUTHOR_ENV, addCoAuthorToCommand, addUserCoAuthorToCommand, isCommitCommand, readIdentity } from './gitIdentity';
+import { BOT_AUTHOR_ENV, addUserCoAuthorToCommand, isCommitCommand, readIdentity } from './gitIdentity';
 
 export interface ToolDefinition {
   name: string;
@@ -27,20 +27,16 @@ export function shellInvocation(command: string): { file: string; args: string[]
 }
 
 /**
- * Ajanın çalıştırdığı komut. İçinde `git commit` varsa:
- * - `tulvez.gitBotAuthor` açıksa commit'i Tulvez Code kendisi attığı için yazar Tulvez Code
- *   olur (yalnız bu komutun ortamında; git ayarlarına dokunulmaz), kullanıcı ek katkıcı
- *   olarak eklenir — Copilot'un kendi attığı commit'lerdeki gibi.
- * - değilse yazar kullanıcı kalır, Tulvez Code ek katkıcı olarak eklenir (`tulvez.gitCoAuthor`).
+ * Ajanın çalıştırdığı komut. İçinde `git commit` varsa commit'i Tulvez Code kendisi
+ * atıyordur: yazar Tulvez Code olur (yalnız bu komutun ortamında; git ayarlarına
+ * dokunulmaz, commit'i işleyen kullanıcı kalır) ve kullanıcı ek katkıcı olarak eklenir —
+ * Copilot'un kendi attığı commit'lerdeki gibi. `tulvez.gitCoAuthor` kapalıysa komuta dokunulmaz.
  */
 export async function agentCommand(raw: string, cwd?: string): Promise<{ command: string; env?: NodeJS.ProcessEnv }> {
-  const cfg = vscode.workspace.getConfiguration('tulvez');
   if (!isCommitCommand(raw)) return { command: raw };
-  if (cfg.get<boolean>('gitBotAuthor', false)) {
-    const user = cwd ? await readIdentity(cwd).catch(() => null) : null;
-    return { command: addUserCoAuthorToCommand(raw, user), env: { ...process.env, ...BOT_AUTHOR_ENV } };
-  }
-  return { command: cfg.get<boolean>('gitCoAuthor', true) ? addCoAuthorToCommand(raw) : raw };
+  if (!vscode.workspace.getConfiguration('tulvez').get<boolean>('gitCoAuthor', true)) return { command: raw };
+  const user = cwd ? await readIdentity(cwd).catch(() => null) : null;
+  return { command: addUserCoAuthorToCommand(raw, user), env: { ...process.env, ...BOT_AUTHOR_ENV } };
 }
 
 

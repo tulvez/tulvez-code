@@ -26,10 +26,11 @@ Arayüz sıfırdan yeniden tasarlandı (Tulvez Noir). Eklentinin davranışı de
 - `/commit`: commit mesajı kartı ve "Commit at" düğmesi kaldırıldı. Ajan değişikliklere bakar,
   gerekirse `git add` yapar ve `git commit`i kendisi çalıştırır; komut her zamanki gibi izin ister.
   Push yapmaz
-- Copilot gibi, ajanın kendi commit'i (ayar, varsayılan kapalı: `tulvez.gitBotAuthor`): Tulvez commit'i
-  kendisi atınca yazar Tulvez Code olur, kullanıcı `Co-authored-by` ile eklenir; böylece GitHub'da deponun
-  katkıcılar listesinde tulvez-code[bot] görünür. Kimlik yalnız o komutun ortamında verilir, git ayarına
-  dokunulmaz; commit'i atan (committer) kullanıcı kalır. Kullanıcının kendi commit'leri değişmez
+- Copilot gibi, ajanın kendi commit'i: Tulvez commit'i kendisi atınca yazar Tulvez Code olur, kullanıcı
+  `Co-authored-by` ile eklenir; böylece GitHub'da deponun katkıcılar listesinde tulvez-code[bot] görünür.
+  Ayrı bir ayarı yok; "GitHub'da ek katkıcı" kapatılırsa Tulvez hiçbir commit'te görünmez. Kimlik yalnız
+  o komutun ortamında verilir, git ayarına dokunulmaz; commit'i işleyen (committer) kullanıcı kalır.
+  Kullanıcının kendi commit'leri değişmez
 - Odak halkası hiçbir öğede yok
 - Geçmiş: arama kutusu, Bugün / Dün / Bu hafta / Daha eski grupları
 - Ayarlar sıfırdan: VS Code ayarları düzeni — arama, bölümler (Sağlayıcı, Model,
