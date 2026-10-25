@@ -4,7 +4,7 @@ import { vscode } from '../services/vscode';
 import type { TulvezSettings } from '../types';
 import {
   AlertTriangle, Bot, Boxes, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Eye, EyeOff,
-  Download, FileText, Gem, Home, Loader2, RefreshCw, Server, Sparkles, Trash2, Upload, Zap,
+  Download, FileText, Gem, Home, Loader2, Plug, RefreshCw, Server, Sparkles, Trash2, Upload, Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -24,6 +24,8 @@ interface Props {
 }
 
 interface Quota { model: string; retryAt?: number }
+interface McpServer { name: string; source: 'user' | 'project'; state: 'connected' | 'error' | 'disabled' | 'pending'; tools: number; error?: string }
+interface McpState { loading: boolean; servers: McpServer[]; pendingProject: string[] }
 interface SkillStatus { exists: boolean; path: string; skills: string[] }
 interface RegistryState {
   loading: boolean;
@@ -126,6 +128,7 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
   const [quotas, setQuotas] = useState<Quota[]>([]);
   const [skills, setSkills] = useState<SkillStatus | null>(null);
   const [registry, setRegistry] = useState<RegistryState>({ loading: true, source: '', skills: [], installed: [] });
+  const [mcp, setMcp] = useState<McpState>({ loading: true, servers: [], pendingProject: [] });
 
   const cfgRef = useRef<TulvezSettings>(DEFAULT);
   const saveTimer = useRef<number | null>(null);
@@ -204,6 +207,10 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
         setSkills(data as unknown as SkillStatus);
         return;
       }
+      if (data?.type === 'mcpStatus') {
+        setMcp({ loading: false, servers: (data.servers as McpServer[]) ?? [], pendingProject: (data.pendingProject as string[]) ?? [] });
+        return;
+      }
       if (data?.type === 'skillsRegistry') {
         setRegistry({ ...(data as unknown as Omit<RegistryState, 'loading'>), loading: false, busy: undefined });
         vscode.postMessage({ type: 'getSkills' });
@@ -221,6 +228,7 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
     vscode.postMessage({ type: 'getSettings' });
     vscode.postMessage({ type: 'getSkills' });
     vscode.postMessage({ type: 'getSkillsRegistry' });
+    vscode.postMessage({ type: 'getMcpStatus' });
 
     return () => {
       window.removeEventListener('message', handler);
@@ -558,6 +566,36 @@ export function SettingsPage({ onBack, onModelChange, models: initialModels }: P
           control={<Switch label="Seçili kodu gönder" checked={cfg.sendCodeContext} onChange={(x) => apply({ sendCodeContext: x })} />} />
         <Row title="GitHub'da ek katkıcı" desc="Commit'lerde yanında tulvez-code[bot] görünür"
           control={<Switch label="GitHub'da ek katkıcı" checked={cfg.gitCoAuthor} onChange={(x) => apply({ gitCoAuthor: x })} />} />
+      </Section>
+
+      <Section title="MCP sunucuları">
+        {mcp.servers.length === 0 && !mcp.loading && (
+          <Row title="Bağlı sunucu yok"
+            desc="MCP ile Tulvez Code'a dış araçlar eklersin (veritabanı, GitHub, tarayıcı…). Araçlar Build modunda, onayla çalışır." />
+        )}
+        {mcp.loading && <Row title="Bağlanıyor…" control={<Loader2 size={13} className="spin" />} />}
+        {mcp.servers.map((srv) => (
+          <Row key={srv.name}
+            title={<><Plug size={12} style={{ marginRight: 6, verticalAlign: '-1px' }} />{srv.name}{srv.source === 'project' && <span className="cx-ver">proje</span>}</>}
+            desc={srv.state === 'connected' ? `Bağlı · ${srv.tools} araç`
+              : srv.state === 'disabled' ? 'Kapalı (disabled)'
+                : srv.state === 'pending' ? 'Bağlanıyor…'
+                  : `Bağlanamadı: ${srv.error ?? 'bilinmeyen hata'}`} />
+        ))}
+        {mcp.pendingProject.length > 0 && (
+          <Row title={`Projede ${mcp.pendingProject.length} sunucu izin bekliyor`} desc={`.mcp.json: ${mcp.pendingProject.join(', ')}`}
+            control={<button className="cx-btn" type="button" onClick={() => { setMcp((m) => ({ ...m, loading: true })); vscode.postMessage({ type: 'reconnectMcp' }); }}>İzin ver…</button>} />
+        )}
+        <Row title="Sunucuları düzenle" desc="settings.json → tulvez.mcpServers (Claude Code / Cursor biçimi)"
+          control={(
+            <>
+              <button className="cx-btn" type="button" title="Yeniden bağlan" aria-label="Yeniden bağlan" disabled={mcp.loading}
+                onClick={() => { setMcp((m) => ({ ...m, loading: true })); vscode.postMessage({ type: 'reconnectMcp' }); }}>
+                <RefreshCw size={12} className={mcp.loading ? 'spin' : ''} />
+              </button>
+              <button className="cx-btn" type="button" onClick={() => vscode.postMessage({ type: 'openMcpSettings' })}>Düzenle</button>
+            </>
+          )} />
       </Section>
 
       <Section title="Skills">

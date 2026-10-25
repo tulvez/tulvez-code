@@ -30,6 +30,9 @@ export type WebviewToHostMessage =
   | { type: 'exportSkill'; id: string }
   | { type: 'undoCheckpoint'; id: string }
   | { type: 'findFiles'; query: string }
+  | { type: 'getMcpStatus' }
+  | { type: 'reconnectMcp' }
+  | { type: 'openMcpSettings' }
   | { type: 'openFolder' }
   | { type: 'sendMessage'; text: string; mode: 'ask' | 'plan' | 'build'; history: { role: 'user' | 'assistant'; text: string }[]; model?: string; sessionId?: string; turns?: number }
   | { type: 'slash'; name: 'commit' | 'review' | 'diff' | 'explain' | 'skill'; arg?: string; mode: 'ask' | 'plan' | 'build'; sessionId?: string; turns?: number }
@@ -70,6 +73,7 @@ export type HostToWebviewMessage =
   | { type: 'modelsList'; models: string[]; error?: string }
   | { type: 'quotaInfo'; model: string; retryAt?: number; limited: boolean }
   | { type: 'cancelled' }
+  | { type: 'mcpStatus'; servers: { name: string; source: 'user' | 'project'; state: 'connected' | 'error' | 'disabled' | 'pending'; tools: number; error?: string }[]; pendingProject: string[] }
   | { type: 'todos'; items: { content: string; status: 'pending' | 'in_progress' | 'completed' }[] }
   | { type: 'fileMatches'; query: string; files: string[] }
   | { type: 'checkpoint'; id: string; files: string[] }

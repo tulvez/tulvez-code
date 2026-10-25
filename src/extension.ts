@@ -12,12 +12,17 @@ import { runAgent, invalidateRepoMap } from './services/agent';
 import { getConversation, saveConversation } from './services/conversation';
 import { beginCheckpoint, endCheckpoint, undoCheckpoint } from './services/checkpoint';
 import { mentionContext } from './services/mentions';
+import { McpManager, parseMcpServers, projectApprovalKey, readProjectMcp, type McpServerEntry } from './services/mcp';
 import { aiEditHooks, aiLineCountForActiveEditor, forgetAiEdits, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
 import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
 import { listProviderModels } from './services/models';
 import { isBotIdentity, readIdentity, removeBotIdentity, repoRoot, withCoAuthor } from './services/gitIdentity';
 import { activateCoAuthorScm, noteAiEdit } from './services/coAuthorScm';
 import { exportLocalSkill, githubOwner, importLocalSkills, localSkills, removeLocalSkill, setSkillsRoot, syncOrgSkills, type SyncResult } from './services/orgSkills';
+
+const MCP_APPROVED_KEY = 'tulvez.mcp.projectApproved';
+// deactivate'te kapatılır (stdio sunucu süreçleri eklentiyle birlikte biter)
+let mcpManager: McpManager | null = null;
 
 const SKILLS_DISABLED_KEY = 'tulvez.skills.disabled';
 const SKILLS_SYNCED_KEY = 'tulvez.skills.syncedAt';
@@ -26,6 +31,30 @@ const SKILLS_SYNC_EVERY_MS = 12 * 60 * 60 * 1000;
 export function activate(context: vscode.ExtensionContext): void {
   initDevLog(context);
   devLog('activate başladı');
+  const mcp = new McpManager((m) => devLog(m));
+  mcpManager = mcp;
+  // Bu oturumda reddedilen proje sunucuları yeniden sorulmaz (her mesajda soru çıkmasın)
+  let mcpDeniedKey = '';
+  const mcpEntries = async (askForProject: boolean): Promise<McpServerEntry[]> => {
+    const user = parseMcpServers(vscode.workspace.getConfiguration('tulvez').get('mcpServers'), 'user');
+    const project = readProjectMcp(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
+    if (!project.length) return user;
+    const key = projectApprovalKey(project);
+    if (context.workspaceState.get<string>(MCP_APPROVED_KEY) === key) return [...user, ...project];
+    if (!askForProject || mcpDeniedKey === key) return user;
+    const list = project.map((e) => `• ${e.name}: ${e.config.command ? [e.config.command, ...(e.config.args ?? [])].join(' ') : e.config.url}`).join('\n');
+    const pick = await vscode.window.showWarningMessage(
+      'Bu proje MCP sunucuları çalıştırmak istiyor (.mcp.json). Yalnız güvendiğin projelerde izin ver: bu komutlar bilgisayarında çalışır.',
+      { modal: true, detail: list }, 'İzin ver',
+    );
+    if (pick === 'İzin ver') {
+      await context.workspaceState.update(MCP_APPROVED_KEY, key);
+      return [...user, ...project];
+    }
+    mcpDeniedKey = key;
+    return user;
+  };
+
   const skillsRoot = vscode.Uri.joinPath(context.globalStorageUri, 'skills').fsPath;
   setSkillsRoot(skillsRoot);
 
@@ -140,10 +169,17 @@ export function activate(context: vscode.ExtensionContext): void {
   ): Promise<void> => {
     // Sohbet hafızası: tur sayısı tutuyorsa önceki turların araç sonuçları da modele gider
     const turns = session?.turns ?? 0;
-    const memory = session?.sessionId ? {
-      prior: getConversation(session.sessionId, turns),
-      onConversation: (msgs: import('ai').ModelMessage[]) => saveConversation(session.sessionId, turns + 1, msgs),
-    } : undefined;
+    // MCP araçları yalnız Build modunda; bağlanamayan sunucu işi durdurmaz (Ayarlar'da hata görünür)
+    const mcpTools = mode === 'build'
+      ? await mcp.toolsFor(await mcpEntries(true), vscode.workspace.workspaceFolders?.[0]?.uri.fsPath).catch(() => [])
+      : [];
+    const memory = {
+      prior: session?.sessionId ? getConversation(session.sessionId, turns) : null,
+      onConversation: session?.sessionId
+        ? (msgs: import('ai').ModelMessage[]) => saveConversation(session.sessionId, turns + 1, msgs)
+        : undefined,
+      mcpTools,
+    };
     activeAbort?.abort();
     activeAbort = new AbortController();
     // Bu yanıtta yazılan dosyalar için geri alma noktası; yanıt nasıl biterse bitsin arayüze bildirilir
@@ -235,6 +271,25 @@ export function activate(context: vscode.ExtensionContext): void {
     webview: vscode.Webview,
     message: WebviewToHostMessage,
   ): Promise<void> => {
+    if (message.type === 'getMcpStatus' || message.type === 'reconnectMcp') {
+      const entries = await mcpEntries(message.type === 'reconnectMcp');
+      const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (message.type === 'reconnectMcp') await mcp.reconnect(entries, root);
+      else await mcp.toolsFor(entries, root);
+      const pendingProject = readProjectMcp(root).filter((p) => !entries.some((e) => e.source === 'project' && e.name === p.name));
+      await webview.postMessage({
+        type: 'mcpStatus',
+        servers: mcp.getStatus(),
+        pendingProject: pendingProject.map((p) => p.name),
+      } satisfies HostToWebviewMessage);
+      return;
+    }
+
+    if (message.type === 'openMcpSettings') {
+      await vscode.commands.executeCommand('workbench.action.openSettingsJson', { revealSetting: { key: 'tulvez.mcpServers', edit: true } });
+      return;
+    }
+
     if (message.type === 'findFiles') {
       // @ menüsü: adında yazılan metin geçen dosyalar (gizli klasörler ve bağımlılıklar hariç)
       const q = message.query.replace(/[\\[\]{}*?!]/g, '');
@@ -788,8 +843,9 @@ async function migrateBotIdentity(context: vscode.ExtensionContext): Promise<voi
   }
 }
 
-export function deactivate(): void {
+export function deactivate(): Promise<void> | void {
   devLog('deactivate (eklenti kapanıyor)');
+  return mcpManager?.close();
 }
 
 class TulvezSidebarProvider implements vscode.WebviewViewProvider {

@@ -10,6 +10,7 @@ import { resolveModel } from './providers';
 import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
 import { compactConversation, withoutReasoning } from './conversation';
 import { recordBefore } from './checkpoint';
+import type { McpTool } from './mcp';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -104,8 +105,36 @@ function buildToolSet(
   settings: TulvezSettings,
   defs: typeof TOOL_DEFINITIONS,
   cb: AgentCallbacks,
+  mcpTools: McpTool[] = [],
 ): ToolSet {
   const tools: ToolSet = {};
+  // MCP araçları: ne yaptıkları bilinmediği için her çağrı onaylıdır (Tam erişim hariç)
+  for (const t of mcpTools) {
+    tools[t.name] = {
+      description: t.description,
+      inputSchema: t.inputSchema as ToolSet[string]['inputSchema'],
+      execute: async (args: Record<string, unknown>, options?: { abortSignal?: AbortSignal }) => {
+        const callId = nextToolReqId();
+        cb.onToolCall(t.name, JSON.stringify(args).slice(0, 120), callId);
+        if (!settings.autoApproveCommands) {
+          const allowed = await cb.onToolRequest(nextToolReqId(), t.name, JSON.stringify(args, null, 2).slice(0, 2000));
+          if (!allowed) {
+            cb.onToolResult?.({ callId, tool: t.name, output: 'Kullanıcı aracı reddetti.', status: 'rejected' });
+            return 'Kullanıcı aracı reddetti.';
+          }
+        }
+        try {
+          const out = await t.execute(args, options?.abortSignal);
+          cb.onToolResult?.({ callId, tool: t.name, output: previewOutput(out), status: /^Hata\b/.test(out) ? 'error' : 'ok' });
+          return applyBudget(out);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          cb.onToolResult?.({ callId, tool: t.name, output: message, status: 'error' });
+          return `Hata: ${message}`;
+        }
+      },
+    } as ToolSet[string];
+  }
   for (const def of defs) {
     tools[def.name] = {
       description: def.description,
@@ -160,11 +189,13 @@ function buildToolSet(
 /** Tek istekte en çok adım (araç çağrısı + yanıt). Durdur her an keser. */
 export const MAX_STEPS = 50;
 
-export interface AgentMemory {
+export interface AgentOptions {
   /** Önceki turların tam konuşması (araç sonuçları dahil); yoksa düz metin geçmişi kullanılır. */
   prior?: ModelMessage[] | null;
   /** Tur başarıyla bitince bu turla birlikte güncel konuşma. */
   onConversation?: (messages: ModelMessage[]) => void;
+  /** Bağlı MCP sunucularının araçları (yalnız Build modunda verilir). */
+  mcpTools?: McpTool[];
 }
 
 export async function runAgent(
@@ -174,7 +205,7 @@ export async function runAgent(
   history: ChatTurn[],
   callbacks: AgentCallbacks,
   signal?: AbortSignal,
-  memory?: AgentMemory,
+  memory?: AgentOptions,
 ): Promise<void> {
   if (settings.aiProvider === 'custom' && !settings.baseUrl) {
     callbacks.onError('Base URL boş. Ayarlar\'dan OpenAI uyumlu endpoint adresini girin.');
@@ -226,7 +257,7 @@ export async function runAgent(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     chunkSeen = false;
     try {
-      const tools = buildToolSet(settings, allowed, cb);
+      const tools = buildToolSet(settings, allowed, cb, mode === 'build' && !trivial ? memory?.mcpTools : []);
       const result = streamText({
         model: resolved.model,
         system,
