@@ -1,7 +1,14 @@
 # Changelog
 
-## Yayınlanmadı
+## 0.2.5
 
+- Yeni — `/skill` (ya da `/skills`) yazınca kurulu beceriler açıklamalarıyla listelenir; yazdıkça
+  süzülür, ok tuşları ve Enter/Tab ile seçilir. `/skill <ad> <isteğin>` biçimi de çalışır: beceri,
+  isteğinle birlikte başlar
+- Yeni — `/` menüsü yazdıkça süzülür ve klavyeyle gezilir (önceden yalnız tek başına "/" yazınca açılıyordu)
+- Yeni — Ayarlar → Skills: kurulu bir beceriyi bilgisayara indir (klasör olarak) ya da bilgisayardan
+  beceri yükle (içinde SKILL.md olan klasör ya da tek .md dosyası). Yüklenen beceri her projede çalışır
+  ve aynı adlı GitHub becerisi onu ezmez
 - Düzeltme — ayar dosyasında eski beceri deposu adresi (tulvez-code-skills, hiç yayımlanmadı) kayıtlı
   kalmışsa Ayarlar → Skills "404" gösteriyordu; bu adres artık yeni varsayılana (github.com/tulvez) çevrilir
 
