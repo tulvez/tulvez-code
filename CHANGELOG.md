@@ -20,8 +20,16 @@ Arayüz sıfırdan yeniden tasarlandı (Tulvez Noir). Eklentinin davranışı de
   bağlam doluluk çubuğu
 - Model adları sade: `deepseek/deepseek-v4.1-flash:free` → "DeepSeek v4.1 Flash",
   `claude-opus-5-5-…` → "Opus 5.5". Ham kimlik menüde ve ipucunda durur
-- Komut / araç / commit onayları giriş kutusunun üstünde tek tip kart; birincil
-  eylem pirinç
+- Komut ve araç onayları giriş kutusunun üstünde tek tip kart: "İzin ver", "Her zaman izin ver",
+  "Reddet". "Her zaman izin ver" bundan sonraki bütün izinleri sorulmadan verir (çalışan yanıtın
+  sıradaki komutları dahil); Ayarlar → İzinler'den "Onaylı"ya alınarak geri açılır
+- `/commit`: commit mesajı kartı ve "Commit at" düğmesi kaldırıldı. Ajan değişikliklere bakar,
+  gerekirse `git add` yapar ve `git commit`i kendisi çalıştırır; komut her zamanki gibi izin ister.
+  Push yapmaz
+- Copilot gibi, ajanın kendi commit'i (ayar, varsayılan kapalı: `tulvez.gitBotAuthor`): Tulvez commit'i
+  kendisi atınca yazar Tulvez Code olur, kullanıcı `Co-authored-by` ile eklenir; böylece GitHub'da deponun
+  katkıcılar listesinde tulvez-code[bot] görünür. Kimlik yalnız o komutun ortamında verilir, git ayarına
+  dokunulmaz; commit'i atan (committer) kullanıcı kalır. Kullanıcının kendi commit'leri değişmez
 - Odak halkası hiçbir öğede yok
 - Geçmiş: arama kutusu, Bugün / Dün / Bu hafta / Daha eski grupları
 - Ayarlar sıfırdan: VS Code ayarları düzeni — arama, bölümler (Sağlayıcı, Model,

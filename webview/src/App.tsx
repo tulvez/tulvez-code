@@ -13,7 +13,7 @@ import { vscode } from './services/vscode';
 import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
   ArrowDown, ArrowUp, Brain, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy,
-  FolderOpen, GitCommit, Hammer, Lightbulb, MessageSquare, RotateCcw, Save, Search, Settings,
+  FolderOpen, Hammer, Lightbulb, MessageSquare, RotateCcw, Save, Search, Settings,
   Square, SquarePen, Terminal, Trash2, X, Zap, FileText, FilePen, FolderTree, Ban, LoaderCircle,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -66,7 +66,7 @@ const MODES: { id: AgentMode; label: string; sublabel: string; icon: ReactNode; 
 const SLASH_COMMANDS = [
   { cmd: '/run',     hint: 'Terminal komutu çalıştır' },
   { cmd: '/review',  hint: 'Kod incelemesi yap' },
-  { cmd: '/commit',  hint: 'Commit mesajı oluştur' },
+  { cmd: '/commit',  hint: "Değişiklikleri commit'le" },
   { cmd: '/diff',    hint: 'Git değişikliklerini göster' },
   { cmd: '/explain', hint: 'Seçili kodu açıkla' },
   { cmd: '/skill',   hint: 'code_skills.md içindeki bir skill çalıştır' },
@@ -577,7 +577,6 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<Page>('chat');
   const [slashOpen, setSlashOpen] = useState(false);
   const [waiting, setWaiting] = useState(false);
-  const [commitCard, setCommitCard] = useState<{ text: string; staged: boolean } | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [historyQuery, setHistoryQuery] = useState('');
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -876,14 +875,6 @@ export function App(): JSX.Element {
           setMessages((prev) => prev.map((m) => (m.id === sid ? { ...m, stopped: true } : m)));
           streamingIdRef.current = null;
         }
-      } else if (msg.type === 'commitMessage') {
-        setCommitCard({ text: msg.text, staged: msg.staged });
-      } else if (msg.type === 'commitResult') {
-        setMessages((prev) => [...prev, {
-          id: nextId.current++, role: 'command',
-          text: msg.output, exitCode: msg.exitCode,
-        }]);
-        if (msg.exitCode === 0) setCommitCard(null);
       } else if (msg.type === 'systemNotice') {
         flushStream();
         setMessages((prev) => [...prev, {
@@ -1047,9 +1038,11 @@ export function App(): JSX.Element {
     setRunConfirm(null);
   };
 
-  const answerTool = (approved: boolean) => {
+  // always: "Her zaman izin ver" — bundan sonraki izinler sorulmaz (Ayarlar → İzinler'den geri alınır)
+  const answerTool = (approved: boolean, always = false) => {
     if (!toolApproval) return;
-    vscode.postMessage({ type: 'toolApproval', id: toolApproval.id, approved });
+    vscode.postMessage({ type: 'toolApproval', id: toolApproval.id, approved, always });
+    if (always && settings) setSettings({ ...settings, autoApproveCommands: true, allowShellCommands: true });
     setToolApproval(null);
   };
 
@@ -1334,36 +1327,11 @@ export function App(): JSX.Element {
               <Check size={12} /> Çalıştır
             </button>
             <button className="tz-btn tz-btn-ghost tz-btn-sm" type="button" onClick={() => approveRun(true)}>
-              Sürekli onayla
+              Her zaman izin ver
             </button>
             <button className="tz-btn tz-btn-quiet tz-btn-sm" type="button" onClick={() => setRunConfirm(null)}>
               İptal
             </button>
-          </div>
-        </div>
-      )}
-
-      {commitCard && (
-        <div className="tz-ask">
-          <div className="tz-ask-head">
-            <GitCommit size={12} />
-            <span className="tz-ask-kicker">COMMIT MESAJI{commitCard.staged ? '' : ' · AŞAMALI DEĞİL'}</span>
-            <button className="tz-ghost-icon" type="button" title="Kapat" onClick={() => setCommitCard(null)}><X size={12} /></button>
-          </div>
-          <code className="tz-ask-code tz-ask-code-wrap">{commitCard.text}</code>
-          <div className="tz-ask-actions">
-            <button className="tz-btn tz-btn-primary tz-btn-sm" type="button"
-              onClick={() => {
-                vscode.postMessage({ type: 'applyCommit', message: commitCard.text });
-                setCommitCard(null);
-              }}>
-              <Check size={12} /> Commit at
-            </button>
-            <button className="tz-btn tz-btn-ghost tz-btn-sm" type="button"
-              onClick={() => { void navigator.clipboard.writeText(commitCard.text); }}>
-              <Copy size={12} /> Kopyala
-            </button>
-            <button className="tz-btn tz-btn-quiet tz-btn-sm" type="button" onClick={() => setCommitCard(null)}>Kapat</button>
           </div>
         </div>
       )}
@@ -1379,6 +1347,10 @@ export function App(): JSX.Element {
           <div className="tz-ask-actions">
             <button className="tz-btn tz-btn-primary tz-btn-sm" type="button" onClick={() => answerTool(true)}>
               <Check size={12} /> İzin ver
+            </button>
+            <button className="tz-btn tz-btn-ghost tz-btn-sm" type="button" title="Bundan sonraki izinler sorulmaz; Ayarlar → İzinler'den geri alınır"
+              onClick={() => answerTool(true, true)}>
+              Her zaman izin ver
             </button>
             <button className="tz-btn tz-btn-quiet tz-btn-sm" type="button" onClick={() => answerTool(false)}>
               Reddet
@@ -1564,7 +1536,7 @@ export function App(): JSX.Element {
         )}
       </div>
 
-      {(runConfirm || commitCard || toolApproval) && <div className="tz-dock">{renderDock()}</div>}
+      {(runConfirm || toolApproval) && <div className="tz-dock">{renderDock()}</div>}
       {renderComposer()}
     </>
   );

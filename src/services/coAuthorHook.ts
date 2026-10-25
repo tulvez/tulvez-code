@@ -1,7 +1,7 @@
 import { execFile } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { CO_AUTHOR_TRAILER } from './gitIdentity';
+import { BOT_EMAIL, CO_AUTHOR_TRAILER } from './gitIdentity';
 
 /**
  * Copilot gibi ek katkıcı, commit anında.
@@ -46,6 +46,8 @@ export function hookScript(trailer = CO_AUTHOR_TRAILER): string {
     '[ -s "$list" ] || exit 0',
     '# 30 günden eski liste: eklenti kaldırılmış olabilir, yok sayılır',
     '[ -n "$(find "$list" -mtime -30 2>/dev/null)" ] || exit 0',
+    '# commit\'i Tulvez Code kendisi atıyorsa yazar zaten odur, ek katkıcı eklenmez',
+    `git var GIT_AUTHOR_IDENT 2>/dev/null | grep -qF '<${BOT_EMAIL}>' && exit 0`,
     `grep -qF 'Co-authored-by: ${name} <' "$1" 2>/dev/null && exit 0`,
     'git -c core.quotePath=false diff --cached --name-only 2>/dev/null | grep -qxF -f "$list" || exit 0',
     `git interpret-trailers --in-place --trailer '${trailer}' "$1" 2>/dev/null || true`,

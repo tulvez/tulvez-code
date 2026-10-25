@@ -13,6 +13,8 @@ export interface TulvezSettings {
   showThinking: boolean;
   /** Tulvez Code'un attığı commit'lere ek katkıcı (Co-authored-by) satırı ekle */
   gitCoAuthor: boolean;
+  /** Tulvez commit'i kendisi atınca yazar Tulvez Code olsun (kullanıcı ek katkıcı) */
+  gitBotAuthor?: boolean;
 }
 
 /** VS Code başlık çubuğu düğmelerinin webview'a ilettiği komutlar */
@@ -32,11 +34,10 @@ export type WebviewToHostMessage =
   | { type: 'openSkillsFile' }
   | { type: 'getSkills' }
   | { type: 'openFolder' }
-  | { type: 'toolApproval'; id: string; approved: boolean }
+  | { type: 'toolApproval'; id: string; approved: boolean; always?: boolean }
   | { type: 'listModels' }
   | { type: 'switchProvider'; provider: TulvezSettings['aiProvider'] }
   | { type: 'cancelStream' }
-  | { type: 'applyCommit'; message: string }
   | { type: 'expandSidebar' }
   | { type: 'runCommand'; command: string }
   | { type: 'getSettings' }
@@ -60,8 +61,6 @@ export type HostToWebviewMessage =
   | { type: 'assistantReasoning'; text: string }
   | { type: 'assistantDone'; inputTokens: number; outputTokens: number; costUsd: number; contextWindow?: number; model?: string }
   | { type: 'commandResult'; output: string; exitCode: number }
-  | { type: 'commitResult'; output: string; exitCode: number }
-  | { type: 'commitMessage'; text: string; staged: boolean }
   | { type: 'settingsData'; settings: TulvezSettings }
   | { type: 'toolRequest'; id: string; tool: string; args: string }
   | { type: 'toolCall'; tool: string; summary: string; id?: string }

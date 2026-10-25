@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { z } from 'zod';
-import { addCoAuthorToCommand } from './gitIdentity';
+import { BOT_AUTHOR_ENV, addCoAuthorToCommand, addUserCoAuthorToCommand, isCommitCommand, readIdentity } from './gitIdentity';
 
 export interface ToolDefinition {
   name: string;
@@ -27,12 +27,20 @@ export function shellInvocation(command: string): { file: string; args: string[]
 }
 
 /**
- * Ajanın çalıştırdığı komut. İçinde `git commit` varsa (ayar açıkken) Tulvez Code
- * ek katkıcı olarak eklenir; commit'in yazarı kullanıcı olarak kalır.
+ * Ajanın çalıştırdığı komut. İçinde `git commit` varsa:
+ * - `tulvez.gitBotAuthor` açıksa commit'i Tulvez Code kendisi attığı için yazar Tulvez Code
+ *   olur (yalnız bu komutun ortamında; git ayarlarına dokunulmaz), kullanıcı ek katkıcı
+ *   olarak eklenir — Copilot'un kendi attığı commit'lerdeki gibi.
+ * - değilse yazar kullanıcı kalır, Tulvez Code ek katkıcı olarak eklenir (`tulvez.gitCoAuthor`).
  */
-function agentCommand(raw: string): string {
-  const coAuthor = vscode.workspace.getConfiguration('tulvez').get<boolean>('gitCoAuthor', true);
-  return coAuthor ? addCoAuthorToCommand(raw) : raw;
+export async function agentCommand(raw: string, cwd?: string): Promise<{ command: string; env?: NodeJS.ProcessEnv }> {
+  const cfg = vscode.workspace.getConfiguration('tulvez');
+  if (!isCommitCommand(raw)) return { command: raw };
+  if (cfg.get<boolean>('gitBotAuthor', false)) {
+    const user = cwd ? await readIdentity(cwd).catch(() => null) : null;
+    return { command: addUserCoAuthorToCommand(raw, user), env: { ...process.env, ...BOT_AUTHOR_ENV } };
+  }
+  return { command: cfg.get<boolean>('gitCoAuthor', true) ? addCoAuthorToCommand(raw) : raw };
 }
 
 
@@ -450,10 +458,12 @@ export async function executeTool(
       case 'run_command': {
         if (!allowShell) return 'Hata: Terminal komutları kapalı. Ayarlar\'dan açın.';
         const cwd = workspaceRoot() || undefined;
-        const shell = shellInvocation(agentCommand(String(args.command ?? '')));
+        const run = await agentCommand(String(args.command ?? ''), cwd);
+        const shell = shellInvocation(run.command);
         return await new Promise<string>((resolve) => {
           const child = cp.spawn(shell.file, shell.args, {
             cwd,
+            env: run.env,
             windowsHide: true,
           });
 
@@ -516,9 +526,11 @@ export async function executeTool(
           ? resolvePath(String(args.logFile))
           : path.join(cwd ?? '.', 'tulvez-bg.log');
         const out = fsSync.openSync(logFile, 'a');
-        const bgShell = shellInvocation(agentCommand(String(args.command ?? '')));
+        const bgRun = await agentCommand(String(args.command ?? ''), cwd);
+        const bgShell = shellInvocation(bgRun.command);
         const child = cp.spawn(bgShell.file, bgShell.args, {
           cwd,
+          env: bgRun.env,
           detached: true,
           stdio: ['ignore', out, out],
           windowsHide: true,

@@ -75,6 +75,7 @@ export function activate(context: vscode.ExtensionContext): void {
       showModels: cfg.get('showModels') ?? false,
       showThinking: cfg.get('showThinking') ?? true,
       gitCoAuthor: cfg.get('gitCoAuthor') ?? true,
+      gitBotAuthor: cfg.get('gitBotAuthor') ?? false,
     };
   };
 
@@ -92,6 +93,7 @@ export function activate(context: vscode.ExtensionContext): void {
     await cfg.update('showModels', settings.showModels ?? false, vscode.ConfigurationTarget.Global);
     await cfg.update('showThinking', settings.showThinking ?? true, vscode.ConfigurationTarget.Global);
     await cfg.update('gitCoAuthor', settings.gitCoAuthor ?? true, vscode.ConfigurationTarget.Global);
+    await cfg.update('gitBotAuthor', settings.gitBotAuthor ?? false, vscode.ConfigurationTarget.Global);
     if (settings.apiKey) {
       await context.secrets.store(secretKeyFor(settings.aiProvider), settings.apiKey);
     } else {
@@ -103,8 +105,6 @@ export function activate(context: vscode.ExtensionContext): void {
 
   let activeAbort: AbortController | null = null;
   let lastEditedFile: string | null = null;
-  let lastAssistantText = '';
-  let pendingCommitText = '';
 
   const runAgentFor = async (
     webview: vscode.Webview,
@@ -112,15 +112,12 @@ export function activate(context: vscode.ExtensionContext): void {
     prompt: string,
     mode: 'ask' | 'plan' | 'build',
     history: { role: 'user' | 'assistant'; text: string }[],
-    opts: { commitMessage?: { staged: boolean } } = {},
   ): Promise<void> => {
-    const commitMessage = opts.commitMessage;
     activeAbort?.abort();
     activeAbort = new AbortController();
     const signal = activeAbort.signal;
     await runAgent(settings, prompt, mode, history, {
       onChunk: (chunk) => {
-        lastAssistantText += chunk;
         void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage);
       },
       onReasoning: (chunk) => void webview.postMessage({ type: 'assistantReasoning', text: chunk } satisfies HostToWebviewMessage),
@@ -133,21 +130,16 @@ export function activate(context: vscode.ExtensionContext): void {
       } satisfies HostToWebviewMessage),
       onToolRequest: (id, tool, args) =>
         new Promise<boolean>((resolve) => {
+          // "Her zaman izin ver" bu çalışmanın ortasında seçildiyse sıradaki istekler de sorulmaz
+          if (vscode.workspace.getConfiguration('tulvez').get<boolean>('autoApproveCommands', false)) {
+            resolve(true);
+            return;
+          }
           pendingToolApprovals.set(id, resolve);
           void webview.postMessage({ type: 'toolRequest', id, tool, args } satisfies HostToWebviewMessage);
         }),
       onDone: (usage) => {
         activeAbort = null;
-        if (commitMessage) {
-          pendingCommitText = lastAssistantText.trim();
-          void webview.postMessage({
-            type: 'commitMessage',
-            text: pendingCommitText,
-            staged: commitMessage.staged,
-          } satisfies HostToWebviewMessage);
-          lastAssistantText = '';
-          pendingCommitText = '';
-        }
         if (lastEditedFile) {
           const target = lastEditedFile;
           lastEditedFile = null;
@@ -191,29 +183,6 @@ export function activate(context: vscode.ExtensionContext): void {
     webview: vscode.Webview,
     message: WebviewToHostMessage,
   ): Promise<void> => {
-    if (message.type === 'applyCommit') {
-      const msg = message.message.trim();
-      if (!msg) return;
-      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      // Yazar kullanıcının kendisidir; Tulvez Code yalnızca ek katkıcı olarak eklenir.
-      const coAuthor = vscode.workspace.getConfiguration('tulvez').get<boolean>('gitCoAuthor') ?? true;
-      const finalMessage = coAuthor ? withCoAuthor(msg) : msg;
-      // Kabuk yok (execFile): mesajdaki tırnak/köşeli parantez Windows'ta bozulmaz.
-      const result = await new Promise<{ output: string; exitCode: number }>((resolve) => {
-        cp.execFile('git', ['commit', '-m', finalMessage], { cwd }, (err, stdout, stderr) => {
-          const raw = (err as { code?: unknown } | null)?.code;
-          const exitCode = err ? (typeof raw === 'number' ? raw : 1) : 0;
-          resolve({ output: `${stdout || ''}${stderr || ''}`.trim() || err?.message || '', exitCode });
-        });
-      });
-      await webview.postMessage({
-        type: 'commitResult',
-        output: result.exitCode === 0 ? result.output || 'Commit oluşturuldu.' : `Commit başarısız: ${result.output}`,
-        exitCode: result.exitCode,
-      } satisfies HostToWebviewMessage);
-      return;
-    }
-
     if (message.type === 'getSkillsRegistry' || message.type === 'installSkill' || message.type === 'removeSkill') {
       // Skills deposu: liste, kur, kaldır. Her işlemden sonra güncel durum webview'a gider.
       const source = registryBase();
@@ -283,6 +252,12 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     if (message.type === 'toolApproval') {
+      if (message.always) {
+        // "Her zaman izin ver": bundan sonraki bütün araç izinleri sorulmadan verilir (Ayarlar → İzinler'den geri alınır)
+        const cfg = vscode.workspace.getConfiguration('tulvez');
+        await cfg.update('autoApproveCommands', true, vscode.ConfigurationTarget.Global);
+        await cfg.update('allowShellCommands', true, vscode.ConfigurationTarget.Global);
+      }
       const resolve = pendingToolApprovals.get(message.id);
       if (resolve) {
         resolve(message.approved);
@@ -413,15 +388,33 @@ export function activate(context: vscode.ExtensionContext): void {
 
       let prompt = '';
       if (message.name === 'commit') {
+        // Commit'i ajan kendisi atar: git komutları her zamanki gibi izin ister.
+        const status = await git('status --short');
+        if (!status) {
+          await webview.postMessage({ type: 'error', message: "Commit'lenecek değişiklik yok." } satisfies HostToWebviewMessage);
+          return;
+        }
+        if (!settings.allowShellCommands) {
+          await webview.postMessage({ type: 'error', message: "Commit için terminal izni gerekli: Ayarlar → İzinler → Onaylı ya da Tam erişim." } satisfies HostToWebviewMessage);
+          return;
+        }
         let diff = await git('diff --cached');
         const staged = !!diff;
         if (!diff) diff = await git('diff');
-        if (!diff) {
-          await webview.postMessage({ type: 'error', message: 'Commitlenecek değişiklik yok. Önce git add çalıştırın.' } satisfies HostToWebviewMessage);
-          return;
-        }
-        prompt = `Aşağıdaki değişiklikler için conventional commit formatında, Türkçe, tek satırlık kısa bir commit mesajı üret. Sadece mesaj metnini yaz, başlık/açıklama listesi yok, tırnak yok:\n\n${diff.slice(0, 12000)}`;
-        await runAgentFor(webview, settings, prompt, mode, [], { commitMessage: { staged } });
+        prompt = [
+          "Çalışma alanındaki değişiklikleri commit'le.",
+          staged
+            ? "- Staged değişiklikler var: yalnız onları commit'le, başka dosya ekleme."
+            : "- Hiçbir şey staged değil: ilgili dosyaları `git add` ile ekle.",
+          "- Mesaj Türkçe, conventional commit biçiminde, kısa ve ne değiştiğini anlatan tek satır olsun.",
+          '- `git commit -m "…"` komutunu run_command aracıyla kendin çalıştır. Push yapma.',
+          '- Bitince commit\'i bir cümleyle özetle.',
+          '',
+          `git status:\n${status}`,
+          '',
+          `git diff${staged ? ' --cached' : ''}:\n${diff.slice(0, 12000)}`,
+        ].join('\n');
+        await runAgentFor(webview, settings, prompt, 'build', []);
         return;
       } else if (message.name === 'review') {
         let diff = await git('diff --cached');

@@ -71,6 +71,36 @@ export function addCoAuthorToCommand(command: string): string {
   );
 }
 
+const COMMIT_RE = /\bgit((?:\s+-[cC]\s+\S+)*)\s+commit(?=\s|$)/;
+
+/** Komut bir `git commit` çalıştırıyor mu? */
+export function isCommitCommand(command: string): boolean {
+  return COMMIT_RE.test(command);
+}
+
+/** Kabuk komutuna güvenle konabilecek ad/e-posta (tırnak, değişken, kaçış karakterleri atılır). */
+function shellSafe(text: string): string {
+  return text.replace(/["`$%!\\\r\n]/g, '').trim();
+}
+
+/**
+ * Tulvez Code commit'i kendisi atarken (yazar Tulvez, ayar açıksa) kullanıcıyı
+ * ek katkıcı olarak ekler — Copilot'un kendi attığı commit'lerdeki gibi.
+ */
+export function addUserCoAuthorToCommand(command: string, user: GitIdentity | null): string {
+  if (!user) return command;
+  const name = shellSafe(user.name);
+  const email = shellSafe(user.email);
+  if (!name || !/^[^\s<>@]+@[^\s<>@]+$/.test(email)) return command;
+  if (email.toLowerCase() === BOT_EMAIL.toLowerCase()) return command;
+  const trailer = `Co-authored-by: ${name} <${email}>`;
+  if (command.includes(`<${email}>`)) return command;
+  return command.replace(new RegExp(COMMIT_RE.source, 'g'), (match) => `${match} --trailer "${trailer}"`);
+}
+
+/** Yazarı Tulvez Code yapan ortam değişkenleri (git yapılandırmasına dokunmadan, yalnız o komut için). */
+export const BOT_AUTHOR_ENV = { GIT_AUTHOR_NAME: BOT_NAME, GIT_AUTHOR_EMAIL: BOT_EMAIL } as const;
+
 export async function repoRoot(cwd: string, run: Runner = defaultRunner): Promise<string | null> {
   const res = await run('rev-parse --show-toplevel', cwd);
   if (res.code !== 0 || !res.stdout) return null;
