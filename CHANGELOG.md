@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.2.0
+## 0.2.1
+
+0.2.0 etiketi yayın testinde durdu, Marketplace'e çıkmadı; aynı içerik bu sürümle çıkar.
 
 Arayüz sıfırdan yeniden tasarlandı (Tulvez Noir). Eklentinin davranışı değişmedi.
 
