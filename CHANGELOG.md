@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2
+
+- Yeni — İngilizce dil desteği. Arayüz, Ayarlar, menüler, hata ve bildirim mesajları, VS Code'daki
+  komut adları ve ayar açıklamaları iki dilde. Yeni ayar `tulvez.language`: Otomatik (VS Code'un dili;
+  Türkçe değilse İngilizce), Türkçe ya da İngilizce. Ayarlar → Kişiselleştirme → Dil · Language'dan
+  değiştirilir; panel yeni dille yeniden yüklenir, sohbet kaybolmaz. Model de seçilen dilde yanıt verir
+  (kullanıcı başka dilde yazarsa o dilde); /review, /explain, /diff ve /commit istemleri de dile uyar
+- Değişiklik — Beceri açıklamaları Ayarlar'da ve / menüsünde 100 karakterde kısaltılır ve hep iki satır
+  yer kaplar: bütün beceri satırları aynı yükseklikte görünür; açıklamanın tamamı üzerine gelince görünür
+
 ## 0.3.1
 
 - Düzeltme — OpenCode: ücretsiz modeller (big-pickle, *-free) OpenCode'un kuralı gereği yalnız OpenCode

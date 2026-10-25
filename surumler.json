@@ -1,5 +1,18 @@
 [
   {
+    "surum": "0.3.2",
+    "tarih": "2026-10-25",
+    "tur": "ekleme",
+    "baslik": {
+      "tr": "İngilizce dil desteği",
+      "en": "English language support"
+    },
+    "ozet": {
+      "tr": "Tulvez Code artık İngilizce de kullanılabiliyor: arayüz, ayarlar, mesajlar ve modelin yanıtları seçilen dilde. Dil VS Code’un dilini kendiliğinden izler, Ayarlar’dan da değiştirilebilir. Beceri listesindeki açıklamalar da artık eşit uzunlukta görünüyor.",
+      "en": "Tulvez Code can now be used in English: the interface, settings, messages and the model’s replies follow the chosen language. It follows the VS Code language automatically and can also be changed in Settings. Skill descriptions in the skill list now have an even length too."
+    }
+  },
+  {
     "surum": "0.3.1",
     "tarih": "2026-10-25",
     "tur": "duzeltme",

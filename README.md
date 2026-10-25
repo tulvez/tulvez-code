@@ -22,6 +22,7 @@ Gizlilik odaklı, BYOK yapay zeka kodlama asistanı — VS Code için.
 - **Onay akışı** — Dosya düzenlemeleri otomatik uygulanır; terminal komutları onay ister (ayarlanabilir)
 - **Git kısayolları** — `/commit`, `/review`, `/diff`, `/explain`
 - **Markdown render**, düşünüş animasyonu, token / maliyet / bağlam istatistikleri
+- **Türkçe ve İngilizce** — Arayüz ve yanıtlar VS Code'un dilini izler; Ayarlar'dan da seçilir
 - **Tam BYOK** — API anahtarın yalnızca VS Code'un şifreli `SecretStorage`'ında saklanır. Tulvez sunucusuna hiçbir şey gönderilmez.
 
 ## Desteklenen Sağlayıcılar
@@ -102,6 +103,7 @@ Privacy-focused, BYOK AI coding assistant for VS Code.
 - **Approval flow** — File edits are applied automatically; terminal commands require your confirmation (configurable)
 - **Git shortcuts** — `/commit`, `/review`, `/diff`, `/explain`
 - **Markdown rendering**, reasoning animation, token / cost / context-window stats
+- **Turkish and English** — The interface and replies follow your VS Code language; you can also pick one in Settings
 - **100% BYOK** — Your API key lives only in VS Code's encrypted `SecretStorage`. Nothing is sent to Tulvez servers.
 
 ### Supported Providers

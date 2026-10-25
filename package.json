@@ -1,8 +1,8 @@
 {
   "name": "tulvez-code",
   "displayName": "Tulvez Code",
-  "description": "VS Code için odaklı yapay zeka kodlama yardımcısı.",
-  "version": "0.3.1",
+  "description": "%description%",
+  "version": "0.3.2",
   "publisher": "tulvez",
   "repository": {
     "type": "git",
@@ -46,33 +46,33 @@
     "commands": [
       {
         "command": "tulvez.openPanel",
-        "title": "Tulvez Code: Paneli Aç"
+        "title": "%cmd.openPanel%"
       },
       {
         "command": "tulvez.playIntroSound",
-        "title": "Tulvez Code: Kurulum Sesini Çal"
+        "title": "%cmd.playIntroSound%"
       },
       {
         "command": "tulvez.newChat",
-        "title": "Yeni sohbet",
+        "title": "%cmd.newChat%",
         "category": "Tulvez Code",
         "icon": "$(add)"
       },
       {
         "command": "tulvez.exportChat",
-        "title": "Sohbeti Markdown olarak kaydet",
+        "title": "%cmd.exportChat%",
         "category": "Tulvez Code",
         "icon": "$(save)"
       },
       {
         "command": "tulvez.showHistory",
-        "title": "Sohbet geçmişi",
+        "title": "%cmd.showHistory%",
         "category": "Tulvez Code",
         "icon": "$(history)"
       },
       {
         "command": "tulvez.openSettings",
-        "title": "Ayarlar",
+        "title": "%cmd.openSettings%",
         "category": "Tulvez Code",
         "icon": "$(settings-gear)"
       }
@@ -135,90 +135,134 @@
             "ollama"
           ],
           "default": "openai",
-          "description": "Kullanılacak yapay zeka sağlayıcısı."
+          "description": "%set.aiProvider%"
+        },
+        "tulvez.language": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "tr",
+            "en"
+          ],
+          "default": "auto",
+          "enumDescriptions": [
+            "%set.language.auto%",
+            "%set.language.tr%",
+            "%set.language.en%"
+          ],
+          "description": "%set.language%"
         },
         "tulvez.model": {
           "type": "string",
           "default": "",
-          "description": "Kullanılacak model adı (boşsa sağlayıcının varsayılanı)."
+          "description": "%set.model%"
         },
         "tulvez.ollamaUrl": {
           "type": "string",
           "default": "http://localhost:11434",
-          "description": "Ollama sunucu adresi."
+          "description": "%set.ollamaUrl%"
         },
         "tulvez.baseUrl": {
           "type": "string",
           "default": "https://opencode.ai/zen/v1",
-          "description": "OpenAI uyumlu özel sağlayıcılar için endpoint (OpenCode Zen, OpenRouter, LM Studio vb.)."
+          "description": "%set.baseUrl%"
         },
         "tulvez.showModels": {
           "type": "boolean",
           "default": false,
-          "description": "Sohbet arayüzünde model seçiciyi göster (ayarlarda model listesi her zaman görünür)."
+          "description": "%set.showModels%"
         },
         "tulvez.showThinking": {
           "type": "boolean",
           "default": true,
-          "description": "Modelin düşünüş (reasoning) metnini sohbette göster."
+          "description": "%set.showThinking%"
         },
         "tulvez.showAiEdits": {
           "type": "boolean",
           "default": true,
-          "description": "Tulvez Code tarafından yazılan satırları editörde işaretle."
+          "description": "%set.showAiEdits%"
         },
         "tulvez.sound": {
           "type": "boolean",
           "default": true,
-          "description": "Kurulumda ve panel açılışında kısa bir ses çal."
+          "description": "%set.sound%"
         },
         "tulvez.skillsRegistry": {
           "type": "string",
           "default": "https://github.com/tulvez",
-          "description": "Becerilerin alınacağı yer. GitHub hesabı adresi (https://github.com/<hesap>) verilirse o hesabın herkese açık depolarından kökünde SKILL.md olanlar kendiliğinden kurulur ve 12 saatte bir güncellenir; Tulvez Code isteğe uyan beceriyi kendisi kullanır. Kökünde index.json bulunan başka bir https adresi de verilebilir. Varsayılan: Tulvez'in GitHub hesabı."
+          "description": "%set.skillsRegistry%"
         },
         "tulvez.gitCoAuthor": {
           "type": "boolean",
           "default": true,
-          "description": "Copilot gibi: Tulvez Code'un değiştirdiği bir dosya commit'e girerse commit anında ek katkıcı satırı (Co-authored-by: Tulvez Code) eklenir. Commit'in yazarı sen kalırsın; commit'i Tulvez kendisi atarsa yazar Tulvez Code olur, sen ek katkıcı olursun. Kapatınca Tulvez hiçbir commit'te görünmez; GitHub'da yanında tulvez-code[bot] görünür. Bunun için deponun .git/hooks klasörüne küçük bir prepare-commit-msg kancası kurulur (depoya girmez); depoda başka kanca ya da core.hooksPath varsa ona dokunulmaz, satır mesaj kutusuna yazılır. Kapatınca kanca silinir. Git kimliğine dokunulmaz."
+          "description": "%set.gitCoAuthor%"
         },
         "tulvez.mcpServers": {
           "type": "object",
           "default": {},
-          "markdownDescription": "MCP sunucuları (Claude Code / Cursor ile aynı biçim). Yerel: `{ \"ad\": { \"command\": \"npx\", \"args\": [\"-y\", \"paket\"], \"env\": {} } }` · Uzak: `{ \"ad\": { \"url\": \"https://…/mcp\", \"headers\": {} } }`. Araçlar yalnız Build modunda ve onaylı çalışır. Projedeki `.mcp.json` da okunur; onu ilk kez çalıştırmadan önce izin istenir. `\"disabled\": true` sunucuyu kapatır.",
+          "markdownDescription": "%set.mcpServers%",
           "additionalProperties": {
             "type": "object",
             "properties": {
-              "command": { "type": "string" },
-              "args": { "type": "array", "items": { "type": "string" } },
-              "env": { "type": "object", "additionalProperties": { "type": "string" } },
-              "cwd": { "type": "string" },
-              "url": { "type": "string" },
-              "type": { "type": "string", "enum": ["http", "sse"] },
-              "headers": { "type": "object", "additionalProperties": { "type": "string" } },
-              "disabled": { "type": "boolean" }
+              "command": {
+                "type": "string"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "http",
+                  "sse"
+                ]
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "disabled": {
+                "type": "boolean"
+              }
             }
           }
         },
         "tulvez.allowShellCommands": {
           "type": "boolean",
           "default": false,
-          "description": "Tulvez Code'un terminal komutları çalıştırmasına izin ver."
+          "description": "%set.allowShellCommands%"
         },
         "tulvez.autoApproveCommands": {
           "type": "boolean",
           "default": false,
-          "description": "Komutları onay sormadan otomatik çalıştır."
+          "description": "%set.autoApproveCommands%"
         },
         "tulvez.telemetry": {
           "type": "boolean",
           "default": false,
-          "description": "Anonim kullanım verisi gönder (henüz aktif değil)."
+          "description": "%set.telemetry%"
         },
         "tulvez.sendCodeContext": {
           "type": "boolean",
           "default": false,
-          "description": "AI isteklerine kod bağlamı ekle."
+          "description": "%set.sendCodeContext%"
         }
       }
     }
