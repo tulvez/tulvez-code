@@ -84,3 +84,5 @@ Bir sürüm, bilgileri hazırlanmadan yayınlanmaz. `v*` etiketi atmadan önce �
 `npm run surum:denetle` (ve `npm test`) eksikleri gösterir; yayın işi (`publish.yml`) aynı denetimden geçmeyen etiketi
 yayınlamaz. `surumler.json` releases.tulvez.com, download.tulvez.com ve docs.tulvez.com/tulvez-code'un tek kaynağıdır:
 sürüm Marketplace'te doğrulanınca siteler kendiliğinden güncellenir, elle düzeltme gerekmez.
+Yayın işi ayrıca GitHub'da yayın kaydı (Releases) açar: notu `scripts/surum-notu.mjs` üretir (surumler.json özeti +
+CHANGELOG bölümü), Marketplace'e yüklenen VSIX'in aynısı eklenir.
