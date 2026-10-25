@@ -318,7 +318,7 @@ export async function executeTool(
   args: Record<string, unknown>,
   allowShell: boolean,
   budgetChars = 24000,
-  meta?: { exitCode?: number },
+  meta?: { exitCode?: number; signal?: AbortSignal },
 ): Promise<string> {
   try {
     switch (name) {
@@ -491,6 +491,7 @@ export async function executeTool(
             finished = true;
             clearInterval(ticker);
             clearTimeout(hardStop);
+            meta?.signal?.removeEventListener('abort', onAbort);
             const out = `${stdout}\n${stderr}`.trim();
             if (meta) meta.exitCode = code;
             resolve(out || (code === 0 ? '(çıktı yok)' : `exit ${code}`));
@@ -522,6 +523,16 @@ export async function executeTool(
           }, 5000);
 
           const hardStop = setTimeout(() => { stopProcess(); collect(); }, MAX_RUN_SECONDS * 1000);
+
+          // Durdur düğmesi: çalışan komut da kapatılır
+          const onAbort = (): void => {
+            stopProcess();
+            stderr += '\n(kullanıcı durdurdu)';
+            code = code || 130;
+            collect();
+          };
+          if (meta?.signal?.aborted) onAbort();
+          else meta?.signal?.addEventListener('abort', onAbort, { once: true });
 
           function stopProcess(): void {
             if (child.killed) return;

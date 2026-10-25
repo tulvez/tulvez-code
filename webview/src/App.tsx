@@ -870,11 +870,15 @@ export function App(): JSX.Element {
         flushStream();
         setWaiting(false);
         setStreaming(false);
+        setToolApproval(null);
         const sid = streamingIdRef.current;
-        if (sid !== null) {
-          setMessages((prev) => prev.map((m) => (m.id === sid ? { ...m, stopped: true } : m)));
-          streamingIdRef.current = null;
-        }
+        streamingIdRef.current = null;
+        // Yanıt "durduruldu" işaretlenir; sonucu gelmeyecek araç adımları da kapanır
+        setMessages((prev) => prev.map((m) => {
+          if (m.id === sid) return { ...m, stopped: true };
+          if (m.role === 'tool' && m.status === 'running') return { ...m, status: 'error' as const, output: m.output ?? 'Durduruldu.' };
+          return m;
+        }));
       } else if (msg.type === 'systemNotice') {
         flushStream();
         setMessages((prev) => [...prev, {

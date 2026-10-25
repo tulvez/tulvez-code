@@ -99,7 +99,7 @@ function buildToolSet(
     tools[def.name] = {
       description: def.description,
       inputSchema: def.schema as ToolSet[string]['inputSchema'],
-      execute: async (args: Record<string, unknown>) => {
+      execute: async (args: Record<string, unknown>, options?: { abortSignal?: AbortSignal }) => {
         const callId = nextToolReqId();
         const report = (output: string, status: ToolResult['status'], exitCode?: number): void => {
           cb.onToolResult?.({ callId, tool: def.name, output: previewOutput(output), status, exitCode });
@@ -120,7 +120,7 @@ function buildToolSet(
           const target = resolveEditPath(String(args.path ?? ''));
           if (target) await snapshotBeforeEdit(target);
         }
-        const meta: { exitCode?: number } = {};
+        const meta: { exitCode?: number; signal?: AbortSignal } = { signal: options?.abortSignal };
         let result: string;
         try {
           result = await executeTool(def.name, args, settings.allowShellCommands, undefined, meta);
@@ -221,6 +221,13 @@ export async function runAgent(
         } else if (part.type === 'error') {
           streamError = { message: (part.error as { message?: string })?.message ?? String(part.error) };
         }
+      }
+
+      // Durdurulunca SDK hata fırlatmaz: akış "abort" parçasıyla kapanır ve usage/text
+      // beklenirse sonuç gelmeyebilir. Normal bitiş gibi işlenmesin.
+      if (signal?.aborted) {
+        cb.onCancelled?.();
+        return;
       }
 
       if (streamError) throw new Error(streamError.message);

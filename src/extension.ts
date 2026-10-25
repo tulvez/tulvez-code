@@ -114,6 +114,11 @@ export function activate(context: vscode.ExtensionContext): void {
     activeAbort?.abort();
     activeAbort = new AbortController();
     const signal = activeAbort.signal;
+    // Durdur: bekleyen izin kartı "reddedildi" sayılır, yoksa ajan kartın cevabını sonsuza dek bekler
+    signal.addEventListener('abort', () => {
+      for (const resolve of pendingToolApprovals.values()) resolve(false);
+      pendingToolApprovals.clear();
+    }, { once: true });
     await runAgent(settings, prompt, mode, history, {
       onChunk: (chunk) => {
         void webview.postMessage({ type: 'assistantChunk', text: chunk } satisfies HostToWebviewMessage);
@@ -174,7 +179,7 @@ export function activate(context: vscode.ExtensionContext): void {
           } satisfies HostToWebviewMessage);
         }
       },
-    });
+    }, signal);
   };
 
   const handleMessage = async (
@@ -244,8 +249,13 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     if (message.type === 'cancelStream') {
-      activeAbort?.abort();
-      activeAbort = null;
+      if (activeAbort) {
+        activeAbort.abort(); // runAgent → onCancelled → 'cancelled'
+        activeAbort = null;
+      } else {
+        // Çalışan istek yoksa da arayüz "bekliyor" durumunda kalmasın
+        void webview.postMessage({ type: 'cancelled' } satisfies HostToWebviewMessage);
+      }
       return;
     }
 
