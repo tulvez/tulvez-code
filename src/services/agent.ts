@@ -265,7 +265,12 @@ export async function runAgent(
         tools,
         stopWhen: stepCountIs(MAX_STEPS),
         abortSignal: signal,
-        maxRetries: 0,
+        // Sağlayıcı hatasında yalnız başarısız adım tekrarlanır (önceki araç adımları yeniden çalışmaz);
+        // SDK hız sınırında retry-after başlığına uyar (60 sn'ye kadar, ör. Groq "18 sn sonra dene").
+        maxRetries: 2,
+        // Varsayılan onError hatayı console.error ile basar; hata zaten akıştan yakalanıp gösteriliyor
+        // (CLI'da terminal arayüzünü bozuyordu)
+        onError: () => {},
         // Bazı OpenAI-uyumlu uç noktalar (örn. gpt-oss-20b) önceki adımın
         // düşünme (reasoning) parçalarını geri kabul etmez. Düşünme hâlâ
         // üretilir ve arayüzde gösterilir; sadece isteğe geri eklenmez.

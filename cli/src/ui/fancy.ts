@@ -6,7 +6,8 @@ import { isCtrlC, pushKeys } from './keys';
 import { MarkdownStream } from './markdown';
 import { print, screen, Spinner } from './screen';
 import { select } from './select';
-import { box, c, columns, dim, fit, italic } from './theme';
+import { friendlyError } from './errors';
+import { box, c, columns, dim, fit, italic, wrapAnsi } from './theme';
 
 /** Araç adımları: renkli nokta + Ad(özet), sonucu altında "└" ile (her yazı tipinde bulunan çizgi karakteri). */
 const TOOL_COLOR: Record<string, (t: string) => string> = {
@@ -174,7 +175,13 @@ export class FancyUi implements SessionUi {
   error(message: string): void {
     this.pause();
     this.md.flush();
-    for (const l of box(message.split('\n').slice(0, 8).map((m) => c.text(m)), { width: Math.min(columns() - 1, 100), color: c.red, title: c.red('Hata') })) print(l);
+    // Bilinen hatalar Türkçe ve ne yapılacağıyla; satırlar kesilmez, kutu genişliğinde bölünür
+    const err = friendlyError(message);
+    const w = Math.min(columns() - 1, 100);
+    const inner = w - 4;
+    const body = err.lines.flatMap((l) => wrapAnsi(c.text(l), inner));
+    if (err.detail) body.push('', ...wrapAnsi(dim(c.muted(err.detail)), inner));
+    for (const l of box(body, { width: w, color: c.red, title: c.red(err.title) })) print(l);
   }
 
   changed(files: string[], canUndo: boolean): void {

@@ -14,8 +14,10 @@
 - Komutlar ve araçlar her seferinde onay ister (`-y` ile sorulmaz); girdi terminal değilse onay verilmez.
 - `/geri-al`: son yanıtın yazdığı dosyaları eski haline döndürür.
 - Sağlayıcılar: OpenAI, Anthropic, Gemini, Groq, OpenCode Zen, Ollama, OpenAI uyumlu özel adres.
-- Tam ekran: giriş kutusu ve durum satırı hep altta sabit, sohbet üstte kaydırılır (PgUp/PgDn, fare tekerleği);
-  boş sohbette ortada logo ve örnekler, ilk mesajla sohbet görünümü; çıkınca terminal eski haline döner.
+- Ekran: giriş kutusu ve durum satırı hep altta sabit; sohbet terminalin kendi geçmişine yazılır (kaydırma,
+  seçme, sağ tıkla yapıştırma terminalde çalışır); boş sohbette ortada logo ve örnekler, ilk mesajla sohbet görünümü.
+- Hatalar Türkçe ve ne yapılacağıyla (hız sınırı, geçersiz anahtar, kota, bağlantı, model); kütüphane çıktısı
+  ekran yerine `cli.log` dosyasına.
 - API anahtarı: kurulumda kaydedilebilir (`anahtarlar.json`, izin 600; Windows, macOS, Linux); ortam değişkeni varsa
   önce o. Ayarlar `cli.json` dosyasında (anahtar içermez). `/anahtar-sil` kaydı siler.
 - MCP sunucuları: `cli.json` → `mcpServers`; projedeki `.mcp.json` sunucuları onay verilmeden başlamaz.

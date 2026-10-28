@@ -155,7 +155,7 @@ async function interactive(session: Session, cfg: LoadedConfig, root: string): P
   const modeColor = (): ReturnType<typeof fg> => fg(MODE_COLOR[session.mode]);
 
   // Durum satırı: solda mod · model · klasör, sağda kısayollar
-  screen.setFooter((compact) => {
+  screen.setFooter(() => {
     const m = modeColor();
     const left = [
       `${m('●')} ${m(MODE_LABEL[session.mode])}`,
@@ -163,7 +163,6 @@ async function interactive(session: Session, cfg: LoadedConfig, root: string): P
       ...(session.settings.autoApproveCommands ? [c.yellow('» onaylar açık')] : []),
       c.muted(fitStart(shortPath(root), 32)),
     ].join(c.muted('  ·  '));
-    if (compact) return ` ${left}`;
     const right = [['⇧Tab', 'mod'], ['/', 'komutlar'], ['@', 'dosya']]
       .map(([k, v]) => `${c.text(k)} ${c.muted(v)}`).join(c.muted('  ·  '));
     const gap = columns() - 1 - width(left) - width(right) - 2;
@@ -179,7 +178,7 @@ async function interactive(session: Session, cfg: LoadedConfig, root: string): P
     const keyLines = [
       ['Enter', 'gönder'], ['\\ + Enter', 'yeni satır (yapıştırma da olur)'], ['⇧Tab', 'modu değiştir (Build → Plan → Ask)'],
       ['Esc', 'yanıtı durdur · iki kez: girişi sil'], ['↑ ↓', 'önceki istekler'], ['@dosya', 'dosyayı isteğe ekle'],
-      ['PgUp PgDn', 'sohbeti kaydır (fare tekerleği de olur)'], ['Shift+sürükle', 'metin seç ve kopyala'],
+      ['Ctrl+V', 'yapıştır (sağ tık da olur)'], ['Tekerlek', 'sohbeti kaydır · sürükleyerek seç'],
       ['Ctrl+C', 'girişi sil · boşken iki kez: çık'], ['Ctrl+D', 'çık'],
     ].map(([k, v]) => `${c.text(k.padEnd(14))}${c.muted(v)}`);
     for (const l of box([bold('Komutlar'), ...cmdLines, '', bold('Kısayollar'), ...keyLines], { width: Math.min(columns() - 2, 76) })) print(` ${l}`);
@@ -346,7 +345,12 @@ async function main(): Promise<number> {
 
   if (tty && !args.prompt && !piped) {
     startKeys();
-    screen.start();
+    // Kütüphanelerin console çıktısı ekran yerine oturum günlüğüne
+    const logFile = path.join(configDir(), 'cli.log');
+    screen.start((text) => {
+      fs.mkdirSync(configDir(), { recursive: true });
+      fs.appendFileSync(logFile, `${new Date().toISOString()} ${text}\n`, { mode: 0o600 });
+    });
     let turns = 0;
     try {
       let settings = cfg.settings;

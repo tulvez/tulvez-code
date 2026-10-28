@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { matchFiles } from '../files';
 import { normalizePaste } from './clipboard';
+import { friendlyError } from './errors';
 import { MarkdownStream } from './markdown';
 import { box, fit, fitStart, truncateAnsi, width, wrapAnsi, wrapPlain } from './theme';
 
@@ -85,6 +86,23 @@ describe('ölçü yardımcıları', () => {
 
   it('wrapPlain genişliğe böler', () => {
     expect(wrapPlain('abcdef', 4)).toEqual(['abcd', 'ef']);
+  });
+});
+
+describe('anlaşılır hatalar', () => {
+  it('Groq hız sınırı: dakikalık sınır ve bekleme süresi', () => {
+    // Gerçek Groq iletisi (SDK önekiyle; sondaki billing bağlantısı kota sanılmamalı)
+    const e = friendlyError('Failed after 3 attempts. Last error: AI_APICallError: Rate limit reached for model `openai/gpt-oss-120b` in organization `org_x` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 4920, Requested 5451. Please try again in 17.7825s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing');
+    expect(e.title).toBe('Hız sınırı');
+    expect(e.lines.join(' ')).toContain('dakikada 8.000 token');
+    expect(e.lines.join(' ')).toContain('18 sn');
+    expect(e.detail?.startsWith('Rate limit')).toBe(true);
+  });
+  it('geçersiz anahtar, kota, bağlantı, bilinmeyen', () => {
+    expect(friendlyError('401 Unauthorized: invalid api key').title).toBe('API anahtarı geçersiz');
+    expect(friendlyError('You exceeded your current quota').title).toMatch(/kota/);
+    expect(friendlyError('fetch failed').title).toBe('Sağlayıcıya ulaşılamadı');
+    expect(friendlyError('garip bir şey')).toEqual({ title: 'Hata', lines: ['garip bir şey'] });
   });
 });
 

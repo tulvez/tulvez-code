@@ -24,9 +24,10 @@ npm test 2>&1 | tulvez "neden kırıldı?"   # girdi isteğe eklenir
 tulvez ayarlar                       # etkin ayarlar ve ayar dosyasının yeri
 ```
 
-`tulvez` terminalin tamamını kullanır (çıkınca terminal eski haline döner). Giriş kutusu ve durum satırı hep en
-altta sabit durur; sohbet üstte akar, PgUp/PgDn ya da fare tekerleğiyle kaydırılır. Boş sohbette ortada logo,
-örnek istekler ve kısayollar görünür; ilk mesajla sohbet görünümüne geçilir (`/yeni` boş ekrana döner).
+Giriş kutusu ve durum satırı hep ekranın en altında sabit durur; sohbet terminalin kendi geçmişine yazılır, yani
+fare tekerleğiyle kaydırma, sürükleyerek seçme ve sağ tıkla yapıştırma terminalin kendisinde çalışır. Boş sohbette
+ortada logo, örnek istekler ve kısayollar görünür; ilk mesajla sohbet görünümüne geçilir (`/yeni` boş ekrana döner,
+önceki sohbet yukarıda kalır).
 
 İlk açılışta kurulum ekranı gelir: sağlayıcıyı ok tuşlarıyla seçer, anahtarı yapıştırıp istersen kaydeder, modeli
 listeden seçersin. Sohbette: mod renginde çerçeveli giriş kutusu, `/` ile komut menüsü, `@` ile dosya önerileri,
@@ -44,9 +45,8 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | Shift+Tab | modu değiştir: Build → Plan → Ask |
 | Esc | süren yanıtı durdur · iki kez: girişi sil |
 | ↑ ↓ | önceki istekler (oturumlar arası saklanır) |
-| PgUp PgDn · tekerlek | sohbeti kaydır |
-| Ctrl+V · sağ tık | yapıştır (pano okunur: Windows PowerShell, macOS `pbpaste`, Linux `wl-paste`/`xclip`/`xsel`) |
-| Shift + sürükle | metin seç ve kopyala (fare uygulamaya ait olduğu için) |
+| Tekerlek · sürükle · sağ tık | terminalin kendisi: kaydır, seç, yapıştır |
+| Ctrl+V | yapıştır; terminal yapıştırmazsa (cmd, VS Code) pano okunur: Windows PowerShell, macOS `pbpaste`, Linux `wl-paste`/`xclip`/`xsel` |
 | Ctrl+C | girişi sil · boşken iki kez: çık |
 | Ctrl+D | çık |
 

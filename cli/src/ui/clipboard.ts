@@ -1,8 +1,8 @@
 import { execFile } from 'child_process';
 
 /**
- * Panodaki metin. Terminal yapıştırmayı kendisi yapamadığında kullanılır: fare izlemesi açıkken
- * sağ tık uygulamaya gelir, bazı terminallerde (cmd, VS Code) Ctrl+V düz tuş olarak gelir.
+ * Panodaki metin. Terminal yapıştırmayı kendisi yapmadığında kullanılır: bazı terminallerde
+ * (cmd, VS Code) Ctrl+V uygulamaya düz tuş olarak gelir.
  * Okunamazsa null.
  */
 

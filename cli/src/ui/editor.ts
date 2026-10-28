@@ -1,5 +1,5 @@
 import { normalizePaste, readClipboard } from './clipboard';
-import { isCtrlC, onPasteRequest, pushKeys, type Key } from './keys';
+import { isCtrlC, pushKeys, type Key } from './keys';
 import { screen } from './screen';
 import { type Paint, bold, c, charCols, columns, dim, fit, width } from './theme';
 
@@ -204,7 +204,7 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
   return new Promise((resolve) => {
     const onResize = (): void => render();
     let finished = false;
-    /** Ctrl+V ya da sağ tık: panodaki metin imlecin yerine eklenir. */
+    /** Ctrl+V terminal tarafından yapıştırılmadan düz tuş geldiyse (cmd, VS Code): pano okunur. */
     const pasteFromClipboard = (): void => {
       void readClipboard().then((clip) => {
         if (finished) return;
@@ -222,7 +222,6 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
     const done = (result: EditorResult): void => {
       finished = true;
       release();
-      onPasteRequest(null);
       process.stdout.off('resize', onResize);
       screen.setSlot('suggest', null);
       screen.setSlot('notice', null);
@@ -339,7 +338,6 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
     };
 
     const release = pushKeys(onKey);
-    onPasteRequest(pasteFromClipboard);
     process.stdout.on('resize', onResize);
     updateSuggestions();
     render();

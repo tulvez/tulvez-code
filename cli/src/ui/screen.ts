@@ -1,16 +1,16 @@
-import { onScroll } from './keys';
-import { BRAND, c, columns, dim, gradient, truncateAnsi, wrapAnsi, width } from './theme';
+import { BRAND, c, columns, dim, gradient, truncateAnsi, wrapAnsi } from './theme';
 
 /**
- * Tam ekran düzeni (alternatif ekran tamponu; çıkınca terminal eski haline döner):
+ * Ekran düzeni: sohbet terminalin normal geçmişine yazılır (kaydırma, seçme, sağ tıkla yapıştırma
+ * terminalin kendisinde çalışır); altta sabit bir bölge kalır:
  *
- *   ┌ sohbet (kaydırılabilir; boşken karşılama ekranı) ┐
- *   │ panel: kurulum adımları, düşünme göstergesi,     │
- *   │        seçim listesi, öneriler, uyarı             │
- *   │ giriş kutusu (hep altta, sabit)                   │
- *   └ durum satırı                                     ┘
+ *   … sohbet (terminal geçmişi) …
+ *   ┌ bölge: panel (kurulum adımları, düşünme göstergesi, seçim listesi, öneriler, uyarı)
+ *   │        giriş kutusu
+ *   └        durum satırı                                  ← ekranın son satırı
  *
- * Her çizimde yalnız değişen satırlar yazılır.
+ * Bölge her zaman ekranın en altında biter. Sohbet boşken bölge bütün ekranı kaplar ve ortada
+ * karşılama ekranı görünür; ilk mesajla karşılama silinir, sohbet üstten akmaya başlar.
  */
 
 type Slot = 'setup' | 'spinner' | 'select' | 'suggest' | 'notice';
@@ -18,49 +18,71 @@ const SLOT_ORDER: Slot[] = ['setup', 'spinner', 'select', 'suggest', 'notice'];
 
 interface Cursor { row: number; col: number }
 
+function rowsCount(): number {
+  return Math.max(8, process.stdout.rows || 24);
+}
+
 class Screen {
   active = false;
-  private entries: string[] = [];
-  /** Satırlara bölünmüş sohbet; genişlik değişince baştan bölünür */
-  private rows: string[] = [];
-  private rowsWidth = 0;
-  private wrapped = 0;
-  /** Alttan kaç satır yukarı kaydırıldı (0 = en altı izle) */
-  private offset = 0;
+  /** Sohbet boş: bölge ekranın tamamı, karşılama görünür */
+  private empty = true;
+  /** Bölgenin satır sayısı (üstü = ekran yüksekliği − bu + 1) */
+  private regionHeight = 0;
+  private pendingRows: string[] = [];
   private slots = new Map<Slot, string[]>();
   private input: { lines: string[]; cursor: Cursor | null } | null = null;
-  /** `compact`: yalnız sol bölüm (sağda kaydırma uyarısı varken) */
-  private footer: (compact: boolean) => string = () => '';
-  private empty: (w: number, h: number) => string[] = () => [];
-  private last: string[] = [];
-  private pending = false;
+  private footer: () => string = () => '';
+  private emptyView: (w: number, h: number) => string[] = () => [];
+  private scheduled = false;
+  private consoleRestore: (() => void) | null = null;
 
-  start(): void {
+  start(logFile?: (text: string) => void): void {
     if (this.active || !process.stdout.isTTY) return;
     this.active = true;
-    // Alternatif ekran + fare tekerleği (SGR); metin seçmek için Shift+sürükle
-    process.stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1006h\x1b[2J\x1b[H');
+    this.empty = true;
+    this.regionHeight = 0;
     process.stdout.on('resize', this.onResize);
-    onScroll((delta) => this.scroll(delta));
     process.once('exit', () => this.stop());
-    this.render();
+    this.captureConsole(logFile);
+    this.flush();
   }
 
+  /** Bölgeyi siler; sohbet terminal geçmişinde kalır. */
   stop(): void {
     if (!this.active) return;
+    this.flush();
     this.active = false;
     process.stdout.off('resize', this.onResize);
-    process.stdout.write('\x1b[?1006l\x1b[?1000l\x1b[?25h\x1b[?1049l');
+    process.stdout.write(`${this.eraseRegion()}\x1b[?25h`);
+    this.regionHeight = 0;
+    this.consoleRestore?.();
+    this.consoleRestore = null;
+  }
+
+  /**
+   * Kütüphanelerin console.log/error çıktısı bölgenin ortasına düşüp ekranı bozmasın:
+   * oturum boyunca günlük dosyasına yönlendirilir.
+   */
+  private captureConsole(log?: (text: string) => void): void {
+    const orig = { log: console.log, info: console.info, warn: console.warn, error: console.error, debug: console.debug };
+    const sink = (...args: unknown[]): void => {
+      try {
+        log?.(args.map((a) => (a instanceof Error ? a.stack ?? a.message : typeof a === 'string' ? a : JSON.stringify(a))).join(' '));
+      } catch { /* günlük yazılamazsa sessiz */ }
+    };
+    console.log = console.info = console.warn = console.error = console.debug = sink;
+    this.consoleRestore = () => Object.assign(console, orig);
   }
 
   private onResize = (): void => {
-    this.last = [];
-    this.rowsWidth = 0;
-    this.render();
+    // Genişlik değişince eski bölge satırları terminalde kırılmış olabilir: ekranın altından
+    // bölge yüksekliği kadar baştan çizilir
+    this.regionHeight = Math.min(this.regionHeight, rowsCount());
+    this.schedule();
   };
 
-  setFooter(fn: (compact: boolean) => string): void { this.footer = fn; this.schedule(); }
-  setEmptyView(fn: (w: number, h: number) => string[]): void { this.empty = fn; this.schedule(); }
+  setFooter(fn: () => string): void { this.footer = fn; this.schedule(); }
+  setEmptyView(fn: (w: number, h: number) => string[]): void { this.emptyView = fn; this.schedule(); }
 
   setSlot(slot: Slot, lines: string[] | null): void {
     if (lines && lines.length) this.slots.set(slot, lines);
@@ -74,113 +96,85 @@ class Screen {
   }
 
   append(line: string): void {
-    this.entries.push(line);
-    // Kullanıcı yukarıdaysa görünüm yerinde kalsın
-    if (this.offset > 0) this.offset += wrapAnsi(line, this.textWidth(), 2).length;
+    this.pendingRows.push(...wrapAnsi(line, columns() - 1, 2));
+    this.empty = false;
     this.schedule();
   }
 
   get isEmpty(): boolean {
-    return this.entries.length === 0;
+    return this.empty && !this.pendingRows.length;
   }
 
+  /** Karşılama ekranına dön; önceki sohbet terminal geçmişinde (yukarıda) kalır. */
   clearTranscript(): void {
-    this.entries = [];
-    this.rows = [];
-    this.wrapped = 0;
-    this.offset = 0;
-    this.last = []; // tam yeniden çizim
-    process.stdout.write('\x1b[2J');
+    this.flush();
+    this.empty = true;
     this.schedule();
-  }
-
-  scroll(delta: number): void {
-    const max = Math.max(0, this.rows.length - this.transcriptHeight());
-    this.offset = Math.max(0, Math.min(max, this.offset + delta));
-    this.schedule();
-  }
-
-  private textWidth(): number {
-    return columns() - 1;
-  }
-
-  private transcriptHeight(): number {
-    return Math.max(3, (process.stdout.rows || 24) - this.bottom().length);
-  }
-
-  private bottom(): string[] {
-    const out: string[] = [];
-    for (const s of SLOT_ORDER) out.push(...(this.slots.get(s) ?? []));
-    if (this.input) out.push(...this.input.lines);
-    out.push(this.footerLine());
-    return out;
-  }
-
-  /** Yukarı kaydırılmışken durum satırının sağında "aşağıda N satır" uyarısı (kısayolların yerine). */
-  private footerLine(): string {
-    if (!this.offset) return this.footer(false);
-    const hint = c.yellow(`↓ ${this.offset} satır aşağıda · PgDn `);
-    const left = truncateAnsi(this.footer(true), columns() - 1 - width(hint) - 2);
-    return `${left}${' '.repeat(Math.max(2, columns() - 1 - width(left) - width(hint)))}${hint}`;
   }
 
   private schedule(): void {
-    if (!this.active || this.pending) return;
-    this.pending = true;
+    if (!this.active || this.scheduled) return;
+    this.scheduled = true;
     setImmediate(() => {
-      this.pending = false;
-      this.render();
+      this.scheduled = false;
+      this.flush();
     });
   }
 
-  private wrapAll(): void {
-    const w = this.textWidth();
-    if (this.rowsWidth !== w) {
-      this.rows = [];
-      this.wrapped = 0;
-      this.rowsWidth = w;
-    }
-    for (; this.wrapped < this.entries.length; this.wrapped++) {
-      this.rows.push(...wrapAnsi(this.entries[this.wrapped], w, 2));
-    }
+  /** İmleci bölgenin üstüne götürüp aşağısını siler (bölge ekranın altında biter). */
+  private eraseRegion(): string {
+    if (!this.regionHeight) return '\r';
+    const top = rowsCount() - this.regionHeight + 1;
+    return `\x1b[${Math.max(1, top)};1H\x1b[J`;
   }
 
-  render(): void {
+  private bottomLines(): string[] {
+    const out: string[] = [];
+    for (const s of SLOT_ORDER) out.push(...(this.slots.get(s) ?? []));
+    if (this.input) out.push(...this.input.lines);
+    out.push(this.footer());
+    return out;
+  }
+
+  private flush(): void {
     if (!this.active) return;
-    const H = process.stdout.rows || 24;
+    const H = rowsCount();
     const W = columns();
-    this.wrapAll();
-    let bottom = this.bottom();
-    // Panel ekrana sığmazsa en az 3 sohbet satırı kalsın diye üstten kırpılır
-    if (bottom.length > H - 3) bottom = bottom.slice(bottom.length - (H - 3));
-    const th = H - bottom.length;
+    let lines = this.bottomLines().map((l) => truncateAnsi(l, W - 1));
+    if (lines.length > H) lines = lines.slice(lines.length - H);
 
-    let top: string[];
-    if (!this.entries.length) {
-      const view = this.empty(W, th);
-      const padTop = Math.max(0, Math.floor((th - view.length) / 2));
-      top = [...Array(padTop).fill(''), ...view].slice(0, th);
+    let out = `\x1b[?2026h\x1b[?25l${this.eraseRegion()}`;
+    let space = this.regionHeight || H;
+
+    // Yeni sohbet satırları bölgenin yerine yazılır, bölge onların altına iner
+    if (this.pendingRows.length) {
+      const rows = this.pendingRows;
+      this.pendingRows = [];
+      out += rows.map((r) => `${r}\x1b[0m\n`).join('');
+      space = Math.max(0, space - rows.length);
+    }
+
+    let region: string[];
+    if (this.empty) {
+      // Karşılama: bölge bütün ekran, görünüm üst boşlukta dikey ortalanır
+      const viewH = H - lines.length;
+      const view = this.emptyView(W, viewH).map((l) => truncateAnsi(l, W - 1));
+      const padTop = Math.max(0, Math.floor((viewH - view.length) / 2));
+      const area = [...Array(padTop).fill(''), ...view].slice(0, viewH);
+      while (area.length < viewH) area.push('');
+      region = [...area, ...lines];
     } else {
-      const max = Math.max(0, this.rows.length - th);
-      if (this.offset > max) this.offset = max;
-      const end = this.rows.length - this.offset;
-      top = this.rows.slice(Math.max(0, end - th), end);
+      const pad = Math.max(0, space - lines.length);
+      region = [...Array(pad).fill(''), ...lines];
     }
-    while (top.length < th) top.push('');
+    out += region.join('\n');
+    this.regionHeight = region.length;
 
-    // Hiçbir satır terminal genişliğini aşmamalı: aşan satır alta kırılır ve ekran eşlemesi bozulur
-    const frame = [...top, ...bottom].map((row) => truncateAnsi(row, W - 1));
-    let out = '\x1b[?2026h\x1b[?25l';
-    for (let i = 0; i < H; i++) {
-      const row = frame[i] ?? '';
-      if (this.last[i] !== row) out += `\x1b[${i + 1};1H\x1b[2K${row}`;
-    }
-    this.last = frame;
     const cur = this.input?.cursor;
     if (cur) {
       // Giriş kutusu durum satırının hemen üstünde biter
-      const r = th + bottom.length - 1 - this.input!.lines.length + cur.row;
-      out += `\x1b[${r + 1};${cur.col + 1}H\x1b[?25h`;
+      const row = H - 1 - this.input!.lines.length + cur.row + 1;
+      out += `\x1b[${row};${cur.col + 1}H\x1b[?25h`;
     }
     out += '\x1b[?2026l';
     process.stdout.write(out);
@@ -189,7 +183,7 @@ class Screen {
 
 export const screen = new Screen();
 
-/** Sohbete kalıcı satır ekler (tam ekran yoksa doğrudan yazar). */
+/** Sohbete kalıcı satır ekler (ekran yönetimi yoksa doğrudan yazar). */
 export function print(text = ''): void {
   if (screen.active) {
     for (const line of text.replace(/\n$/, '').split('\n')) screen.append(line);
