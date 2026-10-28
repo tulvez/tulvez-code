@@ -4,7 +4,7 @@ import type { Approval, SessionUi, TurnUsage } from '../session';
 import { toolLabel } from '../terminal';
 import { isCtrlC, pushKeys } from './keys';
 import { MarkdownStream } from './markdown';
-import { live, print, Spinner } from './screen';
+import { print, screen, Spinner } from './screen';
 import { select } from './select';
 import { box, c, columns, dim, fit, italic } from './theme';
 
@@ -124,7 +124,7 @@ export class FancyUi implements SessionUi {
       const detailLines = detail.split('\n').slice(0, 12).map((l) => c.text(l));
       for (const l of box(detailLines, { width: Math.min(columns() - 1, 100), color: c.yellow, title: c.yellow(toolLabel(tool)) })) print(l);
     }
-    const onAbort = (): void => live.clear();
+    const onAbort = (): void => screen.setSlot('select', null);
     signal.addEventListener('abort', onAbort, { once: true });
     const answer = await select<Approval>({
       title,

@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import type { AgentMode } from '../../../src/services/types';
-import { BRAND, MODE_COLOR, MODE_LABEL, bold, box, c, columns, dim, fg, fitStart, gradient } from './theme';
+import { BRAND, MODE_COLOR, MODE_LABEL, bold, c, dim, fg, fitStart, gradient, width } from './theme';
 
 // "ANSI Shadow" biçiminde TULVEZ; her harf 6 satır
 const LETTERS: Record<string, string[]> = {
@@ -25,50 +25,60 @@ export function shortPath(p: string): string {
   return p;
 }
 
-export interface BannerInfo {
+export interface WelcomeInfo {
   version: string;
   root: string;
   provider: string;
   model: string;
   mode: AgentMode;
-  autoApprove?: boolean;
+  /** Kurulum sürüyorsa örnekler ve kısayollar gösterilmez */
+  setup?: boolean;
 }
 
-/** Açılış ekranı: degrade logo + "Code CLI" + bilgi kutusu + ipuçları. */
-export function banner(info: BannerInfo): string[] {
-  const cols = columns();
-  const out: string[] = [''];
-  const rows = logoRows('TULVEZ');
-  const logoWidth = rows[0].length;
+const EXAMPLES = [
+  'Bu depo ne yapıyor? Kısaca anlat',
+  '@README.md dosyasını gözden geçir, eksikleri söyle',
+  'Testleri çalıştır, kırılanları düzelt',
+];
 
-  if (cols >= logoWidth + 20) {
-    const side = [
-      '',
-      bold(gradient('C O D E', BRAND.slice(1))),
-      bold(c.text('C L I')),
-      dim(c.muted(`v${info.version}`)),
-      '',
-      '',
-    ];
-    rows.forEach((row, i) => out.push(`  ${gradient(row, BRAND, 0, logoWidth + 10)}   ${side[i]}`));
-  } else {
-    out.push(`  ${bold(gradient('◆ TULVEZ CODE CLI', BRAND))} ${dim(c.muted(`v${info.version}`))}`);
-  }
-  out.push('');
+function center(lines: string[], w: number): string[] {
+  return lines.map((l) => `${' '.repeat(Math.max(0, Math.floor((w - width(l)) / 2)))}${l}`);
+}
 
-  const modeColor = fg(MODE_COLOR[info.mode]);
-  const w = Math.min(cols - 2, 72);
-  const label = (t: string): string => c.muted(t.padEnd(9));
-  const lines = [
-    `${gradient('✻', BRAND)} ${bold('Tulvez Code CLI')}${c.muted("'ya hoş geldin!")}`,
-    '',
-    `${label('Klasör')}${c.text(fitStart(shortPath(info.root), w - 4 - 9))}`,
-    `${label('Model')}${c.text(info.provider)}${c.muted(' · ')}${c.text(fitStart(info.model || 'varsayılan', w - 4 - 9 - info.provider.length - 3))}`,
-    `${label('Mod')}${modeColor('●')} ${modeColor(MODE_LABEL[info.mode])}${info.autoApprove ? c.yellow('  » onaylar açık') : ''}`,
-  ];
-  for (const l of box(lines, { width: w, color: c.muted })) out.push(` ${l}`);
-  out.push('');
-  out.push(`  ${c.muted('İpuçları:')} ${c.text('/')}${c.muted(' komutlar · ')}${c.text('@')}${c.muted(' dosya ekle · ')}${c.text('⇧Tab')}${c.muted(' mod · ')}${c.text('Esc')}${c.muted(' durdur · ')}${c.text('\\⏎')}${c.muted(' yeni satır')}`);
-  out.push('');
-  return out;
+/** Boş sohbetin ekranı: ortada logo, örnek istekler, klasör/model ve kısayollar. */
+export function welcomeView(info: WelcomeInfo): (w: number, h: number) => string[] {
+  return (w, h) => {
+    const out: string[] = [];
+    const rows = logoRows('TULVEZ');
+    const logoW = rows[0].length;
+    const tall = h >= 18;
+
+    if (w >= logoW + 16 && tall) {
+      const side = ['', bold(gradient('C O D E', BRAND.slice(1))), bold(c.text('C L I')), dim(c.muted(`v${info.version}`)), '', ''];
+      const block = rows.map((row, i) => `${gradient(row, BRAND, 0, logoW + 10)}   ${side[i]}`);
+      // Logo blok olarak ortalanır (satırlar aynı soldan başlar)
+      const pad = ' '.repeat(Math.max(0, Math.floor((w - logoW - 10) / 2)));
+      out.push(...block.map((l) => `${pad}${l}`));
+    } else {
+      out.push(...center([`${bold(gradient('◆ TULVEZ CODE CLI', BRAND))} ${dim(c.muted(`v${info.version}`))}`], w));
+    }
+    if (info.setup) return out;
+
+    out.push('');
+    const m = fg(MODE_COLOR[info.mode]);
+    const meta = `${c.muted(fitStart(shortPath(info.root), Math.max(12, w - 50)))}${c.muted('  ·  ')}${c.text(info.provider)}${c.muted(' · ')}${c.text(info.model || 'varsayılan')}${c.muted('  ·  ')}${m('●')} ${m(MODE_LABEL[info.mode])}`;
+    out.push(...center([meta], w));
+    if (h >= 22) {
+      out.push('');
+      const ex = [c.muted('Şunları deneyebilirsin'), ...EXAMPLES.map((e) => `${c.brand('›')} ${c.text(e)}`)];
+      const exW = Math.max(...ex.map(width));
+      const pad = ' '.repeat(Math.max(0, Math.floor((w - exW) / 2)));
+      out.push(...ex.map((l) => `${pad}${l}`));
+    }
+    out.push('');
+    const keys = [['/', 'komutlar'], ['@', 'dosya ekle'], ['⇧Tab', 'mod'], ['Esc', 'durdur'], ['PgUp', 'kaydır']]
+      .map(([k, v]) => `${c.text(k)} ${c.muted(v)}`).join(c.muted('  ·  '));
+    out.push(...center([keys], w));
+    return out;
+  };
 }

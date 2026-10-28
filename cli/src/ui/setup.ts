@@ -1,18 +1,17 @@
-import { execFile } from 'child_process';
 import type { TulvezSettings } from '../../../src/services/messages';
 import { listProviderModels } from '../../../src/services/models';
-import { KEY_ENV, saveConfigFile, type Provider } from '../settings';
+import { KEY_ENV, KEYS_FILE, readSavedKeys, saveConfigFile, saveKey, type Provider } from '../settings';
 import { readInput } from './editor';
-import { print, Spinner } from './screen';
+import { print, screen, Spinner } from './screen';
 import { select, type Choice } from './select';
-import { BRAND, bold, box, c, columns, gradient } from './theme';
+import { BRAND, bold, c, gradient } from './theme';
 
 const PROVIDER_CHOICES: Choice<Provider>[] = [
-  { value: 'openai', label: 'OpenAI', hint: 'GPT modelleri · OPENAI_API_KEY' },
-  { value: 'anthropic', label: 'Anthropic', hint: 'Claude modelleri · ANTHROPIC_API_KEY' },
-  { value: 'gemini', label: 'Google Gemini', hint: 'Gemini modelleri · GEMINI_API_KEY' },
-  { value: 'groq', label: 'Groq', hint: 'hızlı açık modeller · GROQ_API_KEY' },
-  { value: 'opencode', label: 'OpenCode Zen', hint: 'tek anahtarla birçok model · OPENCODE_API_KEY' },
+  { value: 'openai', label: 'OpenAI', hint: 'GPT modelleri' },
+  { value: 'anthropic', label: 'Anthropic', hint: 'Claude modelleri' },
+  { value: 'gemini', label: 'Google Gemini', hint: 'Gemini modelleri' },
+  { value: 'groq', label: 'Groq', hint: 'hızlı açık modeller' },
+  { value: 'opencode', label: 'OpenCode Zen', hint: 'tek anahtarla birçok model' },
   { value: 'ollama', label: 'Ollama', hint: 'bilgisayarında yerel model · anahtar gerekmez' },
   { value: 'custom', label: 'Özel adres', hint: 'OpenAI uyumlu herhangi bir uç (OpenRouter, LM Studio…)' },
 ];
@@ -23,8 +22,25 @@ export function providerName(p: Provider): string {
 
 const MANUAL = '\u0000elle';
 
+/**
+ * Kurulum adımları logonun altında birikir; kurulum bitince silinir (sohbete satır bırakmaz).
+ * Kurulum dışında (/model) satırlar sohbete yazılır.
+ */
+class Progress {
+  private lines: string[] = [];
+  constructor(readonly inSetup: boolean) {}
+  add(line: string): void {
+    if (!this.inSetup) { print(line); return; }
+    this.lines.push(`  ${line}`);
+    screen.setSlot('setup', ['', ...this.lines, '']);
+  }
+  clear(): void {
+    if (this.inSetup) screen.setSlot('setup', null);
+  }
+}
+
 /** Sağlayıcının model listesi (8 sn içinde gelmezse boş) ve elle yazma seçeneği. */
-export async function pickModel(settings: TulvezSettings): Promise<string | null> {
+export async function pickModel(settings: TulvezSettings, progress = new Progress(false)): Promise<string | null> {
   const spinner = new Spinner();
   spinner.start('Modeller alınıyor');
   let models: string[] = [];
@@ -43,13 +59,15 @@ export async function pickModel(settings: TulvezSettings): Promise<string | null
     ...models.map((m) => ({ value: m, label: m, hint: m === settings.model ? 'şu an' : undefined })),
     { value: MANUAL, label: 'Elle yaz…', hint: 'listede olmayan bir model kimliği' },
   ];
-  if (!models.length) print(`  ${c.muted('Model listesi alınamadı; varsayılanı seçebilir ya da elle yazabilirsin.')}`);
+  if (!models.length) progress.add(c.muted('Model listesi alınamadı; varsayılanı seçebilir ya da elle yazabilirsin.'));
   const current = models.indexOf(settings.model);
   const picked = await select<string>({
     title: 'Model',
     choices,
     initial: current >= 0 ? current + 1 : 0,
     filter: models.length > 9,
+    // Kurulumda özet ilerleme listesine yazılır; sohbete satır düşmesin
+    summary: !progress.inSetup,
   });
   if (picked === null) return null;
   if (picked !== MANUAL) return picked;
@@ -57,98 +75,111 @@ export async function pickModel(settings: TulvezSettings): Promise<string | null
   return typed && 'text' in typed ? typed.text.trim() : null;
 }
 
-function setxPermanent(name: string, value: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    execFile('setx', [name, value], { windowsHide: true }, (err) => resolve(!err));
-  });
-}
-
 /**
  * İlk kurulum ya da /saglayici: sağlayıcı → (adres) → anahtar → model. Sağlayıcı/model/adres
- * cli.json'a yazılır; anahtar yalnız bu oturumda kullanılır ya da (Windows) kullanıcı ortam
- * değişkenine kaydedilir. Vazgeçilirse null.
+ * cli.json'a, anahtar istenirse anahtarlar.json'a (600) yazılır. Vazgeçilirse null.
  */
-export async function runSetup(current: TulvezSettings, configFile: string, first: boolean): Promise<TulvezSettings | null> {
-  if (first) {
-    const lines = [
-      `${bold(gradient('Hadi başlayalım', BRAND))} ${c.muted('— üç adım: sağlayıcı, anahtar, model')}`,
-      c.muted('Seçimlerin ayar dosyasına kaydedilir; API anahtarı dosyaya yazılmaz.'),
-    ];
-    for (const l of box(lines, { width: Math.min(columns() - 2, 72) })) print(` ${l}`);
-    print();
-  }
+export async function runSetup(
+  current: TulvezSettings,
+  files: { config: string; keys: string },
+  inSetup: boolean,
+): Promise<TulvezSettings | null> {
+  const progress = new Progress(inSetup);
+  try {
+    if (inSetup) progress.add(`${bold(gradient('Hadi başlayalım', BRAND))} ${c.muted('— sağlayıcı, anahtar, model')}`);
 
-  const provider = await select<Provider>({
-    title: 'Hangi yapay zekâ sağlayıcısını kullanacaksın?',
-    choices: PROVIDER_CHOICES,
-    initial: Math.max(0, PROVIDER_CHOICES.findIndex((p) => p.value === current.aiProvider)),
-  });
-  if (!provider) return null;
-  const settings: TulvezSettings = { ...current, aiProvider: provider, model: provider === current.aiProvider ? current.model : '' };
-
-  if (provider === 'custom') {
-    const url = await readInput({
-      accent: () => c.brand,
-      label: 'OpenAI uyumlu adres',
-      singleLine: true,
-      placeholder: settings.baseUrl || 'https://openrouter.ai/api/v1',
+    const provider = await select<Provider>({
+      title: 'Hangi yapay zekâ sağlayıcısını kullanacaksın?',
+      choices: PROVIDER_CHOICES,
+      initial: Math.max(0, PROVIDER_CHOICES.findIndex((p) => p.value === current.aiProvider)),
+      summary: !inSetup,
     });
-    if (!url || !('text' in url)) return null;
-    settings.baseUrl = url.text.trim() || settings.baseUrl;
-    if (!settings.baseUrl) return null;
-  }
+    if (!provider) return null;
+    if (inSetup) progress.add(`${c.green('✓')} ${c.muted('Sağlayıcı')} ${c.text(providerName(provider))}`);
+    const settings: TulvezSettings = { ...current, aiProvider: provider, model: provider === current.aiProvider ? current.model : '' };
 
-  if (provider !== 'ollama') {
-    const envName = KEY_ENV[provider].find((n) => process.env[n]?.trim());
-    if (envName) {
-      settings.apiKey = process.env[envName]!.trim();
-      print(`${c.green('✓')} ${c.muted('API anahtarı')} ${c.text(envName)} ${c.muted('ortam değişkeninden alındı')}`);
-    } else {
-      const varName = KEY_ENV[provider].find((n) => n !== 'TULVEZ_API_KEY') ?? 'TULVEZ_API_KEY';
-      const key = await readInput({
-        accent: () => c.yellow,
-        label: `${providerName(provider)} API anahtarı`,
-        mask: true,
+    if (provider === 'custom') {
+      const url = await readInput({
+        accent: () => c.brand,
+        label: 'OpenAI uyumlu adres',
         singleLine: true,
-        placeholder: 'anahtarı yapıştır ve Enter\'a bas',
+        placeholder: settings.baseUrl || 'https://openrouter.ai/api/v1',
       });
-      if (!key || !('text' in key) || !key.text) return null;
-      settings.apiKey = key.text;
-      process.env[varName] = key.text;
-      if (process.platform === 'win32') {
+      if (!url || !('text' in url)) return null;
+      settings.baseUrl = url.text.trim() || settings.baseUrl;
+      if (!settings.baseUrl) return null;
+      progress.add(`${c.green('✓')} ${c.muted('Adres')} ${c.text(settings.baseUrl)}`);
+    }
+
+    if (provider !== 'ollama') {
+      const envName = KEY_ENV[provider].find((n) => process.env[n]?.trim());
+      const saved = readSavedKeys(files.keys)[provider];
+      let key = '';
+      if (envName) {
+        key = process.env[envName]!.trim();
+        progress.add(`${c.green('✓')} ${c.muted('API anahtarı')} ${c.text(envName)} ${c.muted('ortam değişkeninden')}`);
+      } else if (saved) {
+        const reuse = await select<boolean>({
+          title: `${providerName(provider)} için kayıtlı bir anahtar var`,
+          choices: [{ value: true, label: 'Kayıtlı anahtarı kullan' }, { value: false, label: 'Yeni anahtar gir' }],
+          summary: false,
+        });
+        if (reuse === null) return null;
+        if (reuse) {
+          key = saved;
+          progress.add(`${c.green('✓')} ${c.muted('API anahtarı')} ${c.text('kayıtlı')} ${c.muted(`(${KEYS_FILE})`)}`);
+        }
+      }
+      if (!key) {
+        const typed = await readInput({
+          accent: () => c.yellow,
+          label: `${providerName(provider)} API anahtarı`,
+          mask: true,
+          singleLine: true,
+          placeholder: 'anahtarı yapıştır ve Enter\'a bas',
+        });
+        if (!typed || !('text' in typed) || !typed.text) return null;
+        key = typed.text;
         const keep = await select<boolean>({
-          title: 'Anahtar nerede dursun?',
+          title: 'Anahtar kaydedilsin mi?',
           choices: [
-            { value: true, label: 'Kalıcı kaydet', hint: `Windows kullanıcı ortam değişkeni ${varName} (setx)` },
+            { value: true, label: 'Kaydet', hint: `bu bilgisayarda, yalnız senin okuyabildiğin dosyada (${KEYS_FILE})` },
             { value: false, label: 'Yalnız bu oturumda', hint: 'kapatınca unutulur' },
           ],
+          summary: false,
         });
-        if (keep && await setxPermanent(varName, key.text)) {
-          print(`${c.green('✓')} ${c.text(varName)} ${c.muted('kaydedildi; yeni açılan terminallerde de geçerli.')}`);
-        } else if (keep) {
-          print(`${c.red('✗')} ${c.muted('Kaydedilemedi; anahtar yalnız bu oturumda kullanılacak.')}`);
+        if (keep === null) return null;
+        if (keep) {
+          try {
+            saveKey(files.keys, provider, key);
+            progress.add(`${c.green('✓')} ${c.muted('API anahtarı kaydedildi')} ${c.text(files.keys)}`);
+          } catch (err) {
+            progress.add(`${c.red('✗')} ${c.muted(`Kaydedilemedi (${err instanceof Error ? err.message : String(err)}); bu oturumda kullanılacak`)}`);
+          }
+        } else {
+          progress.add(`${c.green('✓')} ${c.muted('API anahtarı bu oturumda kullanılacak')}`);
         }
-      } else {
-        print(`${c.green('✓')} ${c.muted('Anahtar bu oturumda kullanılacak. Kalıcı olması için kabuk profiline ekle:')}`);
-        print(`    ${c.code(`export ${varName}="…"`)}  ${c.muted('(~/.bashrc, ~/.zshrc)')}`);
       }
+      settings.apiKey = key;
     }
-  }
 
-  const model = await pickModel(settings);
-  if (model === null) return null;
-  settings.model = model;
+    const model = await pickModel(settings, progress);
+    if (model === null) return null;
+    settings.model = model;
+    if (inSetup) progress.add(`${c.green('✓')} ${c.muted('Model')} ${c.text(model || 'sağlayıcının varsayılanı')}`);
 
-  try {
-    saveConfigFile(configFile, {
-      provider: settings.aiProvider,
-      model: settings.model,
-      baseUrl: settings.aiProvider === 'custom' ? settings.baseUrl : undefined,
-    });
-  } catch (err) {
-    print(`${c.red('✗')} ${c.muted(`Ayar dosyası yazılamadı: ${err instanceof Error ? err.message : String(err)}`)}`);
+    try {
+      saveConfigFile(files.config, {
+        provider: settings.aiProvider,
+        model: settings.model,
+        baseUrl: settings.aiProvider === 'custom' ? settings.baseUrl : undefined,
+      });
+    } catch (err) {
+      progress.add(`${c.red('✗')} ${c.muted(`Ayar dosyası yazılamadı: ${err instanceof Error ? err.message : String(err)}`)}`);
+    }
+    if (!inSetup) print(`${c.green('✓')} ${bold('Hazır')} ${c.muted(`${providerName(settings.aiProvider)} · ${settings.model || 'varsayılan model'}`)}`);
+    return settings;
+  } finally {
+    progress.clear();
   }
-  print(`${c.green('✓')} ${bold('Hazır!')} ${c.muted(`${providerName(settings.aiProvider)} · ${settings.model || 'varsayılan model'}`)}`);
-  print();
-  return settings;
 }

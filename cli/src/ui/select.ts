@@ -1,5 +1,5 @@
 import { isCtrlC, pushKeys } from './keys';
-import { live, print } from './screen';
+import { print, screen } from './screen';
 import { type Paint, bold, c, columns, dim, fit, width } from './theme';
 
 export interface Choice<T> {
@@ -63,13 +63,13 @@ export function select<T>(opts: SelectOptions<T>): Promise<T | null> {
     });
     if (list.length > VISIBLE) lines.push(`  ${c.muted(`${index + 1}/${list.length}`)}`);
     lines.push(`  ${c.muted('↑↓ seç · Enter onayla · Esc vazgeç')}`);
-    live.draw(lines);
+    screen.setSlot('select', lines);
   };
 
   return new Promise((resolve) => {
     const finish = (value: Choice<T> | null): void => {
       release();
-      live.clear();
+      screen.setSlot('select', null);
       if (opts.summary !== false) {
         print(value ? `${c.green('✓')} ${c.muted(opts.title)} ${c.text(value.label)}` : `${c.muted('✗')} ${c.muted(opts.title)} ${c.muted('vazgeçildi')}`);
       }

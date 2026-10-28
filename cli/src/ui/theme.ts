@@ -200,6 +200,44 @@ export function truncateAnsi(text: string, w: number): string {
   return `${out}…${colorEnabled ? '\x1b[0m' : ''}`;
 }
 
+/**
+ * Renkli metni görünen genişliğe göre satırlara böler. Renk kodları bölünmez; her yeni satır
+ * önceki satırda açık kalan renklerle başlar. Devam satırları `indent` kadar içeriden başlar.
+ */
+export function wrapAnsi(text: string, w: number, indent = 0): string[] {
+  if (width(text) <= w) return [text];
+  const rows: string[] = [];
+  let active = '';
+  let row = '';
+  let used = 0;
+  let i = 0;
+  const pad = ' '.repeat(Math.min(indent, Math.max(0, w - 10)));
+  while (i < text.length) {
+    if (text[i] === '\x1b') {
+      const m = /^\x1b\[[0-9;?]*[A-Za-z]/.exec(text.slice(i));
+      if (m) {
+        row += m[0];
+        active = m[0] === '\x1b[0m' ? '' : active + m[0];
+        i += m[0].length;
+        continue;
+      }
+    }
+    const ch = String.fromCodePoint(text.codePointAt(i) ?? 0);
+    const cw = charWidth(ch.codePointAt(0) ?? 0);
+    if (used + cw > w) {
+      rows.push(colorEnabled ? `${row}\x1b[0m` : row);
+      row = `${active}${pad}`;
+      used = pad.length;
+      if (ch === ' ') { i += 1; continue; }
+    }
+    row += ch;
+    used += cw;
+    i += ch.length;
+  }
+  rows.push(row);
+  return rows;
+}
+
 /** Kenarlıklı kutu (yuvarlak köşe). İçerik satırları ANSI içerebilir; sığmayan satır kesilir. */
 export function box(lines: string[], opts: { width?: number; color?: Paint; title?: string } = {}): string[] {
   const paint = opts.color ?? c.muted;

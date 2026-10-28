@@ -36,7 +36,7 @@ node cli/dist/tulvez.js --help
 ## Kurallar
 
 - Sağlayıcıya özel mantık `agent.ts` içinde, tek bir noktada toplanır; webview'da provider bilgisi tutulmaz
-- API anahtarları sadece VS Code SecretStorage'da tutulur, hiçbir dosyaya yazılmaz (CLI'da yalnız ortam değişkeni)
+- API anahtarları sadece VS Code SecretStorage'da tutulur, hiçbir dosyaya yazılmaz (CLI: ortam değişkeni, yoksa sahibin kararıyla (28 Eki) ayrı `anahtarlar.json`, izin 600; `cli.json`'a asla)
 - Commit mesajı: Türkçe, küçük harf, `[kapsam]:` öneki (örn. `[ai]: gemini retry eklendi`)
 - Tip güvenliği: `strict` varsayılan; `npm run check` temiz geçmeden commit atılmaz
 - Yeni bağımlılık eklemeden önce mevcut paketlerle çözülüp çözülemediğini kontrol et

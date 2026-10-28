@@ -6,18 +6,35 @@ export interface Key {
   meta?: boolean;
   shift?: boolean;
   sequence?: string;
+  code?: string;
 }
 
-/** Tuşu alan bileşen; true dönerse tuş tüketilmiş sayılır. */
+/** Tuşu alan bileşen (giriş kutusu, seçim listesi, yanıt sırasında Esc dinleyicisi). */
 export type KeyHandler = (ch: string | undefined, key: Key) => void;
 
 const stack: KeyHandler[] = [];
 let started = false;
 let pasting = false;
+// Fare dizisi (SGR: ESC [ < b ; x ; y M) Node'da harf harf gelir; burada birleştirilir
+let mouseBuf: string | null = null;
+let scrollHandler: ((delta: number) => void) | null = null;
+
+/** Tekerlek ve PgUp/PgDn sohbeti kaydırır; hangi bileşen odakta olursa olsun. */
+export function onScroll(handler: (delta: number) => void): void {
+  scrollHandler = handler;
+}
+
+function mouse(seq: string): void {
+  const m = /^(\d+);\d+;\d+[Mm]$/.exec(seq);
+  if (!m) return;
+  const b = Number(m[1]);
+  if (b === 64) scrollHandler?.(3);
+  else if (b === 65) scrollHandler?.(-3);
+}
 
 /**
- * Terminali ham kipe alır; her tuş yalnız en üstteki bileşene gider (giriş kutusu, seçim listesi,
- * yanıt sırasında Esc dinleyicisi). Yapıştırma (bracketed paste) içindeki Enter satır sonu sayılır.
+ * Terminali ham kipe alır; her tuş yalnız en üstteki bileşene gider. Yapıştırma (bracketed paste)
+ * içindeki Enter satır sonu sayılır.
  */
 export function startKeys(): void {
   if (started || !process.stdin.isTTY) return;
@@ -27,8 +44,22 @@ export function startKeys(): void {
   process.stdout.write('\x1b[?2004h');
   process.stdin.on('keypress', (ch: string | undefined, key: Key | undefined) => {
     const k = key ?? { sequence: ch };
+    if (mouseBuf !== null) {
+      mouseBuf += ch ?? k.sequence ?? '';
+      if (/[Mm]$/.test(mouseBuf) || mouseBuf.length > 20) {
+        mouse(mouseBuf);
+        mouseBuf = null;
+      }
+      return;
+    }
+    if (k.code === '[<') { mouseBuf = ''; return; }
     if (k.name === 'paste-start') { pasting = true; return; }
     if (k.name === 'paste-end') { pasting = false; return; }
+    if (k.name === 'pageup' || k.name === 'pagedown') {
+      const rows = Math.max(3, (process.stdout.rows || 24) - 8);
+      scrollHandler?.(k.name === 'pageup' ? rows : -rows);
+      return;
+    }
     const top = stack[stack.length - 1];
     if (!top) return;
     if (pasting && (k.name === 'return' || k.name === 'enter')) {

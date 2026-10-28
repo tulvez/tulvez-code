@@ -8,18 +8,18 @@ import { HELP, MODES, isMode, parseArgs, type CliArgs } from './args';
 import { createCliHost } from './cliHost';
 import { invalidateFiles, matchFiles, workspaceFiles } from './files';
 import { Session } from './session';
-import { configDir, loadConfig, missingKeyHint, type LoadedConfig } from './settings';
+import { KEYS_FILE, configDir, loadConfig, missingKeyHint, removeKey, type LoadedConfig } from './settings';
 import { initSkills, syncSkillsIfStale } from './skills';
 import { errorLine, note, warnLine } from './terminal';
-import { banner, shortPath } from './ui/banner';
+import { shortPath, welcomeView } from './ui/banner';
 import { readInput, type Suggestion, type SuggestionSet } from './ui/editor';
 import { FancyUi } from './ui/fancy';
 import { startKeys, stopKeys } from './ui/keys';
 import { PlainUi } from './ui/plain';
-import { print } from './ui/screen';
+import { print, screen } from './ui/screen';
 import { select } from './ui/select';
 import { pickModel, providerName, runSetup } from './ui/setup';
-import { BRAND, MODE_COLOR, MODE_HINT, MODE_LABEL, bold, box, c, columns, dim, fg, gradient } from './ui/theme';
+import { BRAND, MODE_COLOR, MODE_HINT, MODE_LABEL, bold, box, c, columns, fg, fitStart, gradient, width } from './ui/theme';
 
 // Üçüncü parti SDK'ların Node deprecation uyarıları terminali kirletmesin
 process.noDeprecation = true;
@@ -36,11 +36,12 @@ const COMMANDS: Command[] = [
   { name: '/mod', hint: 'Ask, Plan ya da Build' },
   { name: '/model', hint: 'modeli değiştir' },
   { name: '/saglayici', hint: 'sağlayıcı, anahtar ve modeli yeniden kur' },
-  { name: '/yeni', hint: 'sohbeti sıfırla' },
+  { name: '/yeni', hint: 'yeni sohbet (boş ekran)' },
   { name: '/geri-al', hint: 'son yanıtın dosya değişikliklerini geri al' },
   { name: '/onay', hint: 'komut onaylarını aç ya da kapat' },
   { name: '/ayarlar', hint: 'etkin ayarlar' },
-  { name: '/temizle', hint: 'ekranı temizle' },
+  { name: '/anahtar-sil', hint: 'bu sağlayıcının kayıtlı anahtarını sil' },
+  { name: '/temizle', hint: 'ekranı temizle (sohbet hafızası kalır)' },
   { name: '/cikis', hint: 'çık (Ctrl+D)' },
 ];
 
@@ -56,10 +57,10 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-function configLines(cfg: LoadedConfig, session: { settings: LoadedConfig['settings'] }, root: string): string[] {
-  const s = session.settings;
+function configLines(cfg: LoadedConfig, settings: LoadedConfig['settings'], root: string): string[] {
+  const s = settings;
   const label = (t: string): string => c.muted(t.padEnd(13));
-  const keySource = cfg.keySource || (s.apiKey ? 'bu oturumda girildi' : '');
+  const keySource = cfg.keySource === KEYS_FILE ? cfg.keysPath : cfg.keySource || (s.apiKey ? 'bu oturumda girildi' : '');
   return [
     `${label('Ayar dosyası')}${c.text(cfg.configPath)}${fs.existsSync(cfg.configPath) ? '' : c.muted(' (yok)')}`,
     `${label('Sağlayıcı')}${c.text(providerName(s.aiProvider))}`,
@@ -143,48 +144,46 @@ function suggester(root: string): (text: string, cursor: number) => SuggestionSe
   };
 }
 
-// --- Etkileşimli oturum ---
+// --- Etkileşimli oturum (tam ekran) ---
 
 const MODE_ORDER: AgentMode[] = ['build', 'plan', 'ask'];
+const BUSY = 'Yanıt yazılıyor… Esc ile durdur';
 
-async function interactive(session: Session, cfg: LoadedConfig, root: string): Promise<number> {
+async function interactive(session: Session, cfg: LoadedConfig, root: string): Promise<void> {
   const history = loadHistory();
   const suggest = suggester(root);
   const modeColor = (): ReturnType<typeof fg> => fg(MODE_COLOR[session.mode]);
 
-  const footer = (): string => {
+  // Durum satırı: solda mod · model · klasör, sağda kısayollar
+  screen.setFooter((compact) => {
     const m = modeColor();
-    const parts = [
+    const left = [
       `${m('●')} ${m(MODE_LABEL[session.mode])}`,
-      c.muted(session.settings.model || providerName(session.settings.aiProvider)),
+      c.text(session.settings.model || providerName(session.settings.aiProvider)),
       ...(session.settings.autoApproveCommands ? [c.yellow('» onaylar açık')] : []),
-      `${c.text('⇧Tab')} ${c.muted('mod')}`,
-      `${c.text('/')} ${c.muted('komutlar')}`,
-      `${c.text('@')} ${c.muted('dosya')}`,
-    ];
-    return `  ${parts.join(c.muted('  ·  '))}`;
-  };
-
-  const showBanner = (): void => {
-    for (const l of banner({
-      version: pkg.version, root, provider: providerName(session.settings.aiProvider), model: session.settings.model,
-      mode: session.mode, autoApprove: session.settings.autoApproveCommands,
-    })) print(l);
-  };
+      c.muted(fitStart(shortPath(root), 32)),
+    ].join(c.muted('  ·  '));
+    if (compact) return ` ${left}`;
+    const right = [['⇧Tab', 'mod'], ['/', 'komutlar'], ['@', 'dosya']]
+      .map(([k, v]) => `${c.text(k)} ${c.muted(v)}`).join(c.muted('  ·  '));
+    const gap = columns() - 1 - width(left) - width(right) - 2;
+    return gap >= 2 ? ` ${left}${' '.repeat(gap)}${right}` : ` ${left}`;
+  });
+  screen.setEmptyView((w, h) => welcomeView({
+    version: pkg.version, root, provider: providerName(session.settings.aiProvider),
+    model: session.settings.model, mode: session.mode,
+  })(w, h));
 
   const showHelp = (): void => {
-    const cmdLines = COMMANDS.map((cmd) => `${c.brand(cmd.name.padEnd(12))}${c.muted(cmd.hint)}`);
+    const cmdLines = COMMANDS.map((cmd) => `${c.brand(cmd.name.padEnd(14))}${c.muted(cmd.hint)}`);
     const keyLines = [
       ['Enter', 'gönder'], ['\\ + Enter', 'yeni satır (yapıştırma da olur)'], ['⇧Tab', 'modu değiştir (Build → Plan → Ask)'],
       ['Esc', 'yanıtı durdur · iki kez: girişi sil'], ['↑ ↓', 'önceki istekler'], ['@dosya', 'dosyayı isteğe ekle'],
+      ['PgUp PgDn', 'sohbeti kaydır (fare tekerleği de olur)'], ['Shift+sürükle', 'metin seç ve kopyala'],
       ['Ctrl+C', 'girişi sil · boşken iki kez: çık'], ['Ctrl+D', 'çık'],
-    ].map(([k, v]) => `${c.text(k.padEnd(12))}${c.muted(v)}`);
-    for (const l of box([bold('Komutlar'), ...cmdLines, '', bold('Kısayollar'), ...keyLines], { width: Math.min(columns() - 2, 72) })) print(` ${l}`);
+    ].map(([k, v]) => `${c.text(k.padEnd(14))}${c.muted(v)}`);
+    for (const l of box([bold('Komutlar'), ...cmdLines, '', bold('Kısayollar'), ...keyLines], { width: Math.min(columns() - 2, 76) })) print(` ${l}`);
     print();
-  };
-
-  const setMode = (m: AgentMode): void => {
-    session.mode = m;
   };
 
   const chooseMode = async (): Promise<void> => {
@@ -194,21 +193,23 @@ async function interactive(session: Session, cfg: LoadedConfig, root: string): P
       choices: MODES.map((x) => ({ value: x, label: MODE_LABEL[x], hint: MODE_HINT[x], color: fg(MODE_COLOR[x]) })),
       initial: MODES.indexOf(session.mode),
     });
-    if (m) setMode(m);
+    if (m) session.mode = m;
   };
 
-  showBanner();
+  /** Komut satırını sohbete yansıtır (komutun çıktısı varsa altına gelir). */
+  const echo = (cmd: string, arg: string): void => {
+    print(`${c.muted('❯')} ${c.brand(`/${cmd}`)}${arg ? ` ${c.text(arg)}` : ''}`);
+  };
 
-  let code = 0;
   for (;;) {
     const result = await readInput({
       accent: modeColor,
-      footer,
       history,
       suggest,
       placeholder: session.turns ? 'Devam et…' : 'Bir şey sor, @ ile dosya ekle, / ile komut seç',
+      idlePlaceholder: BUSY,
       onShiftTab: () => {
-        setMode(MODE_ORDER[(MODE_ORDER.indexOf(session.mode) + 1) % MODE_ORDER.length]);
+        session.mode = MODE_ORDER[(MODE_ORDER.indexOf(session.mode) + 1) % MODE_ORDER.length];
       },
     });
     saveHistory(history);
@@ -221,20 +222,19 @@ async function interactive(session: Session, cfg: LoadedConfig, root: string): P
       const [raw, ...rest] = line.slice(1).split(/\s+/);
       const cmd = ALIASES[raw] ?? raw;
       const arg = rest.join(' ').trim();
-      print(`${c.muted('❯')} ${c.brand(`/${cmd}`)}${arg ? ` ${c.text(arg)}` : ''}`);
       if (cmd === 'cikis') break;
-      if (cmd === 'yardim') { showHelp(); continue; }
-      if (cmd === 'temizle') { process.stdout.write('\x1b[2J\x1b[3J\x1b[H'); showBanner(); continue; }
       if (cmd === 'yeni') {
         session.reset();
         invalidateRepoMap();
-        print(`${c.green('✓')} ${c.text('Yeni sohbet')}`);
-        print();
+        screen.clearTranscript();
         continue;
       }
+      if (cmd === 'temizle') { screen.clearTranscript(); continue; }
+      echo(cmd, arg);
+      if (cmd === 'yardim') { showHelp(); continue; }
       if (cmd === 'geri-al') { await session.undo(); print(); continue; }
       if (cmd === 'ayarlar') {
-        for (const l of box(configLines(cfg, session, root), { width: Math.min(columns() - 2, 90), title: c.text('Ayarlar') })) print(` ${l}`);
+        for (const l of box(configLines(cfg, session.settings, root), { width: Math.min(columns() - 2, 90), title: c.text('Ayarlar') })) print(` ${l}`);
         print();
         continue;
       }
@@ -246,8 +246,20 @@ async function interactive(session: Session, cfg: LoadedConfig, root: string): P
         print();
         continue;
       }
+      if (cmd === 'anahtar-sil') {
+        const p = session.settings.aiProvider;
+        try {
+          print(removeKey(cfg.keysPath, p)
+            ? `${c.green('✓')} ${c.text(`${providerName(p)} anahtarı silindi`)} ${c.muted('(bu oturumda kullanılmaya devam eder)')}`
+            : `${c.muted(`${providerName(p)} için kayıtlı anahtar yok.`)}`);
+        } catch (err) {
+          print(`${c.red('✗')} ${c.muted(err instanceof Error ? err.message : String(err))}`);
+        }
+        print();
+        continue;
+      }
       if (cmd === 'mod') {
-        if (arg && isMode(arg)) setMode(arg);
+        if (arg && isMode(arg)) session.mode = arg;
         else if (arg) print(`${c.red('✗')} ${c.muted(`Geçersiz mod "${arg}" — ask, plan ya da build`)}`);
         else await chooseMode();
         print(`${fg(MODE_COLOR[session.mode])('●')} ${c.text(MODE_LABEL[session.mode])} ${c.muted(`— ${MODE_HINT[session.mode]}`)}`);
@@ -263,11 +275,12 @@ async function interactive(session: Session, cfg: LoadedConfig, root: string): P
         continue;
       }
       if (cmd === 'saglayici') {
-        const next = await runSetup(session.settings, cfg.configPath, false);
+        const next = await runSetup(session.settings, { config: cfg.configPath, keys: cfg.keysPath }, false);
         if (next) {
           session.settings = { ...next, autoApproveCommands: session.settings.autoApproveCommands };
           session.reset();
         }
+        print();
         continue;
       }
       print(`${c.red('✗')} ${c.muted(`Bilinmeyen komut /${raw} — /yardim`)}`);
@@ -275,11 +288,11 @@ async function interactive(session: Session, cfg: LoadedConfig, root: string): P
       continue;
     }
 
-    // Kullanıcının isteği, mod renginde işaretle
+    // Kullanıcının isteği, mod renginde
     const m = modeColor();
     const userLines = line.split('\n');
-    print(`${m('❯')} ${c.text(userLines[0])}`);
-    for (const l of userLines.slice(1)) print(`  ${c.text(l)}`);
+    print(`${m('❯')} ${bold(c.text(userLines[0]))}`);
+    for (const l of userLines.slice(1)) print(`  ${bold(c.text(l))}`);
     print();
     if (!hasKey(session.settings)) {
       print(`${c.red('✗')} ${c.muted('API anahtarı yok — /saglayici ile kur')}`);
@@ -291,12 +304,7 @@ async function interactive(session: Session, cfg: LoadedConfig, root: string): P
     invalidateFiles();
     print();
   }
-
   saveHistory(history);
-  const turns = session.turns;
-  print(`${gradient('✻', BRAND)} ${bold(gradient('Görüşürüz!', BRAND))}${turns ? c.muted(` · ${turns} istek`) : ''}`);
-  await session.close();
-  return code;
 }
 
 // --- Giriş ---
@@ -324,11 +332,9 @@ async function main(): Promise<number> {
   for (const w of cfg.warnings) warnLine(w);
 
   if (args.showConfig) {
-    if (process.stdout.isTTY) {
-      for (const l of box(configLines(cfg, cfg, root), { width: Math.min(columns() - 2, 90), title: c.text('Ayarlar') })) note(` ${l}`);
-    } else {
-      for (const l of configLines(cfg, cfg, root)) note(l);
-    }
+    const lines = configLines(cfg, cfg.settings, root);
+    if (process.stdout.isTTY) for (const l of box(lines, { width: Math.min(columns() - 2, 90), title: c.text('Ayarlar') })) note(` ${l}`);
+    else for (const l of lines) note(l);
     return 0;
   }
 
@@ -337,40 +343,47 @@ async function main(): Promise<number> {
 
   const piped = await readStdin();
   const tty = !!(process.stdin.isTTY && process.stdout.isTTY);
-  const isInteractive = tty && !args.prompt && !piped;
 
-  if (isInteractive) {
+  if (tty && !args.prompt && !piped) {
     startKeys();
+    screen.start();
+    let turns = 0;
     try {
-      const warning = rootWarning(root);
       let settings = cfg.settings;
       const firstRun = !fs.existsSync(cfg.configPath) || !hasKey(settings) ||
         (settings.aiProvider === 'custom' && !settings.baseUrl);
       if (firstRun) {
-        for (const l of banner({ version: pkg.version, root, provider: providerName(settings.aiProvider), model: settings.model, mode: args.mode })) print(l);
-        const next = await runSetup(settings, cfg.configPath, true);
+        screen.setEmptyView(welcomeView({
+          version: pkg.version, root, provider: providerName(settings.aiProvider), model: settings.model, mode: args.mode, setup: true,
+        }));
+        const next = await runSetup(settings, { config: cfg.configPath, keys: cfg.keysPath }, true);
         if (!next) {
-          print(`${c.muted('Kurulum yarıda kaldı. Yeniden başlatmak için')} ${c.brand('tulvez')} ${c.muted('yaz.')}`);
+          screen.stop();
+          stopKeys();
+          note(`${c.muted('Kurulum yarıda kaldı. Yeniden başlatmak için')} ${c.brand('tulvez')} ${c.muted('yaz.')}`);
           return 0;
         }
         settings = next;
-        process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
       }
+      const warning = rootWarning(root);
       if (warning) print(`${c.yellow('!')} ${c.muted(warning)}`);
       void syncSkillsIfStale(skillsRoot).catch(() => {});
       const session = new Session(settings, root, new FancyUi(), cfg.mcpServers, args.mode, true);
-      return await interactive(session, cfg, root);
+      await interactive(session, cfg, root);
+      turns = session.turns;
+      await session.close();
     } finally {
+      screen.stop();
       stopKeys();
-      process.stdout.write('\x1b[?25h');
     }
+    note(`${gradient('✻', BRAND)} ${bold(gradient('Görüşürüz!', BRAND))}${turns ? c.muted(` · ${turns} istek`) : ''}`);
+    return 0;
   }
 
-  // Tek istek
+  // Tek istek: tam ekran açılmaz; çıktı terminal geçmişinde kalır
   const hint = hasKey(cfg.settings) ? null : missingKeyHint(cfg.settings.aiProvider);
   if (hint) {
     errorLine(hint);
-    if (tty) note(dim('  Ya da yalnız `tulvez` yazarak kurulum ekranını aç.'));
     return 2;
   }
   if (cfg.settings.aiProvider === 'custom' && !cfg.settings.baseUrl) {
@@ -386,20 +399,6 @@ async function main(): Promise<number> {
   if (!prompt) {
     errorLine('İstek yok. Kullanım: tulvez "istek" (tulvez --help)');
     return 2;
-  }
-
-  // Terminalde renkli arayüz (onaylar seçmeli); yönlendirilmiş çıktıda düz metin
-  if (tty) {
-    startKeys();
-    try {
-      const session = new Session(cfg.settings, root, new FancyUi(), cfg.mcpServers, args.mode);
-      const outcome = await session.run(prompt);
-      await session.close();
-      return outcome === 'done' ? 0 : outcome === 'cancelled' ? 130 : 1;
-    } finally {
-      stopKeys();
-      process.stdout.write('\x1b[?25h');
-    }
   }
 
   const ui = new PlainUi();
@@ -422,8 +421,8 @@ const exit = (code: number): void => {
 };
 
 main().then(exit, (err) => {
+  screen.stop();
   stopKeys();
-  process.stdout.write('\x1b[?25h');
   errorLine(err instanceof Error ? err.message : String(err));
   exit(1);
 });

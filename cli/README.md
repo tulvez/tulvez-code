@@ -24,9 +24,13 @@ npm test 2>&1 | tulvez "neden kırıldı?"   # girdi isteğe eklenir
 tulvez ayarlar                       # etkin ayarlar ve ayar dosyasının yeri
 ```
 
-İlk açılışta kurulum ekranı gelir: sağlayıcıyı ok tuşlarıyla seçer, anahtarı yapıştırır, modeli listeden seçersin.
-Sonra oturum: renkli açılış ekranı, mod renginde çerçeveli giriş kutusu, `/` ile komut menüsü, `@` ile dosya önerileri,
-akarken düşünme göstergesi, biçimlendirilmiş yanıt (başlık, liste, kod bloğu) ve seçmeli onay kutuları.
+`tulvez` terminalin tamamını kullanır (çıkınca terminal eski haline döner). Giriş kutusu ve durum satırı hep en
+altta sabit durur; sohbet üstte akar, PgUp/PgDn ya da fare tekerleğiyle kaydırılır. Boş sohbette ortada logo,
+örnek istekler ve kısayollar görünür; ilk mesajla sohbet görünümüne geçilir (`/yeni` boş ekrana döner).
+
+İlk açılışta kurulum ekranı gelir: sağlayıcıyı ok tuşlarıyla seçer, anahtarı yapıştırıp istersen kaydeder, modeli
+listeden seçersin. Sohbette: mod renginde çerçeveli giriş kutusu, `/` ile komut menüsü, `@` ile dosya önerileri,
+düşünme göstergesi, biçimlendirilmiş yanıt (başlık, liste, kod bloğu) ve seçmeli onay kutuları.
 
 Çıktı bir dosyaya ya da başka bir komuta yönlendirilirse düz metne geçer: yanıt stdout'a, araç adımları stderr'e
 yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
@@ -40,6 +44,8 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | Shift+Tab | modu değiştir: Build → Plan → Ask |
 | Esc | süren yanıtı durdur · iki kez: girişi sil |
 | ↑ ↓ | önceki istekler (oturumlar arası saklanır) |
+| PgUp PgDn · tekerlek | sohbeti kaydır |
+| Shift + sürükle | metin seç ve kopyala (fare tekerleği uygulamaya ait olduğu için) |
 | Ctrl+C | girişi sil · boşken iki kez: çık |
 | Ctrl+D | çık |
 
@@ -58,11 +64,12 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | `/mod <ask\|plan\|build>` | Modu değiştirir |
 | `/model [kimlik]` | Modeli değiştirir (kimliksiz: sağlayıcının listesinden seç) |
 | `/saglayici` | Sağlayıcı, anahtar ve modeli yeniden kurar |
-| `/yeni` | Sohbeti sıfırlar |
+| `/yeni` | Yeni sohbet (hafıza sıfırlanır, boş ekrana döner) |
 | `/geri-al` | Son yanıtın yazdığı dosyaları eski haline döndürür |
 | `/onay` | Komut onaylarını bu oturumda açar ya da kapatır |
 | `/ayarlar` | Etkin ayarları gösterir |
-| `/temizle` | Ekranı temizler |
+| `/anahtar-sil` | Bu sağlayıcının kayıtlı anahtarını siler |
+| `/temizle` | Ekranı temizler (sohbet hafızası kalır) |
 | `/cikis` | Çıkar (Ctrl+D da olur) |
 
 ## Güvenlik
@@ -76,9 +83,12 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 
 ## Sağlayıcı ve API anahtarı
 
-Anahtar ortam değişkeninden okunur, ayar dosyasına yazılmaz. `TULVEZ_API_KEY` her sağlayıcıda geçerlidir;
-yoksa sağlayıcının kendi değişkenine bakılır. Kurulum ekranında yapıştırılan anahtar o oturumda kullanılır;
-Windows'ta istersen kullanıcı ortam değişkenine kaydedilir (`setx`), macOS/Linux'ta kabuk profiline eklemen gerekir.
+Kurulum ekranında yapıştırdığın anahtarı **kaydedebilirsin** (Windows, macOS ve Linux'ta aynı):
+`~/.config/tulvez/anahtarlar.json` (Windows: `%APPDATA%\tulvez\anahtarlar.json`). Dosya yalnız senin okuyabileceğin
+izinle (600) yazılır; `cli.json`'a hiçbir zaman anahtar yazılmaz. `/anahtar-sil` kaydı siler.
+
+Ortam değişkeni varsa önce o kullanılır (CI ve betikler için): `TULVEZ_API_KEY` her sağlayıcıda geçerlidir; yoksa
+sağlayıcının kendi değişkenine bakılır. Sıra: ortam değişkeni → kayıtlı anahtar.
 
 | Sağlayıcı (`--provider`) | Anahtar değişkeni |
 |---|---|

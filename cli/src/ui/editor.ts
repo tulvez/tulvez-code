@@ -1,5 +1,5 @@
 import { isCtrlC, pushKeys, type Key } from './keys';
-import { live } from './screen';
+import { screen } from './screen';
 import { type Paint, bold, c, charCols, columns, dim, fit, width } from './theme';
 
 export interface Suggestion {
@@ -21,8 +21,6 @@ export interface SuggestionSet {
 export interface EditorOptions {
   /** Kutu ve imleç rengi */
   accent: () => Paint;
-  /** Kutunun altındaki durum satırı */
-  footer?: () => string;
   placeholder?: string;
   history?: string[];
   suggest?: (text: string, cursor: number) => SuggestionSet | null;
@@ -30,19 +28,93 @@ export interface EditorOptions {
   onShiftTab?: () => void;
   /** Gizli giriş (API anahtarı) */
   mask?: boolean;
-  /** Tek satırlı başlık (kutunun üstünde) */
+  /** Kutunun üstündeki başlık */
   label?: string;
   /** Tek satır: Enter her zaman gönderir */
   singleLine?: boolean;
+  /** Gönderildikten sonra kutu bu yer tutucuyla (soluk) kalır; yoksa kutu kaldırılır */
+  idlePlaceholder?: string;
 }
 
 export type EditorResult = { text: string } | { exit: true } | null;
 
 const MAX_SUGGESTIONS = 8;
+const PROMPT = '❯';
+
+interface BoxLayout { lines: string[]; cursor: { row: number; col: number } }
+
+/** Giriş kutusunun satırları; metin kutu genişliğinde satırlara bölünür, imleç konumu hesaplanır. */
+export function layoutBox(chars: string[], cursor: number, opts: {
+  accent: Paint; placeholder?: string; mask?: boolean; label?: string; idle?: boolean;
+}): BoxLayout {
+  const cols = columns();
+  const boxW = cols - 1;
+  const inner = boxW - 4;
+  const textW = Math.max(8, inner - 2);
+  const accent = opts.idle ? (t: string) => dim(c.muted(t)) : opts.accent;
+  const rows: string[] = [];
+  let curRow = 0;
+  let curCol = 0;
+  const logical = chars.join('').split('\n');
+  let offset = 0;
+  logical.forEach((line, li) => {
+    const prefix = li === 0 ? `${accent(PROMPT)} ` : '  ';
+    const lineChars = [...line];
+    let row = '';
+    let used = 0;
+    const startRow = rows.length;
+    const pushRow = (): void => {
+      rows.push(`${rows.length === startRow ? prefix : '  '}${row}`);
+      row = '';
+      used = 0;
+    };
+    lineChars.forEach((ch, i) => {
+      const shown = opts.mask ? '•' : ch;
+      const w = charCols(shown);
+      if (used + w > textW) pushRow();
+      if (offset + i === cursor) { curRow = rows.length; curCol = used; }
+      row += shown;
+      used += w;
+    });
+    if (offset + lineChars.length === cursor) {
+      if (used >= textW) pushRow();
+      curRow = rows.length;
+      curCol = used;
+    }
+    pushRow();
+    offset += lineChars.length + 1;
+  });
+  if (!chars.length && opts.placeholder) {
+    rows[0] = `${accent(PROMPT)} ${dim(c.muted(fit(opts.placeholder, textW).trimEnd()))}`;
+  }
+  // Çok uzun girişte kutu en çok 10 satır; imlecin olduğu bölüm görünür
+  const MAX_ROWS = 10;
+  let shown = rows;
+  let shift = 0;
+  if (rows.length > MAX_ROWS) {
+    shift = Math.min(Math.max(0, curRow - MAX_ROWS + 1), rows.length - MAX_ROWS);
+    shown = rows.slice(shift, shift + MAX_ROWS);
+  }
+  const lines: string[] = [];
+  if (opts.label) lines.push(` ${bold(opts.label)}`);
+  const head = lines.length;
+  lines.push(accent(`╭${'─'.repeat(boxW - 2)}╮`));
+  for (const r of shown) {
+    const pad = Math.max(0, inner - width(r));
+    lines.push(`${accent('│')} ${r}${' '.repeat(pad)} ${accent('│')}`);
+  }
+  lines.push(accent(`╰${'─'.repeat(boxW - 2)}╯`));
+  return { lines, cursor: { row: head + 1 + curRow - shift, col: 2 + 2 + curCol } };
+}
+
+/** Yanıt sürerken altta duran soluk kutu. */
+export function showIdleBox(placeholder: string): void {
+  screen.setInput(layoutBox([], 0, { accent: c.muted, placeholder, idle: true }).lines, null);
+}
 
 /**
  * Çerçeveli giriş kutusu. Enter gönderir; satır sonundaki `\` + Enter ya da yapıştırma yeni satır açar.
- * Dönüş: gönderilen metin, Esc/Ctrl+C ile vazgeçildiyse null, çıkış istendiyse { exit: true }.
+ * Dönüş: gönderilen metin, Esc ile vazgeçildiyse null, çıkış istendiyse { exit: true }.
  */
 export function readInput(opts: EditorOptions): Promise<EditorResult> {
   let chars: string[] = [];
@@ -68,73 +140,24 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
 
   const render = (): void => {
     const cols = columns();
-    const boxW = cols - 1;
-    const inner = boxW - 4;
-    const textW = Math.max(8, inner - 2);
     const accent = opts.accent();
-    const rows: string[] = [];
-    let curRow = 0;
-    let curCol = 0;
-    const logical = text().split('\n');
-    let offset = 0;
-    logical.forEach((line, li) => {
-      const prefix = li === 0 ? accent('❯') + ' ' : '  ';
-      const lineChars = [...line];
-      let row = '';
-      let used = 0;
-      const startRow = rows.length;
-      const pushRow = (): void => {
-        rows.push(`${rows.length === startRow ? prefix : '  '}${row}`);
-        row = '';
-        used = 0;
-      };
-      lineChars.forEach((ch, i) => {
-        const shown = opts.mask ? '•' : ch;
-        const w = charCols(shown);
-        if (used + w > textW) pushRow();
-        if (offset + i === cursor) { curRow = rows.length; curCol = used; }
-        row += shown;
-        used += w;
-      });
-      if (offset + lineChars.length === cursor) {
-        if (used >= textW) pushRow();
-        curRow = rows.length;
-        curCol = used;
-      }
-      pushRow();
-      offset += lineChars.length + 1;
-    });
-    if (!chars.length && opts.placeholder) {
-      rows[0] = `${accent('❯')} ${dim(c.muted(fit(opts.placeholder, textW).trimEnd()))}`;
-    }
-
-    const border = accent;
-    const lines: string[] = [];
-    if (opts.label) lines.push(` ${bold(opts.label)}`);
-    const headerRows = lines.length;
-    lines.push(border(`╭${'─'.repeat(boxW - 2)}╮`));
-    for (const r of rows) {
-      const pad = Math.max(0, inner - width(r));
-      lines.push(`${border('│')} ${r}${' '.repeat(pad)} ${border('│')}`);
-    }
-    lines.push(border(`╰${'─'.repeat(boxW - 2)}╯`));
+    const box = layoutBox(chars, cursor, { accent, placeholder: opts.placeholder, mask: opts.mask, label: opts.label });
     if (sugg) {
       const list = sugg.items.slice(0, MAX_SUGGESTIONS);
       const labelW = Math.min(28, Math.max(...list.map((s) => width(s.label))) + 2);
-      list.forEach((s, i) => {
+      const lines = list.map((s, i) => {
         const sel = i === suggIndex;
         const label = fit(s.label, labelW);
         const hint = s.hint ? fit(s.hint, Math.max(0, cols - labelW - 6)).trimEnd() : '';
-        lines.push(sel ? `  ${accent('❯')} ${bold(accent(label))}${c.muted(hint)}` : `    ${c.text(label)}${dim(c.muted(hint))}`);
+        return sel ? `  ${accent('❯')} ${bold(accent(label))}${c.muted(hint)}` : `    ${c.text(label)}${dim(c.muted(hint))}`;
       });
       if (sugg.items.length > MAX_SUGGESTIONS) lines.push(`    ${c.muted(`… ${sugg.items.length - MAX_SUGGESTIONS} tane daha, yazarak daralt`)}`);
-    } else if (notice) {
-      lines.push(`  ${c.yellow(notice)}`);
-    } else if (opts.footer) {
-      lines.push(opts.footer());
+      screen.setSlot('suggest', lines);
+    } else {
+      screen.setSlot('suggest', null);
     }
-    // İmleç: başlık + üst kenar + içerik satırı; sütun: "│ " + önek (2)
-    live.draw(lines, { row: headerRows + 1 + curRow, col: 2 + 2 + curCol });
+    screen.setSlot('notice', notice ? [`  ${c.yellow(notice)}`] : null);
+    screen.setInput(box.lines, box.cursor);
   };
 
   const insert = (s: string): void => {
@@ -159,6 +182,13 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
     while (i < chars.length && chars[i] !== '\n') i++;
     return i;
   };
+  const deleteWord = (): void => {
+    let i = cursor;
+    while (i > 0 && /\s/.test(chars[i - 1])) i--;
+    while (i > 0 && !/\s/.test(chars[i - 1])) i--;
+    chars.splice(i, cursor - i);
+    cursor = i;
+  };
 
   const acceptSuggestion = (): Suggestion | null => {
     if (!sugg) return null;
@@ -175,7 +205,10 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
     const done = (result: EditorResult): void => {
       release();
       process.stdout.off('resize', onResize);
-      live.clear();
+      screen.setSlot('suggest', null);
+      screen.setSlot('notice', null);
+      if (opts.idlePlaceholder !== undefined) showIdleBox(opts.idlePlaceholder);
+      else screen.setInput(null);
       resolve(result);
     };
 
@@ -229,14 +262,8 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
         return render();
       }
       if (key.name === 'backspace') {
-        if (key.meta || key.ctrl) {
-          // Alt/Ctrl+Backspace: kelime sil
-          let i = cursor;
-          while (i > 0 && /\s/.test(chars[i - 1])) i--;
-          while (i > 0 && !/\s/.test(chars[i - 1])) i--;
-          chars.splice(i, cursor - i);
-          cursor = i;
-        } else if (cursor > 0) {
+        if (key.meta || key.ctrl) deleteWord(); // Alt/Ctrl+Backspace: kelime sil
+        else if (cursor > 0) {
           chars.splice(cursor - 1, 1);
           cursor--;
         }
@@ -252,14 +279,11 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
       } else if (key.name === 'end' || (key.ctrl && key.name === 'e')) {
         cursor = lineEnd();
       } else if (key.ctrl && key.name === 'u') {
-        chars.splice(lineStart(), cursor - lineStart());
-        cursor = lineStart();
+        const start = lineStart();
+        chars.splice(start, cursor - start);
+        cursor = start;
       } else if (key.ctrl && key.name === 'w') {
-        let i = cursor;
-        while (i > 0 && /\s/.test(chars[i - 1])) i--;
-        while (i > 0 && !/\s/.test(chars[i - 1])) i--;
-        chars.splice(i, cursor - i);
-        cursor = i;
+        deleteWord();
       } else if (key.name === 'up' && !opts.mask) {
         if (lineStart() > 0) {
           // çok satırlıda bir üst satıra

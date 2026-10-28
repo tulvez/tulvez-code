@@ -87,11 +87,10 @@ Seçenekler:
   -h, --help                  Bu yardım
   -v, --version               Sürüm
 
-API anahtarı ortam değişkeninden okunur, ayar dosyasına yazılmaz:
+API anahtarı: kurulum ekranında yapıştırıp kaydedebilirsin (anahtarlar.json,
+yalnız senin okuyabildiğin dosya). Ortam değişkeni varsa önce o kullanılır:
   TULVEZ_API_KEY ya da sağlayıcınınki (OPENAI_API_KEY, ANTHROPIC_API_KEY,
   GEMINI_API_KEY, GROQ_API_KEY, OPENCODE_API_KEY). Ollama anahtar istemez.
-  Kurulum ekranında yapıştırılan anahtar o oturumda kullanılır; Windows'ta
-  istenirse kullanıcı ortam değişkenine (setx) kaydedilir.
 
 Diğer ortam değişkenleri: TULVEZ_PROVIDER, TULVEZ_MODEL, TULVEZ_BASE_URL,
 OLLAMA_HOST, TULVEZ_CONFIG_DIR, NO_COLOR.

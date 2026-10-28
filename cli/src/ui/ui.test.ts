@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { matchFiles } from '../files';
 import { MarkdownStream } from './markdown';
-import { box, fit, fitStart, truncateAnsi, width, wrapPlain } from './theme';
+import { box, fit, fitStart, truncateAnsi, width, wrapAnsi, wrapPlain } from './theme';
 
 // Testlerde stdout terminal değil: renkler kapalı, çıktı düz metin.
 const render = (chunks: string[]): string[] => {
@@ -69,6 +69,17 @@ describe('ölçü yardımcıları', () => {
   it('kutu satırları taşmaz', () => {
     const lines = box(['x'.repeat(200)], { width: 40 });
     for (const l of lines) expect(width(l)).toBe(40);
+  });
+
+  it('wrapAnsi uzun satırı genişliğe böler, devam satırları girintili', () => {
+    const text = 'aaaa bbbb cccc dddd eeee ffff';
+    const rows = wrapAnsi(text, 12, 2);
+    expect(rows.length).toBeGreaterThan(1);
+    for (const r of rows) expect(width(r)).toBeLessThanOrEqual(12);
+    for (const r of rows.slice(1)) expect(r.startsWith('  ')).toBe(true);
+    // İçerik kaybolmaz (satır başı boşluğu ve kırılan boşluk hariç)
+    expect(rows.map((r, i) => (i ? r.slice(2) : r)).join('').replace(/\s/g, '')).toBe(text.replace(/\s/g, ''));
+    expect(wrapAnsi('kısa', 10)).toEqual(['kısa']);
   });
 
   it('wrapPlain genişliğe böler', () => {
