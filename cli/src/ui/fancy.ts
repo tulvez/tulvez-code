@@ -231,7 +231,8 @@ export class FancyUi implements SessionUi {
     print();
     // Girdi: talimatlar, sohbet geçmişi ve okunan dosyalar her istekte yeniden gider; çıktı: yanıtın kendisi
     const n = (x: number): string => x.toLocaleString('tr-TR');
-    print(dim(c.muted(`  ${u.model} · ${n(u.tokens)} token (${n(u.inputTokens)} girdi · ${n(u.outputTokens)} çıktı)${cost} · ${secs} sn`)));
+    const cached = u.cachedInputTokens ? `, ${n(u.cachedInputTokens)} önbellekten` : '';
+    print(dim(c.muted(`  ${u.model} · ${n(u.tokens)} token (${n(u.inputTokens)} girdi${cached} · ${n(u.outputTokens)} çıktı)${cost} · ${secs} sn`)));
   }
 
   cancelled(): void {

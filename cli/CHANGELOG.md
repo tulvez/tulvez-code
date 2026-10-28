@@ -27,6 +27,10 @@
 - Mesajın Claude Code'daki gibi arka planlı kutuda ("❯ metin"); `!` komutu ve `/` komutları da öyle.
 - Yanıt altındaki sayaç girdi ve çıktıyı ayrı gösterir ("2.430 girdi · 14 çıktı"). Selamlaşma ve kısa sohbette
   ("merhaba", "nasılsın", "teşekkürler") modele proje talimatları, proje haritası ve araç tanımları gönderilmez.
+- Sağlayıcı önbelleği: talimat + araçlar + proje haritası her istekte birebir aynı gider (harita 30 dakikada bir
+  yenilenir), Groq gpt-oss / OpenAI / Gemini bunu otomatik önbelleğe alır (Groq'ta önbellekten gelen giriş dakikalık
+  sınıra sayılmaz); Anthropic'te önbellek işareti konur. Sayaç önbellekten gelen kısmı gösterir. Son iki turdan
+  eski araç çıktıları kısa özete iner.
 - Hatalar Türkçe ve ne yapılacağıyla (hız sınırı, geçersiz anahtar, kota, bağlantı, model); kütüphane çıktısı
   ekran yerine `cli.log` dosyasına.
 - API anahtarı: kurulumda kaydedilebilir (`anahtarlar.json`, izin 600; Windows, macOS, Linux); ortam değişkeni varsa

@@ -15,6 +15,8 @@ export interface TurnUsage {
   tokens: number;
   inputTokens: number;
   outputTokens: number;
+  /** Girdinin sağlayıcı önbelleğinden gelen kısmı (Groq'ta dakikalık sınıra sayılmaz) */
+  cachedInputTokens?: number;
   costUsd: number;
   ms: number;
 }
@@ -184,6 +186,7 @@ export class Session {
             tokens: usage.inputTokens + usage.outputTokens,
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
+            cachedInputTokens: usage.cachedInputTokens,
             costUsd: usage.costUsd,
             ms: Date.now() - started,
           });
