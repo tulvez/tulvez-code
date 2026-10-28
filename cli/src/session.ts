@@ -1,6 +1,6 @@
 import * as path from 'path';
 import type { ModelMessage } from 'ai';
-import { runAgent, type ToolResult } from '../../src/services/agent';
+import { compactedMessages, runAgent, summarizeConversation, type ToolResult } from '../../src/services/agent';
 import { beginCheckpoint, endCheckpoint, undoCheckpoint } from '../../src/services/checkpoint';
 import { McpManager, readProjectMcp, type McpServerEntry } from '../../src/services/mcp';
 import { mentionContext } from '../../src/services/mentions';
@@ -48,7 +48,13 @@ export interface SessionUi {
   changed(files: string[], canUndo: boolean): void;
   info(message: string): void;
   success(message: string): void;
+  /** Konuşma özetleniyor (/compact ya da otomatik); bitince özetle birlikte çağrılır */
+  compacting?(auto: boolean): void;
+  compacted?(summary: string | null): void;
 }
+
+/** Bağlam bu orana gelince bir sonraki istekten önce konuşma kendiliğinden özetlenir */
+export const AUTO_COMPACT_RATIO = 0.8;
 
 export type RunOutcome = 'done' | 'cancelled' | 'error';
 
@@ -58,6 +64,9 @@ export class Session {
   id = newSessionId();
   private createdAt = Date.now();
   private title = '';
+  /** Son yanıttaki bağlam doluluğu (son adımın girdi + çıktısı) ve modelin bağlam penceresi */
+  contextTokens = 0;
+  contextWindow = 0;
   /** Tamamlanan her yanıttan sonra çağrılır (oturum kaydı) */
   onSaved: ((record: SessionRecord) => void) | null = null;
   private prior: ModelMessage[] | null = null;
@@ -102,6 +111,7 @@ export class Session {
     this.title = '';
     this.prior = null;
     this.history = [];
+    this.contextTokens = 0;
     this.lastCheckpoint = null;
     this.notes = [];
   }
@@ -161,7 +171,50 @@ export class Session {
     return this.projectMcpDecided ? [...this.userMcp, ...project] : this.userMcp;
   }
 
+  /** Bağlamın dolu kısmı (0–1); bilinmiyorsa 0 */
+  get contextRatio(): number {
+    return this.contextWindow ? this.contextTokens / this.contextWindow : 0;
+  }
+
+  /**
+   * Konuşmayı modele özetletir; özet sonraki isteklerde konuşmanın yerine geçer (Claude Code /compact).
+   * Ekranda önceki sohbet kalır. Başarısızsa konuşma olduğu gibi kalır.
+   */
+  async compact(auto = false): Promise<boolean> {
+    const messages: ModelMessage[] = this.prior?.length
+      ? this.prior
+      : this.history.map<ModelMessage>((t) => (t.role === 'user'
+        ? { role: 'user', content: t.text }
+        : { role: 'assistant', content: [{ type: 'text', text: t.text }] }));
+    if (!messages.length) {
+      this.ui.info('Özetlenecek konuşma yok.');
+      return false;
+    }
+    const abort = new AbortController();
+    this.abort = abort;
+    this.ui.compacting?.(auto);
+    try {
+      const summary = await summarizeConversation(this.settings, messages, abort.signal);
+      this.prior = compactedMessages(summary);
+      this.history = [{ role: 'user', text: '(önceki konuşma özetlendi)' }, { role: 'assistant', text: summary }];
+      this.contextTokens = Math.round(summary.length / 3.5);
+      this.ui.compacted?.(summary);
+      try { this.onSaved?.(this.record()); } catch { /* kayıt yazılamazsa oturum sürer */ }
+      return true;
+    } catch (err) {
+      this.ui.compacted?.(null);
+      if (abort.signal.aborted) this.ui.cancelled();
+      else this.ui.error(err instanceof Error ? err.message : String(err));
+      return false;
+    } finally {
+      this.abort = null;
+    }
+  }
+
   async run(prompt: string): Promise<RunOutcome> {
+    // Bağlam dolmak üzereyse önce konuşma özetlenir (Claude Code'un otomatik sıkıştırması)
+    if (this.contextRatio >= AUTO_COMPACT_RATIO) await this.compact(true);
+
     const mcpTools = this.mode === 'build'
       ? await this.mcpEntries().then((entries) => {
         if (!entries.length) return [];
@@ -215,6 +268,8 @@ export class Session {
           return reply === 'evet' || reply === 'hep';
         },
         onDone: (usage) => {
+          if (usage.contextTokens) this.contextTokens = usage.contextTokens;
+          this.contextWindow = usage.contextWindow;
           this.ui.done({
             model: usage.model,
             tokens: usage.inputTokens + usage.outputTokens,

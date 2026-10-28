@@ -257,6 +257,22 @@ export class FancyUi implements SessionUi {
     print(`  ${c.muted('Değişen dosyalar:')} ${files.map((f) => c.text(f)).join(c.muted(', '))}${canUndo ? c.muted('  · geri almak için ') + c.brand('/undo') : ''}`);
   }
 
+  compacting(auto: boolean): void {
+    this.flushText();
+    print(`${c.violet('●')} ${c.text(auto ? 'Bağlam dolmak üzere — konuşma özetleniyor' : 'Konuşma özetleniyor')}`);
+    this.spinner.start('Özetliyor');
+  }
+
+  compacted(summary: string | null): void {
+    this.spinner.stop();
+    if (summary === null) return;
+    const lines = summary.split('\n').filter((l) => l.trim());
+    print(`  ${c.muted('└')}  ${c.green('Özetlendi')} ${c.muted(`· sonraki istekler bu özetle sürer (${lines.length} satır)`)}`);
+    for (const l of lines.slice(0, 6)) print(`     ${dim(c.muted(fit(l, columns() - 7).trimEnd()))}`);
+    if (lines.length > 6) print(`     ${c.muted(`… ${lines.length - 6} satır daha`)}`);
+    print();
+  }
+
   info(message: string): void {
     print(`  ${c.muted(message)}`);
   }

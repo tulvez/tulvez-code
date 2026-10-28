@@ -9,7 +9,7 @@ import { MODES, isMode } from './args';
 import { invalidateFiles, matchFiles, workspaceFiles } from './files';
 import { ago, listSessions, saveSession, sessionsDir, type SessionRecord } from './sessions';
 import { MarkdownStream } from './ui/markdown';
-import type { Session } from './session';
+import { AUTO_COMPACT_RATIO, type Session } from './session';
 import { KEYS_FILE, configDir, removeKey, type LoadedConfig } from './settings';
 import { shortPath, welcomeView } from './ui/banner';
 import { readInput, type EditorApi, type Suggestion, type SuggestionSet } from './ui/editor';
@@ -32,6 +32,8 @@ export const COMMANDS: Command[] = [
   { name: '/provider', hint: 'sağlayıcı, anahtar ve modeli yeniden kur', idleOnly: true },
   { name: '/clear', hint: 'yeni sohbet (hafıza sıfırlanır)', idleOnly: true },
   { name: '/resume', hint: 'kayıtlı bir oturumu sürdür', idleOnly: true },
+  { name: '/compact', hint: 'konuşmayı özetleyip bağlamı boşalt', idleOnly: true },
+  { name: '/context', hint: 'bağlam doluluğu' },
   { name: '/undo', hint: 'son yanıtın dosya değişikliklerini geri al', idleOnly: true },
   { name: '/approve', hint: 'komut onaylarını aç ya da kapat' },
   { name: '/config', hint: 'etkin ayarlar' },
@@ -172,6 +174,13 @@ function remember(root: string, note: string): string {
   return file;
 }
 
+/** Bağlam doluluğu çubuğu (/context) */
+function contextBar(ratio: number, size = 20): string {
+  const full = Math.min(size, Math.round(ratio * size));
+  const paint = ratio >= AUTO_COMPACT_RATIO ? c.red : ratio >= 0.6 ? c.yellow : c.green;
+  return `${paint('█'.repeat(full))}${c.muted('░'.repeat(size - full))}`;
+}
+
 // --- Etkileşimli oturum ---
 
 const MODE_ORDER: AgentMode[] = ['build', 'plan', 'ask'];
@@ -206,6 +215,9 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
     else {
       left = `${m('●')} ${m(MODE_LABEL[session.mode])} ${c.muted('modu (⇧Tab)')}`;
       if (session.settings.autoApproveCommands) left += `  ${c.yellow('» onaylar açık')}`;
+      // Bağlam doluluğu: %50'den sonra görünür, %70 sarı, %80'de kendiliğinden özetlenir
+      const ratio = session.contextRatio;
+      if (ratio >= 0.5) left += `  ${(ratio >= 0.7 ? c.yellow : c.muted)(`bağlam %${Math.round(ratio * 100)}`)}`;
     }
     const right = `${c.muted('? kısayollar')}${c.muted('  ·  ')}${c.text(session.settings.model || providerName(session.settings.aiProvider))}${c.muted('  ·  ')}${c.muted(fitStart(shortPath(root), 28))}`;
     const gap = columns() - 1 - width(left) - width(right) - 2;
@@ -324,7 +336,22 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
       print(`${c.yellow('!')} ${c.muted(`/${cmd} yanıt sürerken kullanılamaz — Esc ile durdur ya da yanıtın bitmesini bekle`)}`);
       return false;
     }
+    if (cmd === 'compact') {
+      echo(cmd, arg);
+      await session.compact(false);
+      return false;
+    }
+    if (cmd === 'context') {
+      echo(cmd, arg);
+      const pct = Math.round(session.contextRatio * 100);
+      print(session.contextWindow
+        ? `${contextBar(session.contextRatio)} ${c.text(`%${pct}`)} ${c.muted(`· ${session.contextTokens.toLocaleString('tr-TR')} / ${session.contextWindow.toLocaleString('tr-TR')} token · %${Math.round(AUTO_COMPACT_RATIO * 100)}'de kendiliğinden özetlenir (/compact)`)}`
+        : c.muted('Henüz ölçüm yok — ilk yanıttan sonra görünür.'));
+      print();
+      return false;
+    }
     if (cmd === 'resume') {
+      echo(cmd, arg);
       const picked = await pickSession();
       if (picked) replay(picked);
       return false;

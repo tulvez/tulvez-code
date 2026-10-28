@@ -1,4 +1,4 @@
-import { stepCountIs, streamText, type ModelMessage, type SystemModelMessage, type ToolSet } from 'ai';
+import { generateText, stepCountIs, streamText, type ModelMessage, type SystemModelMessage, type ToolSet } from 'ai';
 import * as path from 'path';
 import type { TulvezSettings } from './messages';
 import { calcCost } from './cost';
@@ -21,7 +21,8 @@ export interface AgentCallbacks {
   onToolResult?: (result: ToolResult) => void;
   onToolRequest: (id: string, tool: string, args: string) => Promise<boolean>;
   /** cachedInputTokens: girdinin sağlayıcı önbelleğinden gelen kısmı (bilinmiyorsa yok) */
-  onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number; model: string; cachedInputTokens?: number }) => void;
+  /** contextTokens: son adımın girdisi (bağlam doluluğu = contextTokens / contextWindow) */
+  onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number; model: string; cachedInputTokens?: number; contextTokens?: number }) => void;
   onCancelled?: () => void;
   /** Ajanın yapılacaklar listesi (todo_write) değişti */
   onTodos?: (items: TodoItem[]) => void;
@@ -356,6 +357,7 @@ export async function runAgent(
         if (streamError) throw new Error(streamError.message);
 
         const usage = await result.usage;
+        const steps = await result.steps;
         const finishReason = await result.finishReason;
         const text = (await result.text).trim();
 
@@ -379,6 +381,7 @@ export async function runAgent(
           contextWindow: contextWindow(resolved.id),
           model: resolved.id,
           cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens,
+          contextTokens: (steps[steps.length - 1]?.usage.inputTokens ?? 0) + (steps[steps.length - 1]?.usage.outputTokens ?? 0),
         });
         return;
       } catch (err) {
@@ -428,4 +431,47 @@ function isRetryable(message: string): boolean {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+const COMPACT_PROMPT = [
+  'Görevin: aşağıdaki kodlama konuşmasını, aynı işe kaldığı yerden devam edecek bir yapay zekâ için özetlemek.',
+  'Türkçe, en çok ~400 kelime, başlıklarla yaz:',
+  '- Kullanıcının hedefi ve istekleri (son istek dahil)',
+  '- Yapılanlar: değişen ya da oluşturulan dosyalar (yollarıyla), önemli kararlar, çalıştırılan komutların sonuçları',
+  '- Önemli bulgular: hata iletileri, dosyalarda öğrenilen kritik ayrıntılar (fonksiyon adları, yapı)',
+  '- Kalan işler ve sıradaki adım',
+  'Kod bloklarını yalnız gerçekten gerekliyse kısa tut. Yalnız özeti yaz; açıklama ya da giriş cümlesi ekleme.',
+].join('\n');
+
+/**
+ * Konuşmayı modele özetletir (Claude Code'un /compact'ı gibi). Özet, sonraki isteklerde konuşmanın yerine
+ * geçer; bağlam penceresi ve dakikalık token sınırı rahatlar. Eski araç çıktıları önce budanır.
+ */
+export async function summarizeConversation(
+  settings: TulvezSettings,
+  messages: ModelMessage[],
+  signal?: AbortSignal,
+): Promise<string> {
+  const resolved = resolveModel(settings);
+  let msgs = withoutReasoning(pruneOldToolResults(messages, 1));
+  const limit = requestLimits.get(resolved.id);
+  const budget = limit ? Math.max(3000, Math.floor(limit * 3 * 0.7) - COMPACT_PROMPT.length) : Math.min(contextWindow(resolved.id) * 2, 400_000);
+  msgs = fitToolResults(compactConversation(msgs, budget), budget);
+  const result = await generateText({
+    model: resolved.model,
+    system: COMPACT_PROMPT,
+    messages: [...msgs, { role: 'user', content: 'Yukarıdaki konuşmayı yönergeye göre özetle.' }],
+    abortSignal: signal,
+    maxRetries: 1,
+  });
+  const text = result.text.trim();
+  if (!text) throw new Error('Model boş özet döndürdü.');
+  return text;
+}
+
+/** Özetin konuşmadaki yeri: sonraki isteklerde modelin gördüğü tek geçmiş */
+export function compactedMessages(summary: string): ModelMessage[] {
+  return [
+    { role: 'user', content: `(Önceki konuşmanın özeti — bağlam sıkıştırıldı. Ayrıntı gerekirse dosyaları yeniden oku.)\n\n${summary}` },
+    { role: 'assistant', content: [{ type: 'text', text: 'Anladım; özetteki bilgilerle kaldığım yerden devam ediyorum.' }] },
+  ];
 }

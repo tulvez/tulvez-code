@@ -76,6 +76,8 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | `/provider` | Sağlayıcı, anahtar ve modeli yeniden kurar |
 | `/clear` | Yeni sohbet (hafıza sıfırlanır, boş ekrana döner) |
 | `/resume` | Bu klasördeki kayıtlı bir oturumu sürdürür |
+| `/compact` | Konuşmayı modele özetletir; sonraki istekler özetle sürer (bağlam %80'e gelince kendiliğinden) |
+| `/context` | Bağlam doluluğu (durum satırında da %50'den sonra görünür) |
 | `/undo` | Son yanıtın yazdığı dosyaları eski haline döndürür |
 | `/approve` | Komut onaylarını bu oturumda açar ya da kapatır |
 | `/config` | Etkin ayarları gösterir |
