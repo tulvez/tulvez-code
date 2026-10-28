@@ -20,10 +20,12 @@ const DEPTH = colorDepth();
 export const colorEnabled = DEPTH > 1;
 
 function to256([r, g, b]: Rgb): number {
-  if (r === g && g === b) {
-    if (r < 8) return 16;
-    if (r > 248) return 231;
-    return Math.round(((r - 8) / 247) * 24) + 232;
+  // Griye yakın tonlar (koyu zeminler) gri rampaya: renk küpünün en koyu grisi #5f5f5f, çok açık kalıyor
+  if (Math.max(r, g, b) - Math.min(r, g, b) < 24) {
+    const v = Math.round((r + g + b) / 3);
+    if (v < 8) return 16;
+    if (v > 248) return 231;
+    return Math.round(((v - 8) / 247) * 24) + 232;
   }
   const c = (v: number): number => Math.round((v / 255) * 5);
   return 16 + 36 * c(r) + 6 * c(g) + c(b);

@@ -11,7 +11,7 @@ import type { Session } from './session';
 import { KEYS_FILE, configDir, removeKey, type LoadedConfig } from './settings';
 import { shortPath, welcomeView } from './ui/banner';
 import { readInput, type EditorApi, type Suggestion, type SuggestionSet } from './ui/editor';
-import { print, screen } from './ui/screen';
+import { print, printUserMessage, screen } from './ui/screen';
 import { select } from './ui/select';
 import { pickModel, providerName, runSetup } from './ui/setup';
 import { MODE_COLOR, MODE_HINT, MODE_LABEL, bold, box, c, columns, dim, fg, fit, fitStart, width, type Paint } from './ui/theme';
@@ -222,7 +222,7 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
     if (text.startsWith('!')) {
       const command = text.slice(1).trim();
       if (!command) return;
-      print(`${c.pink('!')} ${c.text(command)}`);
+      printUserMessage(command, c.pink('!'));
       shellAbort = new AbortController();
       const { code, output } = await runShell(command, root, shellAbort.signal);
       const aborted = shellAbort.signal.aborted;
@@ -238,8 +238,7 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
       invalidateFiles();
       return;
     }
-    print(`${c.muted('>')} ${c.text(text.split('\n')[0])}`);
-    for (const l of text.split('\n').slice(1)) print(`  ${c.text(l)}`);
+    printUserMessage(text);
     print();
     if (!hasKey(session.settings)) {
       print(`${c.red('✗')} ${c.muted('API anahtarı yok — /saglayici ile kur')}`);
@@ -300,7 +299,7 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
 
   /** Komut satırını sohbete yansıtır (komutun çıktısı varsa altına gelir). */
   const echo = (cmd: string, arg: string): void => {
-    print(`${c.muted('>')} ${c.brand(`/${cmd}`)}${arg ? ` ${c.text(arg)}` : ''}`);
+    printUserMessage(`${c.brand(`/${cmd}`)}${arg ? ` ${arg}` : ''}`);
   };
 
   /** Eğik çizgi komutu; true dönerse oturum biter. */

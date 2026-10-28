@@ -229,7 +229,9 @@ export class FancyUi implements SessionUi {
     const secs = (u.ms / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 });
     const cost = u.costUsd > 0 ? ` · ${u.costUsd < 0.01 ? '<$0.01' : `$${u.costUsd.toFixed(2)}`}` : '';
     print();
-    print(dim(c.muted(`  ${u.model} · ${u.tokens.toLocaleString('tr-TR')} token${cost} · ${secs} sn`)));
+    // Girdi: talimatlar, sohbet geçmişi ve okunan dosyalar her istekte yeniden gider; çıktı: yanıtın kendisi
+    const n = (x: number): string => x.toLocaleString('tr-TR');
+    print(dim(c.muted(`  ${u.model} · ${n(u.tokens)} token (${n(u.inputTokens)} girdi · ${n(u.outputTokens)} çıktı)${cost} · ${secs} sn`)));
   }
 
   cancelled(): void {

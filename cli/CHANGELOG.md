@@ -24,6 +24,9 @@
 - Hız sınırında istek bekleyip yinelenir ve bekleme ekranda görünür ("18 sn bekleyip devam ediyorum"). İstek modelin
   sınırından büyükse (Groq ücretsiz plan: dakikada 8.000 token) sınır öğrenilir, araç çıktıları kısaltılıp kaldığı yerden sürülür.
 - Modelin düşünme metni ekrana dökülmez; yalnız "Düşünüyor…" göstergesi.
+- Mesajın Claude Code'daki gibi arka planlı kutuda ("❯ metin"); `!` komutu ve `/` komutları da öyle.
+- Yanıt altındaki sayaç girdi ve çıktıyı ayrı gösterir ("2.430 girdi · 14 çıktı"). Selamlaşma ve kısa sohbette
+  ("merhaba", "nasılsın", "teşekkürler") modele proje talimatları, proje haritası ve araç tanımları gönderilmez.
 - Hatalar Türkçe ve ne yapılacağıyla (hız sınırı, geçersiz anahtar, kota, bağlantı, model); kütüphane çıktısı
   ekran yerine `cli.log` dosyasına.
 - API anahtarı: kurulumda kaydedilebilir (`anahtarlar.json`, izin 600; Windows, macOS, Linux); ortam değişkeni varsa

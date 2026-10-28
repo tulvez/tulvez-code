@@ -1,4 +1,4 @@
-import { BRAND, c, columns, dim, gradient, truncateAnsi, wrapAnsi } from './theme';
+import { BRAND, bg, c, columns, dim, gradient, truncateAnsi, width as textWidth, wrapAnsi } from './theme';
 
 /**
  * Tam ekran düzeni (Claude Code / opencode gibi): açılınca terminalin alternatif ekranına geçilir,
@@ -19,6 +19,10 @@ const SLOT_ORDER: Slot[] = ['setup', 'stream', 'spinner', 'queue', 'select', 'su
 
 interface Cursor { row: number; col: number }
 
+/** Genişliğe göre kendini çizen sohbet bloğu (ör. arka planlı kullanıcı mesajı; boyut değişince yeniden çizilir) */
+type Block = (width: number) => string[];
+type Entry = string | Block;
+
 /** Bellekte tutulan en çok sohbet satırı (eskiler atılır) */
 const MAX_LINES = 20_000;
 
@@ -31,7 +35,7 @@ class Screen {
   /** Sohbet boş: karşılama görünür */
   private empty = true;
   /** Sohbetin mantıksal satırları (renkli) ve ekran genişliğine bölünmüş hali */
-  private lines: string[] = [];
+  private lines: Entry[] = [];
   private rows: string[] = [];
   private wrapWidth = 0;
   /** Alttan kaç satır yukarı kaydırıldı (0 = en altta, yeni satırlar görünür) */
@@ -104,10 +108,10 @@ class Screen {
     this.schedule();
   }
 
-  append(line: string): void {
+  append(line: Entry): void {
     this.lines.push(line);
     if (this.wrapWidth) {
-      const added = wrapAnsi(line, this.wrapWidth, 2);
+      const added = this.layout(line, this.wrapWidth);
       this.rows.push(...added);
       // Yukarıdaysa okuduğu yer kaymasın
       if (this.offset) this.offset += added.length;
@@ -118,6 +122,10 @@ class Screen {
     }
     this.empty = false;
     this.schedule();
+  }
+
+  private layout(entry: Entry, width: number): string[] {
+    return typeof entry === 'string' ? wrapAnsi(entry, width, 2) : entry(width);
   }
 
   get isEmpty(): boolean {
@@ -179,7 +187,7 @@ class Screen {
     const width = W - 1;
     if (width !== this.wrapWidth) {
       this.wrapWidth = width;
-      this.rows = this.lines.flatMap((l) => wrapAnsi(l, width, 2));
+      this.rows = this.lines.flatMap((l) => this.layout(l, width));
     }
 
     let bottom = this.bottomLines().map((l) => truncateAnsi(l, width));
@@ -235,6 +243,28 @@ export function print(text = ''): void {
   } else {
     process.stdout.write(text.endsWith('\n') ? text : `${text}\n`);
   }
+}
+
+const USER_BG = bg('#262C36');
+const USER_MAX_ROWS = 12;
+
+/**
+ * Kullanıcının mesajı Claude Code'daki gibi arka planlı bir kutuda: "❯ metin", satır boyu dolu.
+ * Çok uzun (yapıştırılmış) mesajın ilk satırları görünür.
+ */
+export function printUserMessage(text: string, mark: string = c.muted('❯')): void {
+  const block: Block = (w) => {
+    const inner = Math.max(10, w - 4);
+    let rows = text.replace(/\s+$/, '').split('\n').flatMap((l) => wrapAnsi(c.text(l), inner, 0));
+    const more = rows.length - USER_MAX_ROWS;
+    if (more > 0) rows = [...rows.slice(0, USER_MAX_ROWS - 1), c.muted(`… ${more + 1} satır daha`)];
+    return rows.map((r, i) => {
+      const line = ` ${i === 0 ? mark : ' '} ${r}`;
+      return USER_BG(`${line}${' '.repeat(Math.max(0, w - textWidth(line)))}`);
+    });
+  };
+  if (screen.active) screen.append(block);
+  else process.stdout.write(`${block(columns() - 1).join('\n')}\n`);
 }
 
 const FRAMES = ['✶', '✸', '✹', '✺', '✹', '✷'];

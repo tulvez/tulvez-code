@@ -13,6 +13,8 @@ export type Approval = 'evet' | 'hep' | 'hayir';
 export interface TurnUsage {
   model: string;
   tokens: number;
+  inputTokens: number;
+  outputTokens: number;
   costUsd: number;
   ms: number;
 }
@@ -180,6 +182,8 @@ export class Session {
           this.ui.done({
             model: usage.model,
             tokens: usage.inputTokens + usage.outputTokens,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
             costUsd: usage.costUsd,
             ms: Date.now() - started,
           });
