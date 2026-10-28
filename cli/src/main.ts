@@ -112,6 +112,8 @@ async function main(): Promise<number> {
       if (warning) print(`${c.yellow('!')} ${c.muted(warning)}`);
       void syncSkillsIfStale(skillsRoot).catch(() => {});
       const session = new Session(settings, root, new FancyUi(), cfg.mcpServers, args.mode, true);
+      session.permissions = cfg.file.permissions;
+      session.hooks = cfg.file.hooks ?? {};
       await interactive(session, cfg, root, { continueLast: args.continueLast, resume: args.resume });
       turns = session.turns;
       await session.close();
@@ -145,6 +147,8 @@ async function main(): Promise<number> {
 
   const ui = new PlainUi();
   const session = new Session(cfg.settings, root, ui, cfg.mcpServers, args.mode);
+  session.permissions = cfg.file.permissions;
+  session.hooks = cfg.file.hooks ?? {};
   let interrupted = false;
   process.on('SIGINT', () => {
     if (interrupted || !session.stop()) process.exit(130);

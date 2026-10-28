@@ -8,6 +8,8 @@ import { mentionContext } from '../../src/services/mentions';
 import type { TulvezSettings } from '../../src/services/messages';
 import type { TodoItem } from '../../src/services/tools';
 import type { AgentMode, ChatTurn } from '../../src/services/types';
+import { runHooks, type HooksConfig } from './hooks';
+import { decide, type PermissionRules } from './permissions';
 import { newSessionId, sessionTitle, type SessionRecord } from './sessions';
 
 export type Approval = 'evet' | 'hep' | 'hayir';
@@ -68,6 +70,9 @@ export class Session {
   /** Son yanıttaki bağlam doluluğu (son adımın girdi + çıktısı) ve modelin bağlam penceresi */
   contextTokens = 0;
   contextWindow = 0;
+  /** cli.json → permissions ve hooks */
+  permissions: PermissionRules | undefined;
+  hooks: HooksConfig = {};
   /** Tamamlanan her yanıttan sonra çağrılır (oturum kaydı) */
   onSaved: ((record: SessionRecord) => void) | null = null;
   private prior: ModelMessage[] | null = null;
@@ -225,6 +230,15 @@ export class Session {
       : [];
 
     let text = prompt;
+    // UserPromptSubmit hook'u: çıkış 2 isteği engeller, stdout isteğe bağlam olur
+    if (this.hooks.UserPromptSubmit?.length) {
+      const h = await runHooks(this.hooks, 'UserPromptSubmit', { cwd: this.root, sessionId: this.id, prompt });
+      if (h.blocked) {
+        this.ui.error(`UserPromptSubmit hook'u isteği engelledi: ${h.message}`);
+        return 'error';
+      }
+      if (h.stdout) text = `${text}\n\n(Hook bağlamı:)\n${h.stdout}`;
+    }
     const mentioned = await mentionContext(prompt, this.root).catch(() => '');
     if (mentioned) text = `${text}\n\n${mentioned}`;
     if (this.notes.length) {
@@ -253,6 +267,20 @@ export class Session {
         onToolCall: (tool, summary, callId) => this.ui.toolCall(tool, summary, callId),
         onToolResult: (r) => this.ui.toolResult(r),
         onRateLimitWait: (seconds) => this.ui.waiting(seconds),
+        onBeforeTool: async (tool, args) => {
+          const perm = decide(this.permissions, tool, args);
+          if (perm.decision === 'deny') return { decision: 'deny', reason: `izin kuralı ${perm.rule}` };
+          if (this.hooks.PreToolUse?.length) {
+            const h = await runHooks(this.hooks, 'PreToolUse', { cwd: this.root, sessionId: this.id, tool, input: args });
+            if (h.blocked) return { decision: 'deny', reason: `PreToolUse hook'u: ${h.message}` };
+          }
+          return { decision: perm.decision };
+        },
+        onAfterTool: async (tool, args, result) => {
+          if (!this.hooks.PostToolUse?.length) return;
+          const h = await runHooks(this.hooks, 'PostToolUse', { cwd: this.root, sessionId: this.id, tool, input: args, output: result.slice(0, 20_000) });
+          if (h.blocked) return `(PostToolUse hook'u: ${h.message})`;
+        },
         onToolRequest: async (_id, tool, args) => {
           let detail = args;
           try {
@@ -300,6 +328,9 @@ export class Session {
       this.ui.end();
     }
 
+    if (this.hooks.Stop?.length) {
+      await runHooks(this.hooks, 'Stop', { cwd: this.root, sessionId: this.id }).catch(() => undefined);
+    }
     const cp = await endCheckpoint();
     if (cp) {
       this.lastCheckpoint = cp.id;

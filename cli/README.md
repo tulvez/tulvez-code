@@ -81,11 +81,46 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | `/undo` | Son yanıtın yazdığı dosyaları eski haline döndürür |
 | `/approve` | Komut onaylarını bu oturumda açar ya da kapatır |
 | `/config` | Etkin ayarları gösterir |
+| `/permissions` | İzin kuralları |
+| `/hooks` | Tanımlı hook'lar |
 | `/logout` | Bu sağlayıcının kayıtlı anahtarını siler |
 | `/help` | Komutlar ve kısayollar |
 | `/exit` | Çıkar (Ctrl+D da olur) |
 
 Eski Türkçe adlar (`/yeni`, `/geri-al`, `/saglayici`…) da çalışır.
+
+## İzin kuralları
+
+`cli.json` → `permissions` (Claude Code biçimi). `deny` önce bakılır: uyan araç hiç çalışmaz, gerekçe modele
+gider. `allow`'a uyan araç onay sormadan çalışır. İkisine de uymayan her zamanki gibi sorulur.
+
+```json
+"permissions": {
+  "allow": ["Bash(npm test:*)", "Bash(git status:*)", "web_fetch(https://docs.*)"],
+  "deny": ["Bash(rm -rf:*)", "write_file(.env*)"]
+}
+```
+
+Kalıplarda `*` ve `?` kullanılır; Claude Code adları (`Bash`, `Write`, `Edit`, `Read`, `WebFetch`, `WebSearch`) da geçer.
+
+## Hook'lar
+
+`cli.json` → `hooks`: belirli anlarda senin komutun çalışır. Yalnız kendi ayar dosyandan okunur; proje dosyaları
+hook tanımlayamaz.
+
+```json
+"hooks": {
+  "PostToolUse": [{ "matcher": "write_file|replace_in_file", "command": "npx prettier --write \"$TULVEZ_FILE\"" }],
+  "PreToolUse": [{ "matcher": "run_command", "command": "node guard.js" }],
+  "UserPromptSubmit": [{ "command": "git status --short" }],
+  "Stop": [{ "command": "notify-send 'Tulvez Code bitti'" }]
+}
+```
+
+Komut stdin'den JSON alır (`hook_event_name`, `tool_name`, `tool_input`, `tool_response`, `prompt`, `cwd`,
+`session_id`); ortamda `TULVEZ_HOOK_EVENT`, `TULVEZ_TOOL`, `TULVEZ_FILE` vardır. **Çıkış 2**: PreToolUse aracı,
+UserPromptSubmit isteği engeller (stderr gerekçe olur); PostToolUse'da stderr modele gider. UserPromptSubmit'in
+stdout'u isteğe bağlam olarak eklenir. Her hook en çok 60 sn (`"timeout"` ile değişir).
 
 ## Web araması
 

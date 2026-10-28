@@ -10,6 +10,7 @@ import { invalidateFiles, matchFiles, workspaceFiles } from './files';
 import { ago, listSessions, saveSession, sessionsDir, type SessionRecord } from './sessions';
 import { MarkdownStream } from './ui/markdown';
 import type { ClipboardImage } from './ui/clipboard';
+import { HOOK_EVENTS } from './hooks';
 import { AUTO_COMPACT_RATIO, type Session } from './session';
 import { KEYS_FILE, configDir, removeKey, type LoadedConfig } from './settings';
 import { shortPath, welcomeView } from './ui/banner';
@@ -38,6 +39,8 @@ export const COMMANDS: Command[] = [
   { name: '/undo', hint: 'son yanıtın dosya değişikliklerini geri al', idleOnly: true },
   { name: '/approve', hint: 'komut onaylarını aç ya da kapat' },
   { name: '/config', hint: 'etkin ayarlar' },
+  { name: '/permissions', hint: 'izin kuralları (cli.json)' },
+  { name: '/hooks', hint: 'tanımlı hook\'lar (cli.json)' },
   { name: '/logout', hint: 'bu sağlayıcının kayıtlı anahtarını sil' },
   { name: '/exit', hint: 'çık (Ctrl+D)' },
 ];
@@ -341,6 +344,31 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
     if (cmd === 'exit') return true;
     if (busy() && COMMANDS.find((x) => x.name === `/${cmd}`)?.idleOnly) {
       print(`${c.yellow('!')} ${c.muted(`/${cmd} yanıt sürerken kullanılamaz — Esc ile durdur ya da yanıtın bitmesini bekle`)}`);
+      return false;
+    }
+    if (cmd === 'permissions') {
+      echo(cmd, arg);
+      const p = session.permissions;
+      const lines = [
+        `${c.green('İzin ver')} ${c.muted('(sormadan çalışır)')}`, ...(p?.allow?.length ? p.allow.map((r) => `  ${c.text(r)}`) : [`  ${c.muted('—')}`]),
+        '', `${c.red('Engelle')} ${c.muted('(hiç çalışmaz)')}`, ...(p?.deny?.length ? p.deny.map((r) => `  ${c.text(r)}`) : [`  ${c.muted('—')}`]),
+        '', c.muted(`Düzenle: ${cfg.configPath} → "permissions": { "allow": [...], "deny": [...] }`),
+        c.muted('Örnek: "Bash(npm test:*)", "run_command(git status)", "write_file(.env*)", "web_fetch(https://docs.*)"'),
+      ];
+      for (const l of box(lines, { width: Math.min(columns() - 2, 100), title: c.text('İzinler') })) print(` ${l}`);
+      print();
+      return false;
+    }
+    if (cmd === 'hooks') {
+      echo(cmd, arg);
+      const lines: string[] = [];
+      for (const ev of HOOK_EVENTS) {
+        for (const h of session.hooks[ev] ?? []) lines.push(`${c.brand(ev.padEnd(17))}${c.muted(h.matcher ? `${h.matcher} → ` : '')}${c.text(h.command)}`);
+      }
+      if (!lines.length) lines.push(c.muted('Tanımlı hook yok.'));
+      lines.push('', c.muted(`Düzenle: ${cfg.configPath} → "hooks": { "PostToolUse": [{ "matcher": "write_file", "command": "…" }] }`));
+      for (const l of box(lines, { width: Math.min(columns() - 2, 100), title: c.text('Hook\'lar') })) print(` ${l}`);
+      print();
       return false;
     }
     if (cmd === 'compact') {

@@ -143,7 +143,7 @@ export class FancyUi implements SessionUi {
     const call = this.calls.get(r.callId);
     const lead = `  ${c.muted('└')}  `;
     if (r.status === 'rejected') {
-      print(`${lead}${c.red('İzin verilmedi')}`);
+      print(`${lead}${c.red(r.output.startsWith('Engellendi') ? fit(r.output, columns() - 8).trimEnd() : 'İzin verilmedi')}`);
     } else if (r.status === 'error') {
       const lines = r.output.trim().split(/\r?\n/);
       print(`${lead}${c.red(fit(lines[0] ?? 'hata', columns() - 8).trimEnd())}`);

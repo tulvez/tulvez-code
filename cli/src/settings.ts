@@ -3,6 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import type { TulvezSettings } from '../../src/services/messages';
 import { parseMcpServers, type McpServerEntry } from '../../src/services/mcp';
+import { parseHooks, type HooksConfig } from './hooks';
+import type { PermissionRules } from './permissions';
 
 /**
  * CLI ayarları üç kaynaktan, artan öncelikle: ayar dosyası → ortam değişkenleri → komut satırı.
@@ -41,6 +43,10 @@ export interface CliConfigFile {
   webSearch?: 'auto' | 'brave' | 'tavily' | 'tulvez' | 'off';
   /** Eklentideki tulvez.mcpServers ile aynı biçim */
   mcpServers?: unknown;
+  /** İzin kuralları (permissions.ts) */
+  permissions?: PermissionRules;
+  /** Hook'lar (hooks.ts) */
+  hooks?: HooksConfig;
 }
 
 export interface CliFlags {
@@ -160,6 +166,16 @@ export function readConfigFile(file: string, warnings: string[]): CliConfigFile 
   str('model'); str('baseUrl'); str('ollamaUrl'); str('skillsRegistry');
   bool('allowShellCommands'); bool('gitCoAuthor'); bool('showThinking');
   if (obj.mcpServers !== undefined) out.mcpServers = obj.mcpServers;
+  if (typeof obj.webSearch === 'string') {
+    if (['auto', 'brave', 'tavily', 'tulvez', 'off'].includes(obj.webSearch)) out.webSearch = obj.webSearch as CliConfigFile['webSearch'];
+    else warnings.push(`webSearch "${obj.webSearch}" tanınmadı (${file}); geçerliler: auto, brave, tavily, tulvez, off.`);
+  }
+  if (obj.permissions && typeof obj.permissions === 'object') {
+    const p = obj.permissions as Record<string, unknown>;
+    const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+    out.permissions = { allow: list(p.allow), deny: list(p.deny) };
+  }
+  if (obj.hooks !== undefined) out.hooks = parseHooks(obj.hooks);
   return out;
 }
 

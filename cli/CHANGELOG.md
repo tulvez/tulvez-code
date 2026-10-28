@@ -36,6 +36,9 @@
   `cli.json` → `webSearch` ile seçilir ya da kapatılır.
 - Görsel yapıştırma: Ctrl+V / Alt+V panodaki ekran görüntüsünü `[Görsel #1]` olarak ekler, mesajla modele gider
   (görsel destekli model gerekir). Eski turlarda ve oturum kaydında görsel yer tutucuya iner.
+- İzin kuralları (`cli.json` → `permissions.allow/deny`, Claude Code biçimi: `Bash(npm test:*)`) ve hook'lar
+  (`PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop`; çıkış 2 engeller). `/permissions`, `/hooks`.
+- `cli.json` → `webSearch` artık okunuyor (önceki sürümde yok sayılıyordu).
 - Mesajın Claude Code'daki gibi arka planlı kutuda ("❯ metin"); `!` komutu ve `/` komutları da öyle.
 - Yanıt altındaki sayaç girdi ve çıktıyı ayrı gösterir ("2.430 girdi · 14 çıktı"). Selamlaşma ve kısa sohbette
   ("merhaba", "nasılsın", "teşekkürler") modele proje talimatları, proje haritası ve araç tanımları gönderilmez.

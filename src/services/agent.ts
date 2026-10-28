@@ -27,9 +27,21 @@ export interface AgentCallbacks {
   /** Ajanın yapılacaklar listesi (todo_write) değişti */
   onTodos?: (items: TodoItem[]) => void;
   onReasoning?: (text: string) => void;
+  /**
+   * Her araçtan önce (izin kuralları, PreToolUse hook'u): "deny" aracı çalıştırmaz, gerekçe modele gider;
+   * "allow" onay sormadan çalıştırır; "ask" ya da dönüş yoksa her zamanki onay akışı.
+   */
+  onBeforeTool?: (tool: string, args: Record<string, unknown>) => Promise<ToolDecision | void>;
+  /** Her araçtan sonra (PostToolUse hook'u): dönen metin araç sonucuna eklenir ve modele gider */
+  onAfterTool?: (tool: string, args: Record<string, unknown>, result: string) => Promise<string | void>;
   /** Sağlayıcı hız sınırı: istek bu kadar saniye bekleyip yinelenecek */
   onRateLimitWait?: (seconds: number) => void;
   onError: (err: string) => void;
+}
+
+export interface ToolDecision {
+  decision: 'allow' | 'deny' | 'ask';
+  reason?: string;
 }
 
 export interface ToolResult {
@@ -156,7 +168,13 @@ function buildToolSet(
       execute: async (args: Record<string, unknown>, options?: { abortSignal?: AbortSignal }) => {
         const callId = nextToolReqId();
         cb.onToolCall(t.name, JSON.stringify(args).slice(0, 120), callId);
-        if (!settings.autoApproveCommands) {
+        const pre = await cb.onBeforeTool?.(t.name, args);
+        if (pre?.decision === 'deny') {
+          const msg = `Engellendi${pre.reason ? `: ${pre.reason}` : ' (izin kuralı)'}`;
+          cb.onToolResult?.({ callId, tool: t.name, output: msg, status: 'rejected' });
+          return msg;
+        }
+        if (!settings.autoApproveCommands && pre?.decision !== 'allow') {
           const allowed = await cb.onToolRequest(nextToolReqId(), t.name, JSON.stringify(args, null, 2).slice(0, 2000));
           if (!allowed) {
             cb.onToolResult?.({ callId, tool: t.name, output: 'Kullanıcı aracı reddetti.', status: 'rejected' });
@@ -164,8 +182,10 @@ function buildToolSet(
           }
         }
         try {
-          const out = await t.execute(args, options?.abortSignal);
+          let out = await t.execute(args, options?.abortSignal);
           cb.onToolResult?.({ callId, tool: t.name, output: previewOutput(out), status: /^Hata\b/.test(out) ? 'error' : 'ok' });
+          const extra = await cb.onAfterTool?.(t.name, args, out);
+          if (extra) out = `${out}\n\n${extra}`;
           return applyBudget(out);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -191,7 +211,13 @@ function buildToolSet(
           cb.onToolResult?.({ callId, tool: def.name, output: previewOutput(output), status, exitCode });
         };
         cb.onToolCall(def.name, toolSummary(def.name, args), callId);
-        if (def.requiresApproval && !settings.autoApproveCommands) {
+        const pre = await cb.onBeforeTool?.(def.name, args);
+        if (pre?.decision === 'deny') {
+          const msg = `Engellendi${pre.reason ? `: ${pre.reason}` : ' (izin kuralı)'}`;
+          report(msg, 'rejected');
+          return msg;
+        }
+        if (def.requiresApproval && !settings.autoApproveCommands && pre?.decision !== 'allow') {
           const allowed = await cb.onToolRequest(
             nextToolReqId(),
             def.name,
@@ -219,6 +245,8 @@ function buildToolSet(
         }
         const failed = meta.exitCode !== undefined ? meta.exitCode !== 0 : /^Hata\b/.test(result);
         report(result, failed ? 'error' : 'ok', meta.exitCode);
+        const extra = await cb.onAfterTool?.(def.name, args, result);
+        if (extra) result = `${result}\n\n${extra}`;
         return applyBudget(result);
       },
     } as ToolSet[string];
