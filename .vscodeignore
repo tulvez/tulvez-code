@@ -25,3 +25,4 @@ tulvez-noir/**
 !dist/webview/index.html
 scripts/**
 surumler.json
+cli/**

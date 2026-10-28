@@ -1,0 +1,40 @@
+{
+  "name": "@tulvez-code/cli",
+  "version": "0.1.0",
+  "description": "Tulvez Code'un terminal sürümü: yapay zekâ kodlama yardımcısı.",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": {
+    "tulvez": "dist/tulvez.js"
+  },
+  "files": [
+    "dist/tulvez.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tulvez/tulvez-code.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/tulvez/tulvez-code/issues"
+  },
+  "homepage": "https://github.com/tulvez/tulvez-code/tree/master/cli#readme",
+  "keywords": [
+    "ai",
+    "cli",
+    "coding assistant",
+    "agent",
+    "openai",
+    "anthropic",
+    "gemini",
+    "ollama"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
