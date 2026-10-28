@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as vscode from 'vscode';
+import { host } from './host';
 
 /**
  * Tulvez Code skills deposu.
@@ -46,7 +46,7 @@ const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const LEGACY_DEFAULT = 'https://raw.githubusercontent.com/tulvez/tulvez-code-skills/main';
 
 export function registryBase(): string {
-  const raw = (vscode.workspace.getConfiguration('tulvez').get<string>('skillsRegistry')?.trim() || DEFAULT_REGISTRY).replace(/\/+$/, '');
+  const raw = (host().setting<string | undefined>('skillsRegistry', undefined)?.trim() || DEFAULT_REGISTRY).replace(/\/+$/, '');
   return raw === LEGACY_DEFAULT ? DEFAULT_REGISTRY : raw;
 }
 
@@ -102,7 +102,7 @@ export async function fetchRegistry(base = registryBase()): Promise<RegistrySkil
 }
 
 function skillsDir(): string | undefined {
-  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const root = host().workspaceRoot();
   return root ? path.join(root, '.tulvez', 'skills') : undefined;
 }
 

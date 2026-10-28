@@ -13,8 +13,10 @@ import { getConversation, saveConversation } from './services/conversation';
 import { beginCheckpoint, endCheckpoint, undoCheckpoint } from './services/checkpoint';
 import { mentionContext } from './services/mentions';
 import { McpManager, parseMcpServers, projectApprovalKey, readProjectMcp, type McpServerEntry } from './services/mcp';
-import { aiEditHooks, aiLineCountForActiveEditor, forgetAiEdits, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './services/tools';
-import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skillsFileUri } from './services/skills';
+import { aiEditHooks, aiLineCountForActiveEditor, forgetAiEdits, refreshAiDecorations, getDiffContentProvider, openDiffForFile } from './editorUi';
+import { setHost } from './services/host';
+import { vscodeHost } from './vscodeHost';
+import { createSkillsTemplate, matchSkill, parseSkills, skillsFileExists, skillsFilePath } from './services/skills';
 import { listProviderModels } from './services/models';
 import { isBotIdentity, readIdentity, removeBotIdentity, repoRoot, withCoAuthor } from './services/gitIdentity';
 import { activateCoAuthorScm, noteAiEdit } from './services/coAuthorScm';
@@ -29,6 +31,7 @@ const SKILLS_SYNCED_KEY = 'tulvez.skills.syncedAt';
 const SKILLS_SYNC_EVERY_MS = 12 * 60 * 60 * 1000;
 
 export function activate(context: vscode.ExtensionContext): void {
+  setHost(vscodeHost);
   initDevLog(context);
   devLog('activate başladı');
   const mcp = new McpManager((m) => devLog(m));
@@ -528,17 +531,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
     if (message.type === 'openSkillsFile') {
       if (!skillsFileExists()) createSkillsTemplate();
-      const uri = skillsFileUri();
-      if (uri) await vscode.window.showTextDocument(uri);
+      const file = skillsFilePath();
+      if (file) await vscode.window.showTextDocument(vscode.Uri.file(file));
       return;
     }
 
     if (message.type === 'getSkills') {
-      const uri = skillsFileUri();
       await webview.postMessage({
         type: 'skillsStatus',
         exists: skillsFileExists(),
-        path: uri?.fsPath ?? '',
+        path: skillsFilePath() ?? '',
         skills: parseSkills().map((s) => s.name),
         items: parseSkills().map((s) => ({ name: s.name, description: s.description })),
       } satisfies HostToWebviewMessage);

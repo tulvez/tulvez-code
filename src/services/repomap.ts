@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as vscode from 'vscode';
+import { host } from './host';
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'dist', 'out', 'build', '.next', '.cache',
@@ -34,7 +34,7 @@ export interface RepoMapResult {
  * Aider'ın repo-map fikri, tamamen kendi uygulamamız.
  */
 export async function buildRepoMap(maxChars = 6000): Promise<RepoMapResult> {
-  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const root = host().workspaceRoot();
   if (!root) return { text: '', fileCount: 0, truncated: false };
 
   const files: RepoFile[] = [];

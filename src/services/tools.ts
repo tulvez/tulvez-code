@@ -2,9 +2,9 @@ import * as cp from 'child_process';
 import * as fsSync from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as vscode from 'vscode';
 import { z } from 'zod';
 import { BOT_AUTHOR_ENV, addUserCoAuthorToCommand, isCommitCommand, readIdentity } from './gitIdentity';
+import { host } from './host';
 import { getSkillsRoot } from './orgSkills';
 
 export interface ToolDefinition {
@@ -53,7 +53,7 @@ const SHELL_HINT = process.platform === 'win32'
  */
 export async function agentCommand(raw: string, cwd?: string): Promise<{ command: string; env?: NodeJS.ProcessEnv }> {
   if (!isCommitCommand(raw)) return { command: raw };
-  if (!vscode.workspace.getConfiguration('tulvez').get<boolean>('gitCoAuthor', true)) return { command: raw };
+  if (!host().setting('gitCoAuthor', true)) return { command: raw };
   const user = cwd ? await readIdentity(cwd).catch(() => null) : null;
   return { command: addUserCoAuthorToCommand(raw, user), env: { ...process.env, ...BOT_AUTHOR_ENV } };
 }
@@ -254,7 +254,7 @@ async function webFetch(url: string, signal?: AbortSignal): Promise<string> {
 const backgroundProcesses = new Map<number, string>();
 
 function workspaceRoot(): string {
-  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  return host().workspaceRoot() ?? '';
 }
 
 /** Var olan en yakın üst klasörün gerçek yolu + kalan kısım: sembolik bağla dışarı kaçış yakalanır. */
@@ -296,74 +296,14 @@ function resolvePath(p: string, access: 'read' | 'write' = 'read'): string {
   return target;
 }
 
-const aiEdits = new Map<string, { start: number; end: number }[]>();
-
-let aiDecorationType: vscode.TextEditorDecorationType | null = null;
-const AI_DECORATION_COLOR = 'rgba(63,185,80,0.10)';
-
-/** Geri alınan dosyanın "Tulvez yazdı" işaretleri kaldırılır. */
-export function forgetAiEdits(fsPath: string): void {
-  aiEdits.delete(fsPath);
-  refreshAiDecorations();
-}
-
-export function refreshAiDecorations(): void {
-  if (!aiDecorationType) {
-    aiDecorationType = vscode.window.createTextEditorDecorationType({
-      isWholeLine: true,
-      backgroundColor: AI_DECORATION_COLOR,
-      overviewRulerColor: '#3fb950',
-      overviewRulerLane: vscode.OverviewRulerLane.Right,
-    });
-  }
-  const enabled = vscode.workspace.getConfiguration('tulvez').get<boolean>('showAiEdits', true);
-  for (const editor of vscode.window.visibleTextEditors) {
-    const ranges = enabled ? aiEdits.get(editor.document.uri.fsPath) : undefined;
-    if (!ranges) {
-      editor.setDecorations(aiDecorationType, []);
-      continue;
-    }
-    editor.setDecorations(
-      aiDecorationType,
-      ranges.map((r) => new vscode.Range(r.start, 0, r.end, 0)),
-    );
-  }
-}
-
-export function aiLineCountForActiveEditor(): number | null {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return null;
-  const ranges = aiEdits.get(editor.document.uri.fsPath);
-  if (!ranges || ranges.length === 0) return null;
-  return ranges.reduce((a, r) => a + (r.end - r.start + 1), 0);
-}
-
 /** Düzenleme araçları için hedef dosyanın mutlak yolunu verir. */
 export function resolveEditPath(p: string): string | null {
   if (!p) return null;
   try { return resolvePath(p, 'write'); } catch { return null; }
 }
 
-export const aiEditHooks: { onEdit?: (filePath: string) => void } = {};
-
-/** Yazma öncesi içerik: diff önizlemesi için tutulur. */
-const preEditSnapshot = new Map<string, string>();
-
-/** Diff'in sol tarafında "önceki hali"ni göstermek için içerik sağlayıcı. */
-interface DiffProvider {
-  provideTextDocumentContent(uri: vscode.Uri): string;
-}
-let diffProvider: DiffProvider | null = null;
-
-export function getDiffContentProvider(): DiffProvider {
-  if (!diffProvider) {
-    diffProvider = {
-      provideTextDocumentContent: (uri: vscode.Uri): string =>
-        preEditSnapshot.get(decodeURIComponent(uri.path.replace(/^\//, ''))) ?? '',
-    };
-  }
-  return diffProvider;
-}
+/** Yazma öncesi içerik: diff önizlemesi için tutulur (eklentideki diff görünümü okur). */
+export const preEditSnapshot = new Map<string, string>();
 
 export async function snapshotBeforeEdit(fsPath: string): Promise<void> {
   try {
@@ -378,11 +318,7 @@ export function clearSnapshot(fsPath: string): void {
 }
 
 function markAiEdit(filePath: string, start: number, end: number): void {
-  const ranges = aiEdits.get(filePath) ?? [];
-  ranges.push({ start, end });
-  aiEdits.set(filePath, ranges);
-  refreshAiDecorations();
-  aiEditHooks.onEdit?.(filePath);
+  host().onAiEdit(filePath, start, end);
 }
 
 const MAX_READ_CHARS = 50000;
@@ -416,43 +352,6 @@ function withLineNumbers(content: string): string {
 
 function firstLines(text: string): string {
   return text.split('\n').slice(0, 3).map((l) => `  ${l.trim().slice(0, 100)}`).join('\n');
-}
-
-/** Bir dosya dışarıdan değiştiyse (agent yazdıysa) VS Code'un diff görünümünü açar. */
-export async function openDiffForFile(fsPath: string, title = 'Tulvez değişikliği'): Promise<void> {
-  try {
-    const before = preEditSnapshot.get(fsPath);
-    const uri = vscode.Uri.file(fsPath);
-    const doc = await vscode.workspace.openTextDocument(uri);
-    const after = doc.getText();
-    preEditSnapshot.delete(fsPath);
-
-    if (before === undefined || before === after) {
-      await vscode.window.showTextDocument(doc, { preview: false });
-      return;
-    }
-
-    // Sol tarafı gerçek eski içerikle doldur, sağ taraf yeni hali olsun
-    preEditSnapshot.set(fsPath, before);
-    const left = vscode.Uri.parse(`tulvez-before:${encodeURIComponent(fsPath)}`);
-    vscode.workspace.registerTextDocumentContentProvider('tulvez-before', getDiffContentProvider());
-    await vscode.commands.executeCommand(
-      'vscode.diff',
-      left,
-      uri,
-      `${title}: ${path.basename(fsPath)}`,
-      { preview: false },
-    );
-    const opened = preEditSnapshot.get(fsPath);
-    preEditSnapshot.delete(fsPath);
-    if (opened !== undefined) {
-      setTimeout(() => {
-        preEditSnapshot.set(fsPath, opened);
-      }, 1500);
-    }
-  } catch {
-    // diff açılamazsa akış bozulmasın
-  }
 }
 
 export async function executeTool(

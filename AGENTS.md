@@ -18,7 +18,11 @@ npx @vscode/vsce package # VSIX üret
 - `src/extension.ts` — aktivasyon, komutlar, mesaj köprüsü, SecretStorage ayarları, AI satır işaretleme
 - `src/services/agent.ts` — sağlayıcıdan bağımsız tool-calling döngüsü (OpenAI uyumlu, Anthropic, Gemini) + retry
 - `src/services/ai.ts` — streaming sohbet (metin), maliyet tablosu, rol promptları
-- `src/services/tools.ts` — araç tanımları ve çalıştırıcılar; AI satır işaretleme dekorasyonları
+- `src/services/tools.ts` — araç tanımları ve çalıştırıcılar
+- `src/services/host.ts` — ajan çekirdeğinin ortamı (çalışma klasörü, ayarlar, düzenleme bildirimi). `src/services/`
+  altındaki çekirdek (`agent`, `tools`, `ai`, `repomap`, `skills`, `skillsRegistry` ve bağımlılıkları) `vscode` içe
+  aktarmaz; eklenti `src/vscodeHost.ts`, CLI kendi ortamını kurar
+- `src/editorUi.ts` — yalnız eklentide: AI satır işaretleme dekorasyonları ve diff görünümü
 - `src/services/messages.ts` — host ↔ webview mesaj tipleri (tek kaynak)
 - `webview/src/App.tsx` — React arayüz; extension mantığı içermez
 - `webview/src/components/SettingsPage.tsx` — ayarlar, model listesi, kota bilgisi

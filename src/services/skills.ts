@@ -1,6 +1,6 @@
 import * as fs from 'fs';
-import * as vscode from 'vscode';
 import * as path from 'path';
+import { host } from './host';
 import { installedSkills } from './skillsRegistry';
 import { getSkillsRoot, localSkills, skillBody } from './orgSkills';
 
@@ -49,33 +49,29 @@ Proje için birim testleri yaz. Önce mevcut test altyapısını incele, aynı s
 kapsamı dar tut ve çalıştır.
 `;
 
-function workspaceRoot(): string | undefined {
-  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-}
-
-export function skillsFileUri(): vscode.Uri | undefined {
-  const root = workspaceRoot();
-  return root ? vscode.Uri.joinPath(vscode.Uri.file(root), SKILLS_FILE) : undefined;
+export function skillsFilePath(): string | undefined {
+  const root = host().workspaceRoot();
+  return root ? path.join(root, SKILLS_FILE) : undefined;
 }
 
 export function skillsFileExists(): boolean {
-  const uri = skillsFileUri();
-  if (!uri) return false;
-  return fs.existsSync(uri.fsPath);
+  const file = skillsFilePath();
+  if (!file) return false;
+  return fs.existsSync(file);
 }
 
 export function createSkillsTemplate(): boolean {
-  const uri = skillsFileUri();
-  if (!uri || fs.existsSync(uri.fsPath)) return false;
-  fs.writeFileSync(uri.fsPath, DEFAULT_TEMPLATE, 'utf8');
+  const file = skillsFilePath();
+  if (!file || fs.existsSync(file)) return false;
+  fs.writeFileSync(file, DEFAULT_TEMPLATE, 'utf8');
   return true;
 }
 
 export function readSkillsFile(): string {
-  const uri = skillsFileUri();
-  if (!uri) return '';
+  const file = skillsFilePath();
+  if (!file) return '';
   try {
-    return fs.readFileSync(uri.fsPath, 'utf8');
+    return fs.readFileSync(file, 'utf8');
   } catch {
     return '';
   }
