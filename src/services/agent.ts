@@ -1,4 +1,4 @@
-import { stepCountIs, streamText, type ModelMessage, type ToolSet } from 'ai';
+import { stepCountIs, streamText, type ModelMessage, type SystemModelMessage, type ToolSet } from 'ai';
 import * as path from 'path';
 import type { TulvezSettings } from './messages';
 import { calcCost } from './cost';
@@ -8,10 +8,11 @@ import { TOOL_DEFINITIONS, applyBudget, executeTool, formatTodos, normalizeTodos
 import { buildRepoMap } from './repomap';
 import { resolveModel } from './providers';
 import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
-import { compactConversation, fitToolResults, withoutReasoning } from './conversation';
+import { compactConversation, fitToolResults, pruneOldToolResults, withoutReasoning } from './conversation';
 import { recordBefore } from './checkpoint';
 import type { McpTool } from './mcp';
 import { onRateLimitWait } from './rateLimit';
+import { host } from './host';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -19,7 +20,8 @@ export interface AgentCallbacks {
   onToolCall: (tool: string, summary: string, callId: string) => void;
   onToolResult?: (result: ToolResult) => void;
   onToolRequest: (id: string, tool: string, args: string) => Promise<boolean>;
-  onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number; model: string }) => void;
+  /** cachedInputTokens: girdinin sağlayıcı önbelleğinden gelen kısmı (bilinmiyorsa yok) */
+  onDone: (usage: { inputTokens: number; outputTokens: number; costUsd: number; contextWindow: number; model: string; cachedInputTokens?: number }) => void;
   onCancelled?: () => void;
   /** Ajanın yapılacaklar listesi (todo_write) değişti */
   onTodos?: (items: TodoItem[]) => void;
@@ -45,17 +47,25 @@ function previewOutput(text: string, max = 4000): string {
   return `${head}\n… (${text.length - max} karakter gösterilmiyor) …\n${tail}`;
 }
 
-let repoMapCache: { text: string; builtAt: number } | null = null;
+/**
+ * Proje haritası istemin sabit önekinde durur. Sağlayıcı önbelleği (Groq gpt-oss, OpenAI, Gemini otomatik;
+ * Anthropic işaretle) yalnız önek birebir aynıysa tutar: Groq'ta önbellekten gelen giriş dakikalık token
+ * sınırına sayılmaz. Bu yüzden harita her istekte değil, yalnız yapay zekâ dosya değiştirince (eklenti)
+ * ya da 30 dakikada bir yeniden üretilir.
+ */
+const REPO_MAP_TTL = 30 * 60_000;
+let repoMapCache: { text: string; builtAt: number; root: string } | null = null;
 
 export function invalidateRepoMap(): void {
   repoMapCache = null;
 }
 
 async function repoMapFor(): Promise<string> {
-  if (repoMapCache && Date.now() - repoMapCache.builtAt < 60_000) return repoMapCache.text;
+  const root = host().workspaceRoot() ?? '';
+  if (repoMapCache && repoMapCache.root === root && Date.now() - repoMapCache.builtAt < REPO_MAP_TTL) return repoMapCache.text;
   try {
     const map = await buildRepoMap();
-    repoMapCache = { text: map.text, builtAt: Date.now() };
+    repoMapCache = { text: map.text, builtAt: Date.now(), root };
     return map.text;
   } catch {
     return '';
@@ -268,7 +278,7 @@ export async function runAgent(
       content: [{ type: 'text', text: t.text }],
     }));
   const messages: ModelMessage[] = [
-    ...compactConversation(past, budget),
+    ...compactConversation(pruneOldToolResults(past), budget),
     { role: 'user', content: userMessage },
   ];
 
@@ -289,6 +299,8 @@ export async function runAgent(
     if (!limit) return msgs;
     return fitToolResults(msgs, Math.max(3000, Math.floor(limit * 3 * 0.8) - fixedChars));
   };
+  const cacheMarked = settings.aiProvider === 'anthropic';
+  const systemMessage: SystemModelMessage = { role: 'system', content: system, providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } };
   // Son adımın konuşması: sınır aşılınca tur baştan değil buradan sürer (araçlar yeniden çalışmaz)
   const step: { last: ModelMessage[] | null } = { last: null };
   let shrinkRetries = 0;
@@ -301,7 +313,8 @@ export async function runAgent(
         const tools = buildToolSet(settings, allowed, cb, mode === 'build' && !trivial ? memory?.mcpTools : []);
         const result = streamText({
           model: resolved.model,
-          system,
+          // Anthropic önbelleği açıkça ister: sistem mesajına işaret (araç tanımları da öneke dahil)
+          system: cacheMarked ? systemMessage : system,
           messages: fit(messages),
           tools,
           stopWhen: stepCountIs(MAX_STEPS),
@@ -365,6 +378,7 @@ export async function runAgent(
           costUsd: calcCost(resolved.id, usage.inputTokens ?? 0, usage.outputTokens ?? 0),
           contextWindow: contextWindow(resolved.id),
           model: resolved.id,
+          cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens,
         });
         return;
       } catch (err) {
