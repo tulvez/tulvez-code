@@ -39,6 +39,7 @@
 - İzin kuralları (`cli.json` → `permissions.allow/deny`, Claude Code biçimi: `Bash(npm test:*)`) ve hook'lar
   (`PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop`; çıkış 2 engeller). `/permissions`, `/hooks`.
 - `cli.json` → `webSearch` artık okunuyor (önceki sürümde yok sayılıyordu).
+- Alt ajanlar (`task` aracı): geniş araştırma ayrı bağlamda, salt okuma araçlarıyla yürür, rapor ana ajana döner.
 - Mesajın Claude Code'daki gibi arka planlı kutuda ("❯ metin"); `!` komutu ve `/` komutları da öyle.
 - Yanıt altındaki sayaç girdi ve çıktıyı ayrı gösterir ("2.430 girdi · 14 çıktı"). Selamlaşma ve kısa sohbette
   ("merhaba", "nasılsın", "teşekkürler") modele proje talimatları, proje haritası ve araç tanımları gönderilmez.

@@ -89,6 +89,12 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 
 Eski Türkçe adlar (`/yeni`, `/geri-al`, `/saglayici`…) da çalışır.
 
+## Alt ajanlar
+
+Ajan geniş araştırmaları (birçok dosyayı taramak, bir özelliğin nerede yapıldığını bulmak) `task` aracıyla alt
+ajana verir. Alt ajan kendi bağlamında, yalnız okuma araçlarıyla çalışır ve sonunda rapor döndürür; ana konuşmanın
+bağlamı dolmaz. Adımları ekranda `● Alt ajan(görev)` altında görünür; izin kuralları ve hook'lar alt ajana da uygulanır.
+
 ## İzin kuralları
 
 `cli.json` → `permissions` (Claude Code biçimi). `deny` önce bakılır: uyan araç hiç çalışmaz, gerekçe modele

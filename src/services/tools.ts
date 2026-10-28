@@ -158,6 +158,19 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     schema: z.object({ query: z.string().describe('Arama sorgusu') }),
   },
   {
+    name: 'task',
+    description: 'Bağımsız bir alt ajan başlatır (geniş araştırma için): birçok dosyayı taramak, bir özelliğin nerede ve nasıl ' +
+      'yapıldığını bulmak, kod tabanını incelemek. Alt ajan kendi bağlamında çalışır, yalnız okur (dosya değiştirmez, komut ' +
+      'çalıştırmaz) ve sonunda bulgularını özetler; ana konuşmanın bağlamı dolmaz. Görevi ayrıntılı yaz: ne aranacak, ' +
+      'raporda ne olacak. Tek dosya okumak ya da tek arama gibi küçük işlerde kullanma, birbirinden bağımsız araştırmaları ayrı görevlere böl.',
+    requiresApproval: false,
+    readOnly: true,
+    schema: z.object({
+      description: z.string().describe('Görevin 3–6 kelimelik adı'),
+      prompt: z.string().describe('Alt ajana ayrıntılı görev: ne aranacak, raporda ne olacak'),
+    }),
+  },
+  {
     name: 'todo_write',
     description: 'Çok adımlı işlerde yapılacaklar listesini yazar ve günceller; liste kullanıcıya canlı gösterilir. ' +
       'Her çağrıda listenin TAMAMINI gönder. Aynı anda yalnız bir madde in_progress olsun; biten maddeyi hemen completed yap. ' +

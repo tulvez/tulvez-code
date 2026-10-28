@@ -18,14 +18,14 @@ import { bg, box, c, columns, dim, fit, wrapAnsi } from './theme';
 const TOOL_NAMES: Record<string, string> = {
   read_file: 'Oku', read_files: 'Oku', list_files: 'Listele', list_dir: 'Listele', grep_files: 'Ara',
   write_file: 'Yaz', replace_in_file: 'Düzenle', run_command: 'Komut', run_in_background: 'Arka plan',
-  stop_background: 'Durdur', web_fetch: 'İndir', web_search: 'Web',
+  stop_background: 'Durdur', web_fetch: 'İndir', web_search: 'Web', task: 'Alt ajan',
 };
 
 const TOOL_COLOR: Record<string, (t: string) => string> = {
   read_file: c.blue, read_files: c.blue, list_files: c.blue, list_dir: c.blue, grep_files: c.blue,
   write_file: c.green, replace_in_file: c.green,
   run_command: c.yellow, run_in_background: c.yellow, stop_background: c.yellow,
-  web_fetch: c.violet, web_search: c.violet,
+  web_fetch: c.violet, web_search: c.violet, task: c.cyan,
 };
 
 export function toolName(tool: string): string {
@@ -49,6 +49,7 @@ function resultSummary(tool: string, output: string, summary: string): string {
     const n = output.split(/\r?\n/).filter((l) => /:\d+[:-]/.test(l)).length;
     return n ? `${n} eşleşme` : 'eşleşme yok';
   }
+  if (tool === 'task') return `rapor hazır (${nonEmptyLines(output)} satır)`;
   if (tool === 'web_search') {
     const n = output.split(/\r?\n/).filter((l) => /^\d+\. /.test(l)).length;
     return n ? `${n} sonuç` : 'sonuç yok';

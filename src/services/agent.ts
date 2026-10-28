@@ -141,6 +141,7 @@ function toolSummary(name: string, args: Record<string, unknown>): string {
   if (name === 'list_files' || name === 'list_dir') return String(args.directory ?? '.');
   if (name === 'web_fetch') return String(args.url ?? '');
   if (name === 'web_search') return String(args.query ?? '');
+  if (name === 'task') return String(args.description ?? '');
   return JSON.stringify(args).slice(0, 120);
 }
 
@@ -206,6 +207,13 @@ function buildToolSet(
           cb.onTodos?.(items);
           return formatTodos(items);
         }
+        if (def.name === 'task') {
+          const callId = nextToolReqId();
+          cb.onToolCall('task', toolSummary('task', args), callId);
+          const report = await runSubagent(settings, String(args.prompt ?? ''), cb, options?.abortSignal);
+          cb.onToolResult?.({ callId, tool: 'task', output: previewOutput(report), status: /^Hata\b/.test(report) ? 'error' : 'ok' });
+          return applyBudget(report, 12_000);
+        }
         const callId = nextToolReqId();
         const report = (output: string, status: ToolResult['status'], exitCode?: number): void => {
           cb.onToolResult?.({ callId, tool: def.name, output: previewOutput(output), status, exitCode });
@@ -264,6 +272,8 @@ export interface AgentOptions {
   onConversation?: (messages: ModelMessage[]) => void;
   /** Bağlı MCP sunucularının araçları (yalnız Build modunda verilir). */
   mcpTools?: McpTool[];
+  /** Alt ajan olarak çalışıyor: task aracı verilmez (iç içe alt ajan yok), istem rolü söyler */
+  subagent?: boolean;
   /** Kullanıcı mesajına eklenen görseller (ekran görüntüsü vb.) */
   images?: { data: Uint8Array; mediaType: string }[];
 }
@@ -289,8 +299,9 @@ export async function runAgent(
   const trivial = !memory?.images?.length && isTrivialRequest(userMessage);
   const repoMap = trivial ? '' : await repoMapFor();
   const skills = trivial ? '' : skillsPromptBlock(localSkills(getSkillsRoot()));
-  const system = trivial ? buildChatPrompt(mode) : buildPrompt(mode, repoMap, skills);
-  const allowed = trivial ? [] : toolsForMode(mode);
+  const system = trivial ? buildChatPrompt(mode)
+    : memory?.subagent ? `${buildPrompt(mode, repoMap, skills)}\n\n${SUBAGENT_NOTE}` : buildPrompt(mode, repoMap, skills);
+  const allowed = trivial ? [] : toolsForMode(mode).filter((t) => !(memory?.subagent && t.name === 'task'));
 
   let resolved;
   try {
@@ -507,4 +518,38 @@ export function compactedMessages(summary: string): ModelMessage[] {
     { role: 'user', content: `(Önceki konuşmanın özeti — bağlam sıkıştırıldı. Ayrıntı gerekirse dosyaları yeniden oku.)\n\n${summary}` },
     { role: 'assistant', content: [{ type: 'text', text: 'Anladım; özetteki bilgilerle kaldığım yerden devam ediyorum.' }] },
   ];
+}
+
+const SUBAGENT_NOTE = [
+  'Sen ana ajanın başlattığı bir alt ajansın; kullanıcıyla değil, ana ajanla konuşuyorsun.',
+  'Görevi araçlarla araştır (yalnız okuma). Bitince bulgularını kısa ve somut raporla: ilgili dosya yolları (satır',
+  'numarasıyla), önemli fonksiyon/tip adları, sorunun cevabı. Soru sorma, onay bekleme; rapor tek yanıtın olsun.',
+].join('\n');
+
+const SUBAGENT_MAX_CHARS = 12_000;
+
+/**
+ * Alt ajan (Claude Code'un Task aracı gibi): kendi bağlamında, salt okuma araçlarıyla görevi yürütür ve son
+ * metnini rapor olarak döndürür. Araç adımları ana arayüzde görünür; izin kuralları ve hook'lar aynen geçer.
+ */
+async function runSubagent(settings: TulvezSettings, prompt: string, cb: AgentCallbacks, signal?: AbortSignal): Promise<string> {
+  if (!prompt.trim()) return 'Hata: alt ajan görevi boş.';
+  let text = '';
+  let error = '';
+  let cancelled = false;
+  await runAgent(settings, prompt, 'ask', [], {
+    onChunk: (t) => { text += t; },
+    onToolCall: cb.onToolCall,
+    onToolResult: cb.onToolResult,
+    onToolRequest: cb.onToolRequest,
+    onBeforeTool: cb.onBeforeTool,
+    onAfterTool: cb.onAfterTool,
+    onDone: () => {},
+    onCancelled: () => { cancelled = true; },
+    onError: (e) => { error = e; },
+  }, signal, { subagent: true });
+  if (cancelled) return 'Hata: alt ajan durduruldu.';
+  if (error && !text.trim()) return `Hata: alt ajan tamamlanamadı: ${error}`;
+  const report = text.trim() || '(alt ajan rapor yazmadı)';
+  return report.length > SUBAGENT_MAX_CHARS ? `${report.slice(0, SUBAGENT_MAX_CHARS)}\n… (rapor kısaltıldı)` : report;
 }
