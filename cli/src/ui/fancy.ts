@@ -7,7 +7,7 @@ import { friendlyError } from './errors';
 import { MarkdownStream } from './markdown';
 import { print, screen, Spinner } from './screen';
 import { select } from './select';
-import { bg, box, c, columns, dim, fit, italic, wrapAnsi } from './theme';
+import { bg, box, c, columns, dim, fit, wrapAnsi } from './theme';
 
 /**
  * Renkli terminal arayüzü (Claude Code düzeninde): her araç adımı "● Ad(argüman)" satırı ve altında
@@ -101,17 +101,14 @@ export class FancyUi implements SessionUi {
   }
 
   reasoning(chunk: string): void {
-    // Düşünme metni göstergenin etiketinde kısaca görünür, sonra sönük bir satır olarak yazılır
+    // Claude Code gibi: modelin düşünme metni ekrana dökülmez (İngilizce ve uzun), yalnız gösterge
     this.reasoningBuf += chunk;
-    const last = this.reasoningBuf.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s/).pop() ?? '';
-    if (this.spinner.running) this.spinner.label = fit(last, Math.max(10, columns() - 30)).trimEnd();
+    if (this.spinner.running) this.spinner.label = 'Düşünüyor';
+    else this.spinner.start('Düşünüyor');
   }
 
   private flushReasoning(): void {
-    const text = this.reasoningBuf.replace(/\s+/g, ' ').trim();
     this.reasoningBuf = '';
-    if (!text) return;
-    print(`${c.muted('✻')} ${italic(dim(c.muted(fit(text, columns() - 4).trimEnd())))}`);
   }
 
   todos(items: TodoItem[]): void {

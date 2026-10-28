@@ -30,6 +30,15 @@ export function friendlyError(raw: string): FriendlyError {
       detail,
     };
   }
+  // İstek sınırı (Groq'ta "Request too large … on tokens per minute"): bekleyince geçmez, küçültmek gerekir
+  if (/request too large|reduce your message size|context[_ ]length|maximum context length|prompt is too long/.test(low)) {
+    const limit = /limit\s*:?\s*(\d+)/i.exec(text);
+    const asked = /requested\s*:?\s*(\d+)/i.exec(text);
+    const lines = ['İstek bu modelin tek seferde kabul ettiğinden büyük; Tulvez Code araç çıktılarını kısaltıp yeniden denedi ama sığmadı.'];
+    if (limit) lines.push(`Sınır ${Number(limit[1]).toLocaleString('tr-TR')} token${asked ? `, istek ${Number(asked[1]).toLocaleString('tr-TR')} token` : ''}.`);
+    lines.push('/yeni ile yeni sohbet aç, daha küçük bir iş iste ya da /model veya /saglayici ile sınırı yüksek bir model seç.');
+    return { title: 'İstek çok büyük', lines, detail };
+  }
   if (low.includes('rate limit') || low.includes('rate_limit') || /\b429\b/.test(low) || low.includes('too many requests')) {
     const lines = ['Sağlayıcının hız sınırına takıldın; Tulvez Code birkaç kez bekleyip yeniden denedi.'];
     const limit = /limit\s+(\d+)/i.exec(text);

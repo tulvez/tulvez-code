@@ -24,10 +24,11 @@ npm test 2>&1 | tulvez "neden kırıldı?"   # girdi isteğe eklenir
 tulvez ayarlar                       # etkin ayarlar ve ayar dosyasının yeri
 ```
 
-Giriş kutusu ve durum satırı hep ekranın en altında sabit durur; sohbet terminalin kendi geçmişine yazılır, yani
-fare tekerleğiyle kaydırma, sürükleyerek seçme ve sağ tıkla yapıştırma terminalin kendisinde çalışır. Boş sohbette
-ortada logo, örnek istekler ve kısayollar görünür; ilk mesajla sohbet görünümüne geçilir (`/yeni` boş ekrana döner,
-önceki sohbet yukarıda kalır).
+`tulvez` tam ekran açılır (Claude Code, opencode gibi): terminalin önceki komutları görünmez, çıkınca terminal eski
+haline döner. Sohbet üstte kendi kaydırmasıyla akar; giriş kutusu ve durum satırı hep ekranın en altında sabittir ve
+kaydırmaya katılmaz. Fare tekerleği, ↑ ↓ ve PgUp/PgDn sohbeti kaydırır; sürükleyerek seçme ve sağ tıkla yapıştırma
+terminalin kendisinde çalışır. Boş sohbette ortada logo, örnek istekler ve kısayollar görünür; ilk mesajla sohbet
+görünümüne geçilir (`/yeni` boş ekrana döner).
 
 İlk açılışta kurulum ekranı gelir: sağlayıcıyı ok tuşlarıyla seçer, anahtarı yapıştırıp istersen kaydeder, modeli
 listeden seçersin. Sohbette: mod renginde çerçeveli giriş kutusu, `/` ile komut menüsü, `@` ile dosya önerileri,
@@ -48,8 +49,9 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | `# not` | notu AGENTS.md'ye ekle (sonraki isteklerde proje kuralı olarak okunur) |
 | `\` + Enter | yeni satır (yapıştırılan çok satırlı metin de olduğu gibi kalır) |
 | Shift+Tab | modu değiştir: Build → Plan → Ask |
-| ↑ ↓ | önceki istekler (oturumlar arası saklanır) |
-| Tekerlek · sürükle · sağ tık | terminalin kendisi: kaydır, seç, yapıştır |
+| Tekerlek · ↑ ↓ | sohbeti kaydır (giriş kutusu yerinde kalır) · PgUp/PgDn sayfa · Ctrl+End en alta |
+| Ctrl+↑ ↓ | önceki istekler (oturumlar arası saklanır) |
+| Sürükle · sağ tık | terminalin kendisi: seç, yapıştır |
 | Ctrl+V | yapıştır; terminal yapıştırmazsa (cmd, VS Code) pano okunur: Windows PowerShell, macOS `pbpaste`, Linux `wl-paste`/`xclip`/`xsel` |
 | Ctrl+C | girişi sil · yanıt sürerken durdur · boşken iki kez: çık |
 | Ctrl+D | çık |

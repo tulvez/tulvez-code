@@ -14,13 +14,16 @@
 - Komutlar ve araçlar her seferinde onay ister (`-y` ile sorulmaz); girdi terminal değilse onay verilmez.
 - `/geri-al`: son yanıtın yazdığı dosyaları eski haline döndürür.
 - Sağlayıcılar: OpenAI, Anthropic, Gemini, Groq, OpenCode Zen, Ollama, OpenAI uyumlu özel adres.
-- Ekran: giriş kutusu ve durum satırı hep altta sabit; sohbet terminalin kendi geçmişine yazılır (kaydırma,
-  seçme, sağ tıkla yapıştırma terminalde çalışır); boş sohbette ortada logo ve örnekler, ilk mesajla sohbet görünümü.
+- Ekran: tam ekran açılır, terminalin önceki komutları görünmez (çıkınca geri gelir); sohbet kendi kaydırmasıyla
+  (tekerlek, ↑ ↓, PgUp/PgDn), giriş kutusu ve durum satırı altta sabit, kaydırmaya katılmaz; seçme ve sağ tıkla
+  yapıştırma terminalde çalışır. Boş sohbette ortada logo ve örnekler, ilk mesajla sohbet görünümü.
 - Mesaj sırası: yanıt sürerken yazılıp Enter'a basılan mesaj sıraya eklenir, yanıt bitince gönderilir; Ctrl+S
   yanıtı durdurup sıradakini hemen gönderir, Esc durdurur ve sıradakileri kutuya geri koyar.
 - Claude Code düzeni: `?` kısayollar, `!` ile komut doğrudan terminalde (çıktısı modele de gider), `#` ile not
   AGENTS.md'ye; araç adımları "● Oku(dosya) └ 42 satır okundu"; düzenlemelerde renkli fark; yanıt akarken canlı görünür.
-- Hız sınırında istek bekleyip yinelenir ve bekleme ekranda görünür ("18 sn bekleyip devam ediyorum").
+- Hız sınırında istek bekleyip yinelenir ve bekleme ekranda görünür ("18 sn bekleyip devam ediyorum"). İstek modelin
+  sınırından büyükse (Groq ücretsiz plan: dakikada 8.000 token) sınır öğrenilir, araç çıktıları kısaltılıp kaldığı yerden sürülür.
+- Modelin düşünme metni ekrana dökülmez; yalnız "Düşünüyor…" göstergesi.
 - Hatalar Türkçe ve ne yapılacağıyla (hız sınırı, geçersiz anahtar, kota, bağlantı, model); kütüphane çıktısı
   ekran yerine `cli.log` dosyasına.
 - API anahtarı: kurulumda kaydedilebilir (`anahtarlar.json`, izin 600; Windows, macOS, Linux); ortam değişkeni varsa

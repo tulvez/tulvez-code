@@ -19,8 +19,8 @@ let pasting = false;
 let burst = false;
 
 /**
- * Terminali ham kipe alır; her tuş yalnız en üstteki bileşene gider. Fare izlenmez: kaydırma,
- * seçme ve sağ tıkla yapıştırma terminalin kendisinde kalır. Yapıştırma (bracketed paste ya da
+ * Terminali ham kipe alır; her tuş yalnız en üstteki bileşene gider. Fare izlenmez: seçme ve sağ
+ * tıkla yapıştırma terminalde kalır, tekerlek alternatif ekranda ok tuşu olarak gelir. Yapıştırma (bracketed paste ya da
  * tek parça gelen metin) içindeki Enter satır sonu sayılır.
  */
 export function startKeys(): void {

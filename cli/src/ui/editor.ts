@@ -293,6 +293,7 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
         const value = text();
         if (!value.trim() && !opts.mask) return render();
         if (value.trim() && !opts.mask && history[history.length - 1] !== value) history.push(value);
+        screen.scrollToBottom();
         return done({ text: opts.mask ? value.trim() : value.replace(/\s+$/, '') });
       }
       if (key.name === 'paste-newline') {
@@ -312,9 +313,9 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
         cursor = Math.max(0, cursor - 1);
       } else if (key.name === 'right') {
         cursor = Math.min(chars.length, cursor + 1);
-      } else if (key.name === 'home' || (key.ctrl && key.name === 'a')) {
+      } else if ((key.name === 'home' && !key.ctrl) || (key.ctrl && key.name === 'a')) {
         cursor = lineStart();
-      } else if (key.name === 'end' || (key.ctrl && key.name === 'e')) {
+      } else if ((key.name === 'end' && !key.ctrl) || (key.ctrl && key.name === 'e')) {
         cursor = lineEnd();
       } else if (key.ctrl && key.name === 'u') {
         const start = lineStart();
@@ -322,8 +323,19 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
         cursor = start;
       } else if (key.ctrl && key.name === 'w') {
         deleteWord();
-      } else if (key.name === 'up' && !opts.mask) {
-        if (lineStart() > 0) {
+      } else if (key.name === 'pageup' || key.name === 'pagedown') {
+        screen.page(key.name === 'pageup' ? -1 : 1);
+        return;
+      } else if (key.ctrl && (key.name === 'home' || key.name === 'end')) {
+        if (key.name === 'end') screen.scrollToBottom();
+        else screen.scroll(-1e9);
+        return;
+      } else if ((key.name === 'up' || key.name === 'down') && !key.ctrl && !key.meta && !(key.name === 'up' ? lineStart() > 0 : lineEnd() < chars.length)) {
+        // Tekerlek alternatif ekranda ok tuşu olarak gelir: ↑↓ sohbeti kaydırır (geçmiş Ctrl+↑↓)
+        screen.scroll(key.name === 'up' ? -3 : 3);
+        return;
+      } else if ((key.name === 'up' || (key.ctrl && key.name === 'p')) && !opts.mask) {
+        if (lineStart() > 0 && !key.ctrl) {
           // çok satırlıda bir üst satıra
           const col = cursor - lineStart();
           const prevEnd = lineStart() - 1;
@@ -335,8 +347,8 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
           histIndex--;
           setText(history[histIndex]);
         }
-      } else if (key.name === 'down' && !opts.mask) {
-        if (lineEnd() < chars.length) {
+      } else if ((key.name === 'down' || (key.ctrl && key.name === 'n')) && !opts.mask) {
+        if (lineEnd() < chars.length && !key.ctrl) {
           const col = cursor - lineStart();
           const nextStart = lineEnd() + 1;
           let nextEnd = nextStart;

@@ -128,6 +128,11 @@ describe('anlaşılır hatalar', () => {
     expect(e.lines.join(' ')).toContain('18 sn');
     expect(e.detail?.startsWith('Rate limit')).toBe(true);
   });
+  it('istek çok büyük: hız sınırı sanılmaz, sınır ve istek boyutu yazılır', () => {
+    const e = friendlyError('Request too large for model `openai/gpt-oss-120b` in organization `org_x` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Requested 13194, please reduce your message size and try again.');
+    expect(e.title).toBe('İstek çok büyük');
+    expect(e.lines.join(' ')).toContain('Sınır 8.000 token, istek 13.194 token');
+  });
   it('geçersiz anahtar, kota, bağlantı, bilinmeyen', () => {
     expect(friendlyError('401 Unauthorized: invalid api key').title).toBe('API anahtarı geçersiz');
     expect(friendlyError('You exceeded your current quota').title).toMatch(/kota/);
