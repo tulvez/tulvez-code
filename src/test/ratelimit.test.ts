@@ -16,13 +16,16 @@ const GROQ_429 = JSON.stringify({ error: { message: 'Rate limit reached for mode
 let server: http.Server;
 let url = '';
 let requests = 0;
+const bodies: string[] = [];
 /** Kaç istek 429 alsın */
 let failFirst = 0;
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
-    req.resume();
+    let body = '';
+    req.on('data', (d) => { body += d; });
     req.on('end', () => {
+      bodies.push(body);
       requests++;
       if (requests <= failFirst) {
         res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '0' });
@@ -87,6 +90,25 @@ describe('hız sınırı', () => {
     // 1 istek + 3 bekleyip yineleme; dış döngü hız sınırında turu yeniden başlatmaz
     expect(requests).toBe(4);
     expect(consoleError).not.toHaveBeenCalled();
+  });
+});
+
+describe('küçük dakikalık sınır (Groq ücretsiz plan)', () => {
+  it('429 iletisindeki TPM sınırı öğrenilir; sonraki isteklerde proje haritası gönderilmez', async () => {
+    const { setWorkspaceRoot } = await import('./setup');
+    const path = await import('path');
+    setWorkspaceRoot(path.resolve(__dirname, '..', '..'));
+    const settings = { ...baseSettings, aiProvider: 'ollama' as const, model: 'sahte-tpm', apiKey: '', ollamaUrl: url, autoApproveCommands: true };
+    const cb = { onChunk: () => undefined, onToolCall: () => undefined, onToolRequest: async () => true, onDone: () => undefined, onError: () => undefined };
+    requests = 0;
+    failFirst = 1;
+    bodies.length = 0;
+    await runAgent(settings, 'bu projede ne var açıkla', 'build', [], cb);
+    expect(bodies[0]).toContain('Yukarıdaki harita');
+    failFirst = 0;
+    bodies.length = 0;
+    await runAgent(settings, 'bu projede ne var açıkla', 'build', [], cb);
+    expect(bodies[0]).not.toContain('Yukarıdaki harita');
   });
 });
 

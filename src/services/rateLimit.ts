@@ -5,7 +5,8 @@
  * başarısız isteği etkiler: ajanın önceki araç adımları yeniden çalışmaz.
  */
 
-export type RateLimitListener = (seconds: number) => void;
+/** tpmLimit: iletide dakikalık token sınırı yazıyorsa (Groq: "tokens per minute (TPM): Limit 8000") */
+export type RateLimitListener = (seconds: number, tpmLimit?: number) => void;
 
 const MAX_WAITS = 3;
 const MAX_WAIT_SECONDS = 60;
@@ -59,7 +60,8 @@ export const rateLimitedFetch: typeof fetch = async (input, init) => {
     const body = await res.clone().text().catch(() => '');
     const seconds = retryAfterSeconds(res.headers, body);
     if (seconds === null || seconds > MAX_WAIT_SECONDS) return res;
-    listener?.(Math.ceil(seconds));
+    const tpm = /tokens per minute[^]*?limit\s*:?\s*(\d+)/i.exec(body);
+    listener?.(Math.ceil(seconds), tpm ? Number(tpm[1]) : undefined);
     await sleep(seconds * 1000 + 250, init?.signal);
   }
 };

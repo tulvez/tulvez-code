@@ -104,6 +104,17 @@ function contextWindow(model: string): number {
  */
 const requestLimits = new Map<string, number>();
 
+/**
+ * Dakikalık token sınırı (429 iletisinden öğrenilir). Küçükse (Groq ücretsiz plan) "az token" kipine geçilir:
+ * proje haritası istemden çıkar, araç çıktıları her istek sınırın yaklaşık yarısına sığacak kadar kısalır.
+ */
+const tpmLimits = new Map<string, number>();
+const SMALL_TPM = 16_000;
+
+export function isLeanModel(modelId: string): boolean {
+  return (tpmLimits.get(modelId) ?? Infinity) <= SMALL_TPM || (requestLimits.get(modelId) ?? Infinity) <= SMALL_TPM;
+}
+
 /** "Request too large … Limit 8000, Requested 13194" → 8000; sınır hatası değilse null, sayı yoksa 0. */
 export function requestLimitFrom(message: string): number | null {
   const m = message.toLowerCase();
@@ -297,12 +308,6 @@ export async function runAgent(
   }
 
   const trivial = !memory?.images?.length && isTrivialRequest(userMessage);
-  const repoMap = trivial ? '' : await repoMapFor();
-  const skills = trivial ? '' : skillsPromptBlock(localSkills(getSkillsRoot()));
-  const system = trivial ? buildChatPrompt(mode)
-    : memory?.subagent ? `${buildPrompt(mode, repoMap, skills)}\n\n${SUBAGENT_NOTE}` : buildPrompt(mode, repoMap, skills);
-  const allowed = trivial ? [] : toolsForMode(mode).filter((t) => !(memory?.subagent && t.name === 'task'));
-
   let resolved;
   try {
     resolved = resolveModel(settings);
@@ -310,6 +315,12 @@ export async function runAgent(
     callbacks.onError(err instanceof Error ? err.message : String(err));
     return;
   }
+  // Az token kipinde proje haritası gönderilmez (model gerekince list_dir ile bakar)
+  const repoMap = trivial || isLeanModel(resolved.id) ? '' : await repoMapFor();
+  const skills = trivial ? '' : skillsPromptBlock(localSkills(getSkillsRoot()));
+  const system = trivial ? buildChatPrompt(mode)
+    : memory?.subagent ? `${buildPrompt(mode, repoMap, skills)}\n\n${SUBAGENT_NOTE}` : buildPrompt(mode, repoMap, skills);
+  const allowed = trivial ? [] : toolsForMode(mode).filter((t) => !(memory?.subagent && t.name === 'task'));
 
   // Konuşma bağlam penceresinin yaklaşık yarısına sığdırılır (1 token ≈ 3–4 karakter); çok büyük
   // pencerelerde de maliyet şişmesin diye üst sınır var.
@@ -340,8 +351,9 @@ export async function runAgent(
   // Model talimatı ve araç tanımları da sınıra sayılır (1 token ≈ 3 karakter, temkinli)
   const fixedChars = system.length + JSON.stringify(allowed.map((t) => [t.description, t.schema])).length;
   const fit = (msgs: ModelMessage[]): ModelMessage[] => {
-    const limit = requestLimits.get(resolved.id);
-    if (!limit) return msgs;
+    const tpm = tpmLimits.get(resolved.id);
+    const limit = Math.min(requestLimits.get(resolved.id) ?? Infinity, tpm ? tpm * 0.6 : Infinity);
+    if (!Number.isFinite(limit)) return msgs;
     return fitToolResults(msgs, Math.max(3000, Math.floor(limit * 3 * 0.8) - fixedChars));
   };
   const cacheMarked = settings.aiProvider === 'anthropic';
@@ -350,7 +362,10 @@ export async function runAgent(
   const step: { last: ModelMessage[] | null } = { last: null };
   let shrinkRetries = 0;
 
-  const offRateLimit = onRateLimitWait((seconds) => callbacks.onRateLimitWait?.(seconds));
+  const offRateLimit = onRateLimitWait((seconds, tpm) => {
+    if (tpm) tpmLimits.set(resolved.id, Math.min(tpm, tpmLimits.get(resolved.id) ?? Infinity));
+    callbacks.onRateLimitWait?.(seconds);
+  });
   try {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       chunkSeen = false;

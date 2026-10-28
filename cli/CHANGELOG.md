@@ -22,7 +22,9 @@
   yanıtı durdurup sıradakini hemen gönderir, Esc durdurur ve sıradakileri kutuya geri koyar.
 - Claude Code düzeni: `?` kısayollar, `!` ile komut doğrudan terminalde (çıktısı modele de gider), `#` ile not
   AGENTS.md'ye; araç adımları "● Oku(dosya) └ 42 satır okundu"; düzenlemelerde renkli fark; yanıt akarken canlı görünür.
-- Hız sınırında istek bekleyip yinelenir ve bekleme ekranda görünür ("18 sn bekleyip devam ediyorum"). İstek modelin
+- Hız sınırında istek bekleyip yinelenir; bekleme yalnız göstergede görünür (sohbete satır yazılmaz). 429 iletisindeki
+  dakikalık token sınırı küçükse (Groq ücretsiz plan, ≤16.000) az token kipine geçilir: proje haritası gönderilmez,
+  araç çıktıları sınıra göre kısalır. İstek modelin
   sınırından büyükse (Groq ücretsiz plan: dakikada 8.000 token) sınır öğrenilir, araç çıktıları kısaltılıp kaldığı yerden sürülür.
 - Komutlar İngilizce (`/help`, `/mode`, `/model`, `/provider`, `/clear`, `/undo`, `/approve`, `/config`, `/logout`,
   `/exit`), her birinin yanında kısa Türkçe açıklama; eski Türkçe adlar da çalışır.

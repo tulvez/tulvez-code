@@ -181,9 +181,9 @@ export class FancyUi implements SessionUi {
   }
 
   waiting(seconds: number): void {
-    this.pause();
-    print(`  ${c.muted('└')}  ${c.yellow(`Sağlayıcı hız sınırı — ${seconds} sn bekleyip devam ediyorum`)}`);
-    this.spinner.start(`Hız sınırı: ${seconds} sn bekleniyor`);
+    // Claude Code gibi: sohbete satır yazılmaz, yalnız gösterge söyler (iş kendiliğinden sürer)
+    this.spinner.stop();
+    this.spinner.start(`Sağlayıcının dakikalık sınırı · ${seconds} sn bekleniyor`);
   }
 
   async approve(tool: string, detail: string, signal: AbortSignal): Promise<Approval | null> {
