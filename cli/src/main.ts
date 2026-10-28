@@ -18,7 +18,7 @@ import { startKeys, stopKeys } from './ui/keys';
 import { PlainUi } from './ui/plain';
 import { print, screen } from './ui/screen';
 import { select } from './ui/select';
-import { pickModel, providerName, runSetup } from './ui/setup';
+import { askMissingKey, pickModel, providerName, runSetup } from './ui/setup';
 import { BRAND, MODE_COLOR, MODE_HINT, MODE_LABEL, bold, box, c, columns, fg, fitStart, gradient, width } from './ui/theme';
 
 // Üçüncü parti SDK'ların Node deprecation uyarıları terminali kirletmesin
@@ -350,13 +350,16 @@ async function main(): Promise<number> {
     let turns = 0;
     try {
       let settings = cfg.settings;
-      const firstRun = !fs.existsSync(cfg.configPath) || !hasKey(settings) ||
-        (settings.aiProvider === 'custom' && !settings.baseUrl);
-      if (firstRun) {
+      // Kurulum hiç yapılmadıysa baştan; sağlayıcı kayıtlı ama anahtar yoksa yalnız anahtar sorulur
+      const configured = fs.existsSync(cfg.configPath) && !!cfg.file.provider &&
+        !(settings.aiProvider === 'custom' && !settings.baseUrl);
+      if (!configured || !hasKey(settings)) {
         screen.setEmptyView(welcomeView({
           version: pkg.version, root, provider: providerName(settings.aiProvider), model: settings.model, mode: args.mode, setup: true,
         }));
-        const next = await runSetup(settings, { config: cfg.configPath, keys: cfg.keysPath }, true);
+        const next = configured
+          ? await askMissingKey(settings, cfg.keysPath)
+          : await runSetup(settings, { config: cfg.configPath, keys: cfg.keysPath }, true);
         if (!next) {
           screen.stop();
           stopKeys();

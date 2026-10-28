@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { matchFiles } from '../files';
+import { normalizePaste } from './clipboard';
 import { MarkdownStream } from './markdown';
 import { box, fit, fitStart, truncateAnsi, width, wrapAnsi, wrapPlain } from './theme';
 
@@ -84,6 +85,15 @@ describe('ölçü yardımcıları', () => {
 
   it('wrapPlain genişliğe böler', () => {
     expect(wrapPlain('abcdef', 4)).toEqual(['abcd', 'ef']);
+  });
+});
+
+describe('pano yapıştırma', () => {
+  it('Windows satır sonları ve sondaki satır sonu düzelir', () => {
+    expect(normalizePaste('a\r\nb\r\n', false)).toBe('a\nb');
+  });
+  it('tek satırlı girişte (API anahtarı) satırlar birleşir, boşluklar kırpılır', () => {
+    expect(normalizePaste('  sk-abc\r\n def \n', true)).toBe('sk-abcdef');
   });
 });
 

@@ -76,6 +76,75 @@ export async function pickModel(settings: TulvezSettings, progress = new Progres
 }
 
 /**
+ * Anahtar adımı: ortam değişkeni varsa o; kayıtlı anahtar varsa "kullan / yeni gir"; yoksa yapıştırılır
+ * ve istenirse kaydedilir. Vazgeçilirse null.
+ */
+async function askKey(provider: Provider, keysFile: string, progress: Progress): Promise<string | null> {
+  const envName = KEY_ENV[provider].find((n) => process.env[n]?.trim());
+  if (envName) {
+    progress.add(`${c.green('✓')} ${c.muted('API anahtarı')} ${c.text(envName)} ${c.muted('ortam değişkeninden')}`);
+    return process.env[envName]!.trim();
+  }
+  const saved = readSavedKeys(keysFile)[provider];
+  if (saved) {
+    const reuse = await select<boolean>({
+      title: `${providerName(provider)} için kayıtlı bir anahtar var`,
+      choices: [{ value: true, label: 'Kayıtlı anahtarı kullan' }, { value: false, label: 'Yeni anahtar gir' }],
+      summary: false,
+    });
+    if (reuse === null) return null;
+    if (reuse) {
+      progress.add(`${c.green('✓')} ${c.muted('API anahtarı')} ${c.text('kayıtlı')} ${c.muted(`(${KEYS_FILE})`)}`);
+      return saved;
+    }
+  }
+  const typed = await readInput({
+    accent: () => c.yellow,
+    label: `${providerName(provider)} API anahtarı`,
+    mask: true,
+    singleLine: true,
+    placeholder: 'yapıştır (Ctrl+V ya da sağ tık) ve Enter\'a bas',
+  });
+  if (!typed || !('text' in typed) || !typed.text) return null;
+  const key = typed.text;
+  const keep = await select<boolean>({
+    title: 'Anahtar kaydedilsin mi?',
+    choices: [
+      { value: true, label: 'Kaydet', hint: `bu bilgisayarda, yalnız senin okuyabildiğin dosyada (${KEYS_FILE})` },
+      { value: false, label: 'Yalnız bu oturumda', hint: 'kapatınca unutulur' },
+    ],
+    summary: false,
+  });
+  if (keep === null) return null;
+  if (keep) {
+    try {
+      saveKey(keysFile, provider, key);
+      progress.add(`${c.green('✓')} ${c.muted('API anahtarı kaydedildi')} ${c.text(keysFile)}`);
+    } catch (err) {
+      progress.add(`${c.red('✗')} ${c.muted(`Kaydedilemedi (${err instanceof Error ? err.message : String(err)}); bu oturumda kullanılacak`)}`);
+    }
+  } else {
+    progress.add(`${c.green('✓')} ${c.muted('API anahtarı bu oturumda kullanılacak')}`);
+  }
+  return key;
+}
+
+/**
+ * Sağlayıcı ve model kayıtlı ama anahtar yok (önceki sürüm anahtarı kaydetmiyordu ya da "yalnız bu
+ * oturumda" seçilmişti): kurulum baştan sorulmaz, yalnız anahtar istenir. Vazgeçilirse null.
+ */
+export async function askMissingKey(current: TulvezSettings, keysFile: string): Promise<TulvezSettings | null> {
+  const progress = new Progress(true);
+  try {
+    progress.add(`${c.muted('Kurulumun hatırlandı:')} ${c.text(providerName(current.aiProvider))}${c.muted(' · ')}${c.text(current.model || 'varsayılan model')}${c.muted(' — yalnız API anahtarı gerekiyor')}`);
+    const key = await askKey(current.aiProvider, keysFile, progress);
+    return key === null ? null : { ...current, apiKey: key };
+  } finally {
+    progress.clear();
+  }
+}
+
+/**
  * İlk kurulum ya da /saglayici: sağlayıcı → (adres) → anahtar → model. Sağlayıcı/model/adres
  * cli.json'a, anahtar istenirse anahtarlar.json'a (600) yazılır. Vazgeçilirse null.
  */
@@ -112,54 +181,8 @@ export async function runSetup(
     }
 
     if (provider !== 'ollama') {
-      const envName = KEY_ENV[provider].find((n) => process.env[n]?.trim());
-      const saved = readSavedKeys(files.keys)[provider];
-      let key = '';
-      if (envName) {
-        key = process.env[envName]!.trim();
-        progress.add(`${c.green('✓')} ${c.muted('API anahtarı')} ${c.text(envName)} ${c.muted('ortam değişkeninden')}`);
-      } else if (saved) {
-        const reuse = await select<boolean>({
-          title: `${providerName(provider)} için kayıtlı bir anahtar var`,
-          choices: [{ value: true, label: 'Kayıtlı anahtarı kullan' }, { value: false, label: 'Yeni anahtar gir' }],
-          summary: false,
-        });
-        if (reuse === null) return null;
-        if (reuse) {
-          key = saved;
-          progress.add(`${c.green('✓')} ${c.muted('API anahtarı')} ${c.text('kayıtlı')} ${c.muted(`(${KEYS_FILE})`)}`);
-        }
-      }
-      if (!key) {
-        const typed = await readInput({
-          accent: () => c.yellow,
-          label: `${providerName(provider)} API anahtarı`,
-          mask: true,
-          singleLine: true,
-          placeholder: 'anahtarı yapıştır ve Enter\'a bas',
-        });
-        if (!typed || !('text' in typed) || !typed.text) return null;
-        key = typed.text;
-        const keep = await select<boolean>({
-          title: 'Anahtar kaydedilsin mi?',
-          choices: [
-            { value: true, label: 'Kaydet', hint: `bu bilgisayarda, yalnız senin okuyabildiğin dosyada (${KEYS_FILE})` },
-            { value: false, label: 'Yalnız bu oturumda', hint: 'kapatınca unutulur' },
-          ],
-          summary: false,
-        });
-        if (keep === null) return null;
-        if (keep) {
-          try {
-            saveKey(files.keys, provider, key);
-            progress.add(`${c.green('✓')} ${c.muted('API anahtarı kaydedildi')} ${c.text(files.keys)}`);
-          } catch (err) {
-            progress.add(`${c.red('✗')} ${c.muted(`Kaydedilemedi (${err instanceof Error ? err.message : String(err)}); bu oturumda kullanılacak`)}`);
-          }
-        } else {
-          progress.add(`${c.green('✓')} ${c.muted('API anahtarı bu oturumda kullanılacak')}`);
-        }
-      }
+      const key = await askKey(provider, files.keys, progress);
+      if (key === null) return null;
       settings.apiKey = key;
     }
 

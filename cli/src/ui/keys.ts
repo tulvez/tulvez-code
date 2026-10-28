@@ -18,18 +18,27 @@ let pasting = false;
 // Fare dizisi (SGR: ESC [ < b ; x ; y M) Node'da harf harf gelir; burada birleştirilir
 let mouseBuf: string | null = null;
 let scrollHandler: ((delta: number) => void) | null = null;
+let pasteHandler: (() => void) | null = null;
+// Tek parça gelen çok karakterli girdi (terminalin yapıştırması; işaretsiz gelirse) içindeki Enter satır sonudur
+let burst = false;
 
 /** Tekerlek ve PgUp/PgDn sohbeti kaydırır; hangi bileşen odakta olursa olsun. */
 export function onScroll(handler: (delta: number) => void): void {
   scrollHandler = handler;
 }
 
+/** Sağ tık (fare izlemesi açıkken terminal yapıştırmaz, olay uygulamaya gelir) → panodan yapıştır. */
+export function onPasteRequest(handler: (() => void) | null): void {
+  pasteHandler = handler;
+}
+
 function mouse(seq: string): void {
-  const m = /^(\d+);\d+;\d+[Mm]$/.exec(seq);
+  const m = /^(\d+);\d+;\d+([Mm])$/.exec(seq);
   if (!m) return;
   const b = Number(m[1]);
   if (b === 64) scrollHandler?.(3);
   else if (b === 65) scrollHandler?.(-3);
+  else if (b === 2 && m[2] === 'M') pasteHandler?.();
 }
 
 /**
@@ -39,6 +48,12 @@ function mouse(seq: string): void {
 export function startKeys(): void {
   if (started || !process.stdin.isTTY) return;
   started = true;
+  // Tuş olaylarından önce çalışır: aynı parçadaki tuşlar işlenirken bayrak geçerli, sonra kalkar
+  process.stdin.prependListener('data', (chunk: Buffer | string) => {
+    const s = chunk.toString();
+    burst = s.length > 2 && /[\r\n]/.test(s) && /[^\r\n\x1b]/.test(s) && !s.startsWith('\x1b');
+    if (burst) setImmediate(() => { burst = false; });
+  });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode(true);
   process.stdout.write('\x1b[?2004h');
@@ -62,7 +77,7 @@ export function startKeys(): void {
     }
     const top = stack[stack.length - 1];
     if (!top) return;
-    if (pasting && (k.name === 'return' || k.name === 'enter')) {
+    if ((pasting || burst) && (k.name === 'return' || k.name === 'enter')) {
       top('\n', { name: 'paste-newline', sequence: '\n' });
       return;
     }

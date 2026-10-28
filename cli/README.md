@@ -45,7 +45,8 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | Esc | süren yanıtı durdur · iki kez: girişi sil |
 | ↑ ↓ | önceki istekler (oturumlar arası saklanır) |
 | PgUp PgDn · tekerlek | sohbeti kaydır |
-| Shift + sürükle | metin seç ve kopyala (fare tekerleği uygulamaya ait olduğu için) |
+| Ctrl+V · sağ tık | yapıştır (pano okunur: Windows PowerShell, macOS `pbpaste`, Linux `wl-paste`/`xclip`/`xsel`) |
+| Shift + sürükle | metin seç ve kopyala (fare uygulamaya ait olduğu için) |
 | Ctrl+C | girişi sil · boşken iki kez: çık |
 | Ctrl+D | çık |
 

@@ -1,4 +1,5 @@
-import { isCtrlC, pushKeys, type Key } from './keys';
+import { normalizePaste, readClipboard } from './clipboard';
+import { isCtrlC, onPasteRequest, pushKeys, type Key } from './keys';
 import { screen } from './screen';
 import { type Paint, bold, c, charCols, columns, dim, fit, width } from './theme';
 
@@ -202,8 +203,26 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
 
   return new Promise((resolve) => {
     const onResize = (): void => render();
+    let finished = false;
+    /** Ctrl+V ya da sağ tık: panodaki metin imlecin yerine eklenir. */
+    const pasteFromClipboard = (): void => {
+      void readClipboard().then((clip) => {
+        if (finished) return;
+        if (clip === null) {
+          notice = 'Pano okunamadı — terminalin kendi yapıştırmasını dene (Windows Terminal: Ctrl+Shift+V)';
+        } else {
+          insert(normalizePaste(clip, !!(opts.singleLine || opts.mask)));
+          suggDismissed = false;
+          updateSuggestions();
+        }
+        render();
+      });
+    };
+
     const done = (result: EditorResult): void => {
+      finished = true;
       release();
+      onPasteRequest(null);
       process.stdout.off('resize', onResize);
       screen.setSlot('suggest', null);
       screen.setSlot('notice', null);
@@ -222,6 +241,7 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
         return render();
       }
       if (key.ctrl && key.name === 'd' && !chars.length) return done({ exit: true });
+      if ((key.ctrl || key.meta) && key.name === 'v') return pasteFromClipboard();
       if (key.name === 'escape') {
         if (sugg) { sugg = null; suggDismissed = true; return render(); }
         if (opts.mask || opts.singleLine) return done(null);
@@ -319,6 +339,7 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
     };
 
     const release = pushKeys(onKey);
+    onPasteRequest(pasteFromClipboard);
     process.stdout.on('resize', onResize);
     updateSuggestions();
     render();
