@@ -3,17 +3,19 @@
   "version": "0.1.0",
   "description": "Tulvez Code'un terminal sürümü: yapay zekâ kodlama yardımcısı.",
   "license": "MIT",
-  "type": "commonjs",
+  "type": "module",
   "bin": {
-    "tulvez": "dist/tulvez.js"
+    "tulvez": "dist/tulvez.mjs"
   },
   "files": [
-    "dist/tulvez.js",
+    "dist/tulvez.mjs",
+    "dist/native/**/*.node",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19"
   },
   "repository": {
     "type": "git",

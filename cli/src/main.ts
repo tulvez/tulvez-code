@@ -12,7 +12,6 @@ import { initSkills, syncSkillsIfStale } from './skills';
 import { errorLine, note, warnLine } from './terminal';
 import { welcomeView } from './ui/banner';
 import { FancyUi } from './ui/fancy';
-import { startKeys, stopKeys } from './ui/keys';
 import { PlainUi } from './ui/plain';
 import { print, screen } from './ui/screen';
 import { askMissingKey, providerName, runSetup } from './ui/setup';
@@ -83,7 +82,6 @@ async function main(): Promise<number> {
   const tty = !!(process.stdin.isTTY && process.stdout.isTTY);
 
   if (tty && !args.prompt && !piped) {
-    startKeys();
     // Kütüphanelerin console çıktısı ekran yerine oturum günlüğüne
     const logFile = path.join(configDir(), 'cli.log');
     screen.start((text) => {
@@ -105,7 +103,6 @@ async function main(): Promise<number> {
           : await runSetup(settings, { config: cfg.configPath, keys: cfg.keysPath }, true);
         if (!next) {
           screen.stop();
-          stopKeys();
           note(`${c.muted('Kurulum yarıda kaldı. Yeniden başlatmak için')} ${c.brand('tulvez')} ${c.muted('yaz.')}`);
           return 0;
         }
@@ -120,7 +117,6 @@ async function main(): Promise<number> {
       await session.close();
     } finally {
       screen.stop();
-      stopKeys();
     }
     note(`${gradient('✻', BRAND)} ${bold(gradient('Görüşürüz!', BRAND))}${turns ? c.muted(` · ${turns} istek`) : ''}`);
     return 0;
@@ -168,7 +164,6 @@ const exit = (code: number): void => {
 
 main().then(exit, (err) => {
   screen.stop();
-  stopKeys();
   errorLine(err instanceof Error ? err.message : String(err));
   exit(1);
 });

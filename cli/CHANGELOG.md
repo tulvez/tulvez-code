@@ -14,9 +14,10 @@
 - Komutlar ve araçlar her seferinde onay ister (`-y` ile sorulmaz); girdi terminal değilse onay verilmez.
 - `/undo`: son yanıtın yazdığı dosyaları eski haline döndürür.
 - Sağlayıcılar: OpenAI, Anthropic, Gemini, Groq, OpenCode Zen, Ollama, OpenAI uyumlu özel adres.
-- Ekran: tam ekran açılır, terminalin önceki komutları görünmez (çıkınca geri gelir); sohbet kendi kaydırmasıyla
-  (tekerlek, ↑ ↓, PgUp/PgDn), giriş kutusu ve durum satırı altta sabit, kaydırmaya katılmaz; seçme ve sağ tıkla
-  yapıştırma terminalde çalışır. Boş sohbette ortada logo ve örnekler, ilk mesajla sohbet görünümü.
+- Ekran (pi-tui ile): tam ekran açılır, terminalin önceki komutları görünmez; çıkınca sohbet terminal geçmişine
+  yazılır. Yalnız değişen satırlar çizilir (titreme yok). Fare tekerleği, PgUp/PgDn, Ctrl+Home/End ile kaydırma, "en
+  alta in" düğmesi; sürükleyerek seçme ve panoya kopyalama, sağ tıkla yapıştırma; Windows'ta fare olayları yerel
+  yardımcıyla açılır. 10 satırdan uzun yapıştırma kutuda katlanır. Node.js 22.19 ve üstü gerekir.
 - Mesaj sırası: yanıt sürerken yazılıp Enter'a basılan mesaj sıraya eklenir, yanıt bitince gönderilir; Ctrl+S
   yanıtı durdurup sıradakini hemen gönderir, Esc durdurur ve sıradakileri kutuya geri koyar.
 - Claude Code düzeni: `?` kısayollar, `!` ile komut doğrudan terminalde (çıktısı modele de gider), `#` ile not

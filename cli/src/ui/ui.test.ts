@@ -160,3 +160,22 @@ describe('@ dosya önerileri', () => {
     expect(matchFiles(files, '', 2)).toEqual(['src/', 'README.md']);
   });
 });
+
+describe('tuş çevirici (pi-tui girdisi → bileşen tuşları)', async () => {
+  const { toKeys } = await import('./keys');
+  it('harfler, Türkçe harfler ve hızlı yazım tek tek gelir', () => {
+    expect(toKeys('a')).toEqual([['a', expect.objectContaining({ name: 'a' })]]);
+    expect(toKeys('çğ').map(([ch]) => ch)).toEqual(['ç', 'ğ']);
+  });
+  it('özel tuşlar ve değiştiriciler', () => {
+    expect(toKeys('\r')[0][1]).toMatchObject({ name: 'return' });
+    expect(toKeys('\x03')[0][1]).toMatchObject({ name: 'c', ctrl: true });
+    expect(toKeys('\x1b[Z')[0][1]).toMatchObject({ name: 'tab', shift: true });
+    expect(toKeys('\x1b[1;5A')[0][1]).toMatchObject({ name: 'up', ctrl: true });
+    expect(toKeys('\x1b[5~')[0][1]).toMatchObject({ name: 'pageup' });
+    expect(toKeys('\x1b')[0][1]).toMatchObject({ name: 'escape' });
+  });
+  it('yapıştırma tek parça gelir, içindeki Enter gönderme sayılmaz', () => {
+    expect(toKeys('\x1b[200~bir\riki\x1b[201~')).toEqual([[undefined, { name: 'paste', sequence: 'bir\riki' }]]);
+  });
+});

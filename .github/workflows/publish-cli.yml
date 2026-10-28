@@ -53,9 +53,9 @@ jobs:
       - name: Paket denetimi
         working-directory: cli
         run: |
-          node dist/tulvez.js --version
-          node dist/tulvez.js --help > /dev/null
-          if grep -q 'require("vscode")' dist/tulvez.js; then
+          node dist/tulvez.mjs --version
+          node dist/tulvez.mjs --help > /dev/null
+          if grep -qE 'require\("vscode"\)|from "vscode"' dist/tulvez.mjs; then
             echo "CLI paketine vscode modülü girmiş." >&2
             exit 1
           fi

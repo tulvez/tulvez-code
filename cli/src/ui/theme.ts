@@ -20,15 +20,18 @@ const DEPTH = colorDepth();
 export const colorEnabled = DEPTH > 1;
 
 function to256([r, g, b]: Rgb): number {
-  // Griye yakın tonlar (koyu zeminler) gri rampaya: renk küpünün en koyu grisi #5f5f5f, çok açık kalıyor
-  if (Math.max(r, g, b) - Math.min(r, g, b) < 24) {
-    const v = Math.round((r + g + b) / 3);
-    if (v < 8) return 16;
-    if (v > 248) return 231;
-    return Math.round(((v - 8) / 247) * 24) + 232;
-  }
-  const c = (v: number): number => Math.round((v / 255) * 5);
-  return 16 + 36 * c(r) + 6 * c(g) + c(b);
+  // Renk küpü (6×6×6) ile gri rampadan en yakını: koyu zeminler (fark satırı, mesaj kutusu) küpte çok açık kalıyordu
+  const levels = [0, 95, 135, 175, 215, 255];
+  const near = (v: number): number => levels.reduce((best, l, i) => (Math.abs(l - v) < Math.abs(levels[best] - v) ? i : best), 0);
+  const [ri, gi, bi] = [near(r), near(g), near(b)];
+  const cube = 16 + 36 * ri + 6 * gi + bi;
+  const cubeDist = (levels[ri] - r) ** 2 + (levels[gi] - g) ** 2 + (levels[bi] - b) ** 2;
+  const avg = (r + g + b) / 3;
+  const grayIndex = Math.max(0, Math.min(23, Math.round((avg - 8) / 10)));
+  const gv = 8 + grayIndex * 10;
+  const grayDist = (gv - r) ** 2 + (gv - g) ** 2 + (gv - b) ** 2;
+  if (avg < 4) return 16;
+  return grayDist < cubeDist ? 232 + grayIndex : cube;
 }
 
 function to16([r, g, b]: Rgb): number {

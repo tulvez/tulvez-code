@@ -1,4 +1,4 @@
-import * as readline from 'readline';
+import { decodeKittyPrintable, parseKey } from '@earendil-works/pi-tui';
 
 export interface Key {
   name?: string;
@@ -9,54 +9,69 @@ export interface Key {
   code?: string;
 }
 
-/** Tuşu alan bileşen (giriş kutusu, seçim listesi, yanıt sırasında Esc dinleyicisi). */
+/** Tuşu alan bileşen (giriş kutusu, seçim listesi). */
 export type KeyHandler = (ch: string | undefined, key: Key) => void;
 
 const stack: KeyHandler[] = [];
-let started = false;
-let pasting = false;
-// Tek parça gelen çok karakterli girdi (terminalin yapıştırması; işaretsiz gelirse) içindeki Enter satır sonudur
-let burst = false;
+
+// pi-tui'nin tuş adları → bileşenlerin beklediği (readline biçimindeki) adlar
+const NAMES: Record<string, string> = {
+  enter: 'return', return: 'return', esc: 'escape', pageUp: 'pageup', pageDown: 'pagedown', space: 'space',
+};
+
+const PASTE_START = '\x1b[200~';
+const PASTE_END = '\x1b[201~';
 
 /**
- * Terminali ham kipe alır; her tuş yalnız en üstteki bileşene gider. Fare izlenmez: seçme ve sağ
- * tıkla yapıştırma terminalde kalır, tekerlek alternatif ekranda ok tuşu olarak gelir. Yapıştırma (bracketed paste ya da
- * tek parça gelen metin) içindeki Enter satır sonu sayılır.
+ * Terminalden gelen ham girdiyi tuşlara çevirir. Ekranı pi-tui çizer ve girdiyi o okur (Kitty klavye
+ * protokolü, Windows'ta VT girdisi, fare); burada yalnız klavye ve yapıştırma tuşları kalır.
+ * Yapıştırma tek parça gelir: { name: 'paste', sequence: metin }.
  */
-export function startKeys(): void {
-  if (started || !process.stdin.isTTY) return;
-  started = true;
-  // Tuş olaylarından önce çalışır: aynı parçadaki tuşlar işlenirken bayrak geçerli, sonra kalkar
-  process.stdin.prependListener('data', (chunk: Buffer | string) => {
-    // Yapıştırma: satır sonundan sonra da metin var. Yalnız sonda Enter ("yazı\r") gönderme sayılır
-    const s = chunk.toString();
-    burst = !s.startsWith('\x1b') && /[\r\n][^\r\n]/.test(s.replace(/[\r\n]+$/, '').replace(/\r\n/g, '\n'));
-    if (burst) setImmediate(() => { burst = false; });
-  });
-  readline.emitKeypressEvents(process.stdin);
-  process.stdin.setRawMode(true);
-  process.stdout.write('\x1b[?2004h');
-  process.stdin.on('keypress', (ch: string | undefined, key: Key | undefined) => {
-    const k = key ?? { sequence: ch };
-    if (k.name === 'paste-start') { pasting = true; return; }
-    if (k.name === 'paste-end') { pasting = false; return; }
-    const top = stack[stack.length - 1];
-    if (!top) return;
-    if ((pasting || burst) && (k.name === 'return' || k.name === 'enter')) {
-      top('\n', { name: 'paste-newline', sequence: '\n' });
-      return;
-    }
-    top(ch, k);
-  });
-  process.stdin.resume();
+export function toKeys(data: string): Array<[string | undefined, Key]> {
+  if (data.startsWith(PASTE_START)) {
+    const end = data.indexOf(PASTE_END);
+    const text = data.slice(PASTE_START.length, end < 0 ? undefined : end);
+    return [[undefined, { name: 'paste', sequence: text }]];
+  }
+  const id = parseKey(data);
+  if (id) {
+    const parts = id.split('+');
+    const base = parts[parts.length - 1];
+    const mods = new Set(parts.slice(0, -1));
+    const ctrl = mods.has('ctrl');
+    const meta = mods.has('alt') || mods.has('super');
+    const single = [...base].length === 1;
+    const upper = single && base !== base.toLowerCase();
+    const key: Key = {
+      name: NAMES[base] ?? (single ? base.toLowerCase() : base),
+      ctrl,
+      meta,
+      shift: mods.has('shift') || upper,
+      sequence: data,
+    };
+    // Yazılabilir karakter: değiştiricisiz ya da yalnız Shift'li tek karakter (boşluk dahil)
+    const printable = !ctrl && !meta ? (base === 'space' ? ' ' : single ? (data.length === 1 ? data : base) : undefined) : undefined;
+    return [[printable, key]];
+  }
+  const decoded = decodeKittyPrintable(data);
+  if (decoded) return [...decoded].map((ch) => [ch, { name: ch.toLowerCase(), sequence: ch }]);
+  // Birden çok yazılabilir karakter (hızlı yazım, IME, Türkçe harfler): tek tek
+  // eslint-disable-next-line no-control-regex
+  if (!/[\x00-\x1f\x7f]/.test(data)) return [...data].map((ch) => [ch, { name: ch.toLowerCase(), sequence: ch }]);
+  return [];
 }
 
-export function stopKeys(): void {
-  if (!started) return;
-  started = false;
-  process.stdout.write('\x1b[?2004l');
-  if (process.stdin.isTTY) process.stdin.setRawMode(false);
-  process.stdin.pause();
+/** Ham girdiyi en üstteki bileşene iletir. */
+export function dispatchInput(data: string): void {
+  for (const [ch, key] of toKeys(data)) {
+    const top = stack[stack.length - 1];
+    if (top) top(ch, key);
+  }
+}
+
+/** Yapıştırmayı (sağ tık, pano) en üstteki bileşene iletir. */
+export function dispatchPaste(text: string): void {
+  stack[stack.length - 1]?.(undefined, { name: 'paste', sequence: text });
 }
 
 export function pushKeys(handler: KeyHandler): () => void {

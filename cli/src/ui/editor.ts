@@ -132,6 +132,9 @@ export function showIdleBox(placeholder: string): void {
  * Çerçeveli giriş kutusu. Enter gönderir; satır sonundaki `\` + Enter ya da yapıştırma yeni satır açar.
  * Dönüş: gönderilen metin, Esc ile vazgeçildiyse null, çıkış istendiyse { exit: true }.
  */
+/** Bundan uzun yapıştırma kutuda katlanır */
+const PASTE_FOLD_LINES = 10;
+
 export function readInput(opts: EditorOptions): Promise<EditorResult> {
   let chars: string[] = [];
   let cursor = 0;
@@ -146,6 +149,24 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
   let notice = '';
 
   const text = (): string => chars.join('');
+
+  // Uzun yapıştırma kutuda tek satırlık işaret olarak durur; gönderilince yerine metin konur
+  const pastes: string[] = [];
+  const marker = (i: number, lines: number): string => `[Yapıştırılan metin #${i + 1} · ${lines} satır]`;
+  const expandPastes = (s: string): string =>
+    pastes.reduce((acc, p, i) => acc.split(marker(i, p.split('\n').length)).join(p), s);
+  const paste = (raw: string): void => {
+    const t = normalizePaste(raw, !!(opts.singleLine || opts.mask));
+    const lines = t.split('\n').length;
+    if (lines > PASTE_FOLD_LINES && !opts.singleLine && !opts.mask) {
+      pastes.push(t);
+      insert(marker(pastes.length - 1, lines));
+    } else {
+      insert(t);
+    }
+    suggDismissed = false;
+    updateSuggestions();
+  };
 
   const updateSuggestions = (): void => {
     if (suggDismissed || !opts.suggest) { sugg = null; return; }
@@ -227,9 +248,7 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
         if (clip === null) {
           notice = 'Pano okunamadı — terminalin kendi yapıştırmasını dene (Windows Terminal: Ctrl+Shift+V)';
         } else {
-          insert(normalizePaste(clip, !!(opts.singleLine || opts.mask)));
-          suggDismissed = false;
-          updateSuggestions();
+          paste(clip);
         }
         render();
       });
@@ -290,14 +309,14 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
           chars.splice(cursor - 1, 1, '\n');
           return render();
         }
-        const value = text();
+        const value = expandPastes(text());
         if (!value.trim() && !opts.mask) return render();
         if (value.trim() && !opts.mask && history[history.length - 1] !== value) history.push(value);
         screen.scrollToBottom();
         return done({ text: opts.mask ? value.trim() : value.replace(/\s+$/, '') });
       }
-      if (key.name === 'paste-newline') {
-        if (!opts.singleLine) insert('\n');
+      if (key.name === 'paste') {
+        paste(key.sequence ?? '');
         return render();
       }
       if (key.name === 'backspace') {
@@ -323,17 +342,6 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
         cursor = start;
       } else if (key.ctrl && key.name === 'w') {
         deleteWord();
-      } else if (key.name === 'pageup' || key.name === 'pagedown') {
-        screen.page(key.name === 'pageup' ? -1 : 1);
-        return;
-      } else if (key.ctrl && (key.name === 'home' || key.name === 'end')) {
-        if (key.name === 'end') screen.scrollToBottom();
-        else screen.scroll(-1e9);
-        return;
-      } else if ((key.name === 'up' || key.name === 'down') && !key.ctrl && !key.meta && !(key.name === 'up' ? lineStart() > 0 : lineEnd() < chars.length)) {
-        // Tekerlek alternatif ekranda ok tuşu olarak gelir: ↑↓ sohbeti kaydırır (geçmiş Ctrl+↑↓)
-        screen.scroll(key.name === 'up' ? -3 : 3);
-        return;
       } else if ((key.name === 'up' || (key.ctrl && key.name === 'p')) && !opts.mask) {
         if (lineStart() > 0 && !key.ctrl) {
           // çok satırlıda bir üst satıra

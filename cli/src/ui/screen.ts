@@ -1,17 +1,24 @@
-import { BRAND, bg, c, columns, dim, gradient, truncateAnsi, width as textWidth, wrapAnsi } from './theme';
+import {
+  CURSOR_MARKER, ProcessTerminal, ScrollView, TuiAltScreen, VStack, sliceByColumn, truncateToWidth, visibleWidth,
+  type Component, type Focusable,
+} from '@earendil-works/pi-tui';
+import { readClipboard, writeClipboard } from './clipboard';
+import { dispatchInput, dispatchPaste } from './keys';
+import { BRAND, bg, c, columns, dim, gradient, width as textWidth, wrapAnsi } from './theme';
 
 /**
- * Tam ekran düzeni (Claude Code / opencode gibi): açılınca terminalin alternatif ekranına geçilir,
- * önceki komutlar görünmez; çıkınca terminal eski haline döner.
+ * Tam ekran düzeni (Claude Code'un tam ekran modu gibi), çizimi pi-tui yapar: terminalin alternatif
+ * ekranı, yalnız değişen satırlar, senkron çıktı (titreme yok).
  *
- *   ┌ sohbet görünümü — kendi kaydırması var (tekerlek, ↑↓, PgUp/PgDn)
+ *   ┌ sohbet — kendi kaydırması: fare tekerleği, PgUp/PgDn, Ctrl+Home/End; fareyle sürükleyince seçer
+ *   │          ve panoya kopyalar, sağ tık yapıştırır
  *   │ panel (kurulum adımları, düşünme göstergesi, sıra, seçim listesi, öneriler, uyarı)
  *   │ giriş kutusu                                  ← kaydırmaya katılmaz, hep altta
- *   └ durum satırı                                  ← ekranın son satırı
+ *   └ durum satırı
  *
- * Fare izlenmez (Windows'ta fare olayları gelmiyor; seçme ve sağ tıkla yapıştırma terminalde kalsın
- * diye): alternatif ekranda terminal tekerleği ok tuşuna çevirir (DECSET 1007), ok tuşları sohbeti kaydırır.
- * Sohbet boşken görünümün ortasında karşılama ekranı durur.
+ * Bileşenler (giriş kutusu, seçimler, yanıt arayüzü) yalnız bu dosyanın arayüzünü kullanır; pi-tui
+ * ayrıntısı burada kalır. Sohbet boşken görünümün ortasında karşılama ekranı durur. Çıkışta sohbet
+ * terminalin kendi geçmişine yazılır.
  */
 
 type Slot = 'setup' | 'stream' | 'spinner' | 'queue' | 'select' | 'suggest' | 'notice';
@@ -26,48 +33,133 @@ type Entry = string | Block;
 /** Bellekte tutulan en çok sohbet satırı (eskiler atılır) */
 const MAX_LINES = 20_000;
 
-function rowsCount(): number {
-  return Math.max(8, process.stdout.rows || 24);
+/** Sohbet: satırlar genişliğe göre bölünür, aynı genişlikte önbellekten gelir. */
+class Transcript implements Component {
+  entries: Entry[] = [];
+  private rows: string[] = [];
+  private width = 0;
+  /** Boşken karşılama ekranı (yükseklik: görünüm alanı) */
+  emptyView: (w: number, h: number) => string[] = () => [];
+  viewHeight: () => number = () => 0;
+  closing = false;
+
+  private layout(entry: Entry, width: number): string[] {
+    return typeof entry === 'string' ? wrapAnsi(entry, width, 2) : entry(width);
+  }
+
+  append(entry: Entry): void {
+    this.entries.push(entry);
+    if (this.width) this.rows.push(...this.layout(entry, this.width));
+    if (this.entries.length > MAX_LINES) {
+      this.entries.splice(0, this.entries.length - MAX_LINES);
+      this.width = 0;
+    }
+  }
+
+  clear(): void {
+    this.entries = [];
+    this.rows = [];
+  }
+
+  render(width: number): string[] {
+    if (!this.entries.length) {
+      if (this.closing) return [];
+      const h = this.viewHeight();
+      const view = this.emptyView(width + 1, h).map((l) => truncateToWidth(l, width));
+      const padTop = Math.max(0, Math.floor((h - view.length) / 2));
+      return [...Array(padTop).fill(''), ...view].slice(0, Math.max(1, h));
+    }
+    if (width !== this.width) {
+      this.width = width;
+      this.rows = this.entries.flatMap((e) => this.layout(e, width));
+    }
+    return this.rows.map((r) => truncateToWidth(r, width));
+  }
+
+  invalidate(): void {
+    this.width = 0;
+  }
+}
+
+/** Altta sabit bölge: panel + giriş kutusu + durum satırı. Klavye girdisini bileşenlere iletir. */
+class Bottom implements Component, Focusable {
+  focused = false;
+  slots = new Map<Slot, string[]>();
+  input: { lines: string[]; cursor: Cursor | null } | null = null;
+  footer: () => string = () => '';
+  closing = false;
+  height = 0;
+
+  render(width: number): string[] {
+    if (this.closing) return [];
+    const out: string[] = [];
+    for (const s of SLOT_ORDER) out.push(...(this.slots.get(s) ?? []));
+    const inputStart = out.length;
+    if (this.input) out.push(...this.input.lines);
+    out.push(this.footer());
+    const lines = out.map((l) => truncateToWidth(l, width));
+    const cur = this.input?.cursor;
+    if (cur && this.focused) {
+      // Gerçek imleç (IME ve ekran okuyucular için) giriş satırındaki yerinde
+      const i = inputStart + cur.row;
+      const line = lines[i] ?? '';
+      const w = visibleWidth(line);
+      lines[i] = `${sliceByColumn(line, 0, cur.col)}${CURSOR_MARKER}${sliceByColumn(line, cur.col, Math.max(0, w - cur.col))}`;
+    }
+    this.height = lines.length;
+    return lines;
+  }
+
+  handleInput(data: string): void {
+    dispatchInput(data);
+  }
+
+  invalidate(): void { /* önbellek yok */ }
 }
 
 class Screen {
   active = false;
-  /** Sohbet boş: karşılama görünür */
-  private empty = true;
-  /** Sohbetin mantıksal satırları (renkli) ve ekran genişliğine bölünmüş hali */
-  private lines: Entry[] = [];
-  private rows: string[] = [];
-  private wrapWidth = 0;
-  /** Alttan kaç satır yukarı kaydırıldı (0 = en altta, yeni satırlar görünür) */
-  private offset = 0;
-  /** Son çizilen kare: yalnız değişen satırlar yeniden yazılır (titreme olmaz, seçim bozulmaz) */
-  private frame: string[] = [];
-  private viewHeight = 0;
-  private slots = new Map<Slot, string[]>();
-  private input: { lines: string[]; cursor: Cursor | null } | null = null;
-  private footer: () => string = () => '';
-  private emptyView: (w: number, h: number) => string[] = () => [];
-  private scheduled = false;
+  private tui: TuiAltScreen | null = null;
+  private transcript = new Transcript();
+  private bottom = new Bottom();
+  private scroller: ScrollView | null = null;
   private consoleRestore: (() => void) | null = null;
 
   start(logFile?: (text: string) => void): void {
     if (this.active || !process.stdout.isTTY) return;
     this.active = true;
-    this.frame = [];
-    // Alternatif ekran + tekerlek ok tuşu olarak gelsin + ekranı temizle
-    process.stdout.write('\x1b[?1049h\x1b[?1007h\x1b[H\x1b[2J');
-    process.stdout.on('resize', this.onResize);
-    process.once('exit', () => this.stop());
+    // Gerçek imleç gösterilir (giriş kutusundaki yerinde; IME ve ekran okuyucular için)
+    const tui = new TuiAltScreen(new ProcessTerminal(), true, undefined, {
+      scrollToEndIndicator: () => ` ${c.brand('↓')} ${c.text('en alta in')} ${c.muted('Ctrl+End')} `,
+      // Sürükleyerek seçilen metin panoya: önce sistem panosu, olmazsa terminalin OSC 52'si
+      copySelection: async (text: string) => (await writeClipboard(text)) || false,
+      onRightClickPaste: () => {
+        void readClipboard().then((clip) => { if (clip !== null) dispatchPaste(clip); });
+      },
+    });
+    this.tui = tui;
+    this.scroller = new ScrollView(this.transcript, { follow: 'end', primary: true, overscroll: 'chain', scrollbar: 'auto' });
+    this.transcript.viewHeight = () => Math.max(1, (process.stdout.rows || 24) - this.bottom.height);
+    tui.setLayoutRoot(new VStack([
+      { component: this.scroller, basis: 0, grow: 1, minSize: 2 },
+      { component: this.bottom, basis: 'auto', shrink: 1, minSize: 1 },
+    ]));
+    tui.setFocus(this.bottom);
     this.captureConsole(logFile);
-    this.flush();
+    tui.start();
   }
 
-  /** Alternatif ekrandan çıkar; terminal açılmadan önceki haline döner. */
+  /** Alternatif ekrandan çıkar; sohbet terminalin geçmişine yazılır. */
   stop(): void {
     if (!this.active) return;
     this.active = false;
-    process.stdout.off('resize', this.onResize);
-    process.stdout.write('\x1b[0m\x1b[?1007l\x1b[?1049l\x1b[?25h');
+    this.bottom.closing = true;
+    this.transcript.closing = true;
+    // pi-tui'nin kendi döküm yerine sohbetin kendisi terminal geçmişine yazılır
+    const rows = this.transcript.entries.length ? this.transcript.render(Math.max(20, columns() - 1)) : [];
+    this.tui?.stop({ preserveScreen: true });
+    this.tui = null;
+    if (rows.length) process.stdout.write(`${rows.map((r) => `${r}\x1b[0m`).join('\n')}\n\n`);
     this.consoleRestore?.();
     this.consoleRestore = null;
   }
@@ -87,150 +179,52 @@ class Screen {
     this.consoleRestore = () => Object.assign(console, orig);
   }
 
-  private onResize = (): void => {
-    // Boyut değişince terminal ekranı kendi kaydırmış olabilir: tamamı yeniden çizilir
-    this.frame = [];
-    process.stdout.write('\x1b[2J');
-    this.schedule();
-  };
-
-  setFooter(fn: () => string): void { this.footer = fn; this.schedule(); }
-  setEmptyView(fn: (w: number, h: number) => string[]): void { this.emptyView = fn; this.schedule(); }
+  setFooter(fn: () => string): void { this.bottom.footer = fn; this.schedule(); }
+  setEmptyView(fn: (w: number, h: number) => string[]): void { this.transcript.emptyView = fn; this.schedule(); }
 
   setSlot(slot: Slot, lines: string[] | null): void {
-    if (lines && lines.length) this.slots.set(slot, lines);
-    else this.slots.delete(slot);
+    if (lines && lines.length) this.bottom.slots.set(slot, lines);
+    else this.bottom.slots.delete(slot);
     this.schedule();
   }
 
   setInput(lines: string[] | null, cursor: Cursor | null = null): void {
-    this.input = lines ? { lines, cursor } : null;
+    this.bottom.input = lines ? { lines, cursor } : null;
     this.schedule();
   }
 
   append(line: Entry): void {
-    this.lines.push(line);
-    if (this.wrapWidth) {
-      const added = this.layout(line, this.wrapWidth);
-      this.rows.push(...added);
-      // Yukarıdaysa okuduğu yer kaymasın
-      if (this.offset) this.offset += added.length;
-    }
-    if (this.lines.length > MAX_LINES) {
-      this.lines.splice(0, this.lines.length - MAX_LINES);
-      this.wrapWidth = 0;
-    }
-    this.empty = false;
+    this.transcript.append(line);
     this.schedule();
   }
 
-  private layout(entry: Entry, width: number): string[] {
-    return typeof entry === 'string' ? wrapAnsi(entry, width, 2) : entry(width);
-  }
-
   get isEmpty(): boolean {
-    return this.empty;
+    return !this.transcript.entries.length;
   }
 
   /** Sohbet görünümünü temizler, karşılama ekranına döner. */
   clearTranscript(): void {
-    this.lines = [];
-    this.rows = [];
-    this.offset = 0;
-    this.empty = true;
+    this.transcript.clear();
+    this.scroller?.scrollToEnd();
     this.schedule();
   }
 
   /** Sohbeti kaydırır: eksi yukarı (eskiye), artı aşağı. */
   scroll(delta: number): void {
-    if (this.empty) return;
-    this.offset = Math.max(0, this.offset - delta);
-    this.schedule();
-  }
-
-  /** Bir sayfa (görünümün yüksekliği kadar) kaydırır. */
-  page(direction: -1 | 1): void {
-    this.scroll(direction * Math.max(1, this.viewHeight - 2));
+    this.tui?.scrollBy(delta);
   }
 
   scrollToBottom(): void {
-    if (!this.offset) return;
-    this.offset = 0;
+    this.scroller?.scrollToEnd();
     this.schedule();
   }
 
   get scrolled(): boolean {
-    return this.offset > 0;
+    return !!this.scroller && !this.scroller.isFollowingEnd;
   }
 
   private schedule(): void {
-    if (!this.active || this.scheduled) return;
-    this.scheduled = true;
-    setImmediate(() => {
-      this.scheduled = false;
-      this.flush();
-    });
-  }
-
-  private bottomLines(): string[] {
-    const out: string[] = [];
-    for (const s of SLOT_ORDER) out.push(...(this.slots.get(s) ?? []));
-    if (this.input) out.push(...this.input.lines);
-    out.push(this.footer());
-    return out;
-  }
-
-  private flush(): void {
-    if (!this.active) return;
-    const H = rowsCount();
-    const W = columns();
-    const width = W - 1;
-    if (width !== this.wrapWidth) {
-      this.wrapWidth = width;
-      this.rows = this.lines.flatMap((l) => this.layout(l, width));
-    }
-
-    let bottom = this.bottomLines().map((l) => truncateAnsi(l, width));
-    // Sohbete en az iki satır kalsın
-    if (bottom.length > H - 2) bottom = bottom.slice(bottom.length - (H - 2));
-    const viewH = H - bottom.length;
-    this.viewHeight = viewH;
-
-    let view: string[];
-    if (this.empty) {
-      const welcome = this.emptyView(W, viewH).map((l) => truncateAnsi(l, width));
-      const padTop = Math.max(0, Math.floor((viewH - welcome.length) / 2));
-      view = [...Array(padTop).fill(''), ...welcome].slice(0, viewH);
-    } else {
-      const maxOffset = Math.max(0, this.rows.length - viewH);
-      this.offset = Math.min(this.offset, maxOffset);
-      const end = this.rows.length - this.offset;
-      view = this.rows.slice(Math.max(0, end - viewH), end);
-      if (this.offset) {
-        // Aşağıda okunmamış satır var: görünümün son satırında hatırlatma
-        const hint = `  ${c.brand('↓')} ${c.muted(`${this.offset} satır aşağıda · ↓ ya da PgDn ile in · Ctrl+End en alta`)}`;
-        view[viewH - 1] = truncateAnsi(hint, width);
-      }
-    }
-    while (view.length < viewH) view.push('');
-
-    const next = [...view, ...bottom];
-    let out = '\x1b[?2026h\x1b[?25l';
-    for (let i = 0; i < H; i++) {
-      const row = next[i] ?? '';
-      if (this.frame[i] === row) continue;
-      out += `\x1b[${i + 1};1H${row}\x1b[0m\x1b[K`;
-    }
-    this.frame = next;
-
-    const cur = this.input?.cursor;
-    if (cur) {
-      // Giriş kutusu durum satırının hemen üstünde biter
-      const row = H - 1 - this.input!.lines.length + cur.row + 1;
-      out += `\x1b[${row};${cur.col + 1}H\x1b[?25h`;
-    }
-    out += '\x1b[?2026l';
-    process.stdout.write(out);
+    this.tui?.requestRender();
   }
 }
 

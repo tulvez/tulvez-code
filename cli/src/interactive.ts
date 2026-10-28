@@ -54,8 +54,9 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+S', 'yanıtı durdur, sıradaki ilk mesajı hemen gönder'],
   ['Esc', 'yanıtı durdur (sıradakiler kutuya geri gelir) · iki kez: girişi sil'],
   ['\\ + Enter', 'yeni satır'],
-  ['Tekerlek ↑↓', 'sohbeti kaydır · PgUp/PgDn sayfa · Ctrl+End en alta'],
-  ['Ctrl+↑ ↓', 'önceki istekler'],
+  ['↑ ↓', 'önceki istekler'],
+  ['Tekerlek', 'sohbeti kaydır · PgUp/PgDn sayfa · Ctrl+End en alta'],
+  ['Sürükle', 'seç ve panoya kopyala · sağ tık yapıştırır'],
   ['Ctrl+V', 'yapıştır (sağ tık da olur)'],
   ['Ctrl+C', 'yanıtı durdur · boşken iki kez: çık'],
 ];
