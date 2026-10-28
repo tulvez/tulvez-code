@@ -1,0 +1,74 @@
+name: CLI Release
+
+# Tulvez Code CLI (@tulvez-code/cli) npm'e yalnız `cli-v<sürüm>` etiketiyle çıkar.
+# Eklentinin `v*` etiketleriyle karışmaz.
+on:
+  push:
+    tags:
+      - 'cli-v*'
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: npm ci
+
+      # Etiket ile cli/package.json sürümü ve cli/CHANGELOG.md bölümü aynı olmalı
+      - name: Sürüm denetimi
+        run: |
+          TAG="${GITHUB_REF#refs/tags/cli-v}"
+          VERSION="$(node -p "require('./cli/package.json').version")"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Etiket ($TAG) cli/package.json sürümüyle ($VERSION) aynı değil." >&2
+            exit 1
+          fi
+          if ! grep -q "^## $VERSION" cli/CHANGELOG.md; then
+            echo "cli/CHANGELOG.md içinde '## $VERSION' bölümü yok." >&2
+            exit 1
+          fi
+
+      - name: Tip kontrolü
+        run: npm run check
+
+      - name: Testler
+        run: npm test
+
+      - name: Derle
+        run: npm run build:cli
+
+      - name: Paket denetimi
+        working-directory: cli
+        run: |
+          node dist/tulvez.js --version
+          node dist/tulvez.js --help > /dev/null
+          if grep -q 'require("vscode")' dist/tulvez.js; then
+            echo "CLI paketine vscode modülü girmiş." >&2
+            exit 1
+          fi
+          npm pack --dry-run
+
+      - name: npm'e yayınla
+        working-directory: cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG_NAME" == *-beta* || "$TAG_NAME" == *-alpha* || "$TAG_NAME" == *-rc* ]]; then
+            npm publish --provenance --access public --tag next
+          else
+            npm publish --provenance --access public
+          fi
