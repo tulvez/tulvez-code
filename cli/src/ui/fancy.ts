@@ -254,7 +254,7 @@ export class FancyUi implements SessionUi {
   }
 
   changed(files: string[], canUndo: boolean): void {
-    print(`  ${c.muted('Değişen dosyalar:')} ${files.map((f) => c.text(f)).join(c.muted(', '))}${canUndo ? c.muted('  · geri almak için ') + c.brand('/geri-al') : ''}`);
+    print(`  ${c.muted('Değişen dosyalar:')} ${files.map((f) => c.text(f)).join(c.muted(', '))}${canUndo ? c.muted('  · geri almak için ') + c.brand('/undo') : ''}`);
   }
 
   info(message: string): void {

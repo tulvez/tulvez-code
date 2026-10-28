@@ -76,7 +76,7 @@ export function welcomeView(info: WelcomeInfo): (w: number, h: number) => string
       out.push(...ex.map((l) => `${pad}${l}`));
     }
     out.push('');
-    const keys = [['/', 'komutlar'], ['@', 'dosya ekle'], ['⇧Tab', 'mod'], ['Esc', 'durdur'], ['/yardim', 'tümü']]
+    const keys = [['/', 'komutlar'], ['@', 'dosya ekle'], ['⇧Tab', 'mod'], ['Esc', 'durdur'], ['/help', 'tümü']]
       .map(([k, v]) => `${c.text(k)} ${c.muted(v)}`).join(c.muted('  ·  '));
     out.push(...center([keys], w));
     return out;

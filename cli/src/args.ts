@@ -95,4 +95,4 @@ yalnız senin okuyabildiğin dosya). Ortam değişkeni varsa önce o kullanılı
 Diğer ortam değişkenleri: TULVEZ_PROVIDER, TULVEZ_MODEL, TULVEZ_BASE_URL,
 OLLAMA_HOST, TULVEZ_CONFIG_DIR, NO_COLOR.
 
-Oturumda / yazınca komutlar listelenir; /yardim tüm kısayolları gösterir.`;
+Oturumda / yazınca komutlar listelenir; /help tüm kısayolları gösterir.`;

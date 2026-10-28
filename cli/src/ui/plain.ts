@@ -122,7 +122,7 @@ export class PlainUi implements SessionUi {
   }
 
   changed(files: string[], canUndo: boolean): void {
-    note(dim(`  Değişen dosyalar: ${files.join(', ')}${canUndo ? ' — geri almak için /geri-al' : ''}`));
+    note(dim(`  Değişen dosyalar: ${files.join(', ')}${canUndo ? ' — geri almak için /undo' : ''}`));
   }
 
   info(message: string): void {

@@ -145,7 +145,7 @@ export async function askMissingKey(current: TulvezSettings, keysFile: string): 
 }
 
 /**
- * İlk kurulum ya da /saglayici: sağlayıcı → (adres) → anahtar → model. Sağlayıcı/model/adres
+ * İlk kurulum ya da /provider: sağlayıcı → (adres) → anahtar → model. Sağlayıcı/model/adres
  * cli.json'a, anahtar istenirse anahtarlar.json'a (600) yazılır. Vazgeçilirse null.
  */
 export async function runSetup(

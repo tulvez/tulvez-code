@@ -68,7 +68,7 @@ export class Session {
     private readonly ui: SessionUi,
     private readonly userMcp: McpServerEntry[],
     mode: AgentMode,
-    /** Etkileşimli oturumda /geri-al vardır; tek istekte ipucu verilmez. */
+    /** Etkileşimli oturumda /undo vardır; tek istekte ipucu verilmez. */
     private readonly interactive = false,
   ) {
     this.mode = mode;

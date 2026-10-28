@@ -12,7 +12,7 @@
 - Boru hattı: `komut | tulvez "açıkla"` girdiyi isteğe ekler.
 - Ask, Plan ve Build modları (`-m`, oturumda `/mod`); eklentiyle aynı araçlar, yapılacaklar listesi ve sohbet hafızası.
 - Komutlar ve araçlar her seferinde onay ister (`-y` ile sorulmaz); girdi terminal değilse onay verilmez.
-- `/geri-al`: son yanıtın yazdığı dosyaları eski haline döndürür.
+- `/undo`: son yanıtın yazdığı dosyaları eski haline döndürür.
 - Sağlayıcılar: OpenAI, Anthropic, Gemini, Groq, OpenCode Zen, Ollama, OpenAI uyumlu özel adres.
 - Ekran: tam ekran açılır, terminalin önceki komutları görünmez (çıkınca geri gelir); sohbet kendi kaydırmasıyla
   (tekerlek, ↑ ↓, PgUp/PgDn), giriş kutusu ve durum satırı altta sabit, kaydırmaya katılmaz; seçme ve sağ tıkla
@@ -23,6 +23,8 @@
   AGENTS.md'ye; araç adımları "● Oku(dosya) └ 42 satır okundu"; düzenlemelerde renkli fark; yanıt akarken canlı görünür.
 - Hız sınırında istek bekleyip yinelenir ve bekleme ekranda görünür ("18 sn bekleyip devam ediyorum"). İstek modelin
   sınırından büyükse (Groq ücretsiz plan: dakikada 8.000 token) sınır öğrenilir, araç çıktıları kısaltılıp kaldığı yerden sürülür.
+- Komutlar İngilizce (`/help`, `/mode`, `/model`, `/provider`, `/clear`, `/undo`, `/approve`, `/config`, `/logout`,
+  `/exit`), her birinin yanında kısa Türkçe açıklama; eski Türkçe adlar da çalışır.
 - Modelin düşünme metni ekrana dökülmez; yalnız "Düşünüyor…" göstergesi.
 - Mesajın Claude Code'daki gibi arka planlı kutuda ("❯ metin"); `!` komutu ve `/` komutları da öyle.
 - Yanıt altındaki sayaç girdi ve çıktıyı ayrı gösterir ("2.430 girdi · 14 çıktı"). Selamlaşma ve kısa sohbette
@@ -34,6 +36,6 @@
 - Hatalar Türkçe ve ne yapılacağıyla (hız sınırı, geçersiz anahtar, kota, bağlantı, model); kütüphane çıktısı
   ekran yerine `cli.log` dosyasına.
 - API anahtarı: kurulumda kaydedilebilir (`anahtarlar.json`, izin 600; Windows, macOS, Linux); ortam değişkeni varsa
-  önce o. Ayarlar `cli.json` dosyasında (anahtar içermez). `/anahtar-sil` kaydı siler.
+  önce o. Ayarlar `cli.json` dosyasında (anahtar içermez). `/logout` kaydı siler.
 - MCP sunucuları: `cli.json` → `mcpServers`; projedeki `.mcp.json` sunucuları onay verilmeden başlamaz.
 - Proje talimatları (AGENTS.md, CLAUDE.md…), `code_skills.md` ve kurulu beceriler eklentideki gibi okunur.

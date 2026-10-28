@@ -24,22 +24,23 @@ interface Command {
 }
 
 export const COMMANDS: Command[] = [
-  { name: '/yardim', hint: 'komutlar ve kısayollar' },
-  { name: '/mod', hint: 'Ask, Plan ya da Build' },
+  { name: '/help', hint: 'komutlar ve kısayollar' },
+  { name: '/mode', hint: 'Ask, Plan ya da Build' },
   { name: '/model', hint: 'modeli değiştir', idleOnly: true },
-  { name: '/saglayici', hint: 'sağlayıcı, anahtar ve modeli yeniden kur', idleOnly: true },
-  { name: '/yeni', hint: 'yeni sohbet (boş ekran)', idleOnly: true },
-  { name: '/geri-al', hint: 'son yanıtın dosya değişikliklerini geri al', idleOnly: true },
-  { name: '/onay', hint: 'komut onaylarını aç ya da kapat' },
-  { name: '/ayarlar', hint: 'etkin ayarlar' },
-  { name: '/anahtar-sil', hint: 'bu sağlayıcının kayıtlı anahtarını sil' },
-  { name: '/temizle', hint: 'ekranı temizle (sohbet hafızası kalır)', idleOnly: true },
-  { name: '/cikis', hint: 'çık (Ctrl+D)' },
+  { name: '/provider', hint: 'sağlayıcı, anahtar ve modeli yeniden kur', idleOnly: true },
+  { name: '/clear', hint: 'yeni sohbet (hafıza sıfırlanır)', idleOnly: true },
+  { name: '/undo', hint: 'son yanıtın dosya değişikliklerini geri al', idleOnly: true },
+  { name: '/approve', hint: 'komut onaylarını aç ya da kapat' },
+  { name: '/config', hint: 'etkin ayarlar' },
+  { name: '/logout', hint: 'bu sağlayıcının kayıtlı anahtarını sil' },
+  { name: '/exit', hint: 'çık (Ctrl+D)' },
 ];
 
+/** Eski Türkçe adlar ve yaygın eş anlamlılar çalışmaya devam eder */
 const ALIASES: Record<string, string> = {
-  help: 'yardim', yardım: 'yardim', mode: 'mod', provider: 'saglayici', sağlayıcı: 'saglayici', new: 'yeni',
-  undo: 'geri-al', config: 'ayarlar', clear: 'temizle', exit: 'cikis', quit: 'cikis', çıkış: 'cikis',
+  yardim: 'help', yardım: 'help', mod: 'mode', saglayici: 'provider', sağlayıcı: 'provider', yeni: 'clear', new: 'clear',
+  temizle: 'clear', 'geri-al': 'undo', onay: 'approve', ayarlar: 'config', 'anahtar-sil': 'logout', cikis: 'exit',
+  çıkış: 'exit', quit: 'exit',
 };
 
 /** "?" yazınca açılan kısayol listesi (Claude Code'daki gibi) */
@@ -53,7 +54,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+S', 'yanıtı durdur, sıradaki ilk mesajı hemen gönder'],
   ['Esc', 'yanıtı durdur (sıradakiler kutuya geri gelir) · iki kez: girişi sil'],
   ['\\ + Enter', 'yeni satır'],
-  ['Tekerlek · ↑ ↓', 'sohbeti kaydır · PgUp/PgDn sayfa · Ctrl+End en alta'],
+  ['Tekerlek ↑↓', 'sohbeti kaydır · PgUp/PgDn sayfa · Ctrl+End en alta'],
   ['Ctrl+↑ ↓', 'önceki istekler'],
   ['Ctrl+V', 'yapıştır (sağ tık da olur)'],
   ['Ctrl+C', 'yanıtı durdur · boşken iki kez: çık'],
@@ -241,7 +242,7 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
     printUserMessage(text);
     print();
     if (!hasKey(session.settings)) {
-      print(`${c.red('✗')} ${c.muted('API anahtarı yok — /saglayici ile kur')}`);
+      print(`${c.red('✗')} ${c.muted('API anahtarı yok — /provider ile kur')}`);
       print();
       return;
     }
@@ -307,27 +308,26 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
     const [raw, ...rest] = line.slice(1).split(/\s+/);
     const cmd = ALIASES[raw] ?? raw;
     const arg = rest.join(' ').trim();
-    if (cmd === 'cikis') return true;
+    if (cmd === 'exit') return true;
     if (busy() && COMMANDS.find((x) => x.name === `/${cmd}`)?.idleOnly) {
       print(`${c.yellow('!')} ${c.muted(`/${cmd} yanıt sürerken kullanılamaz — Esc ile durdur ya da yanıtın bitmesini bekle`)}`);
       return false;
     }
-    if (cmd === 'yeni') {
+    if (cmd === 'clear') {
       session.reset();
       invalidateRepoMap();
       screen.clearTranscript();
       return false;
     }
-    if (cmd === 'temizle') { screen.clearTranscript(); return false; }
     echo(cmd, arg);
-    if (cmd === 'yardim') { showHelp(); return false; }
-    if (cmd === 'geri-al') { await session.undo(); print(); return false; }
-    if (cmd === 'ayarlar') {
+    if (cmd === 'help') { showHelp(); return false; }
+    if (cmd === 'undo') { await session.undo(); print(); return false; }
+    if (cmd === 'config') {
       for (const l of box(configLines(cfg, session.settings, root), { width: Math.min(columns() - 2, 90), title: c.text('Ayarlar') })) print(` ${l}`);
       print();
       return false;
     }
-    if (cmd === 'onay') {
+    if (cmd === 'approve') {
       session.settings.autoApproveCommands = !session.settings.autoApproveCommands;
       print(session.settings.autoApproveCommands
         ? `${c.yellow('»')} ${c.text('Onaylar açık:')} ${c.muted('komutlar sorulmadan çalışır')}`
@@ -335,7 +335,7 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
       print();
       return false;
     }
-    if (cmd === 'anahtar-sil') {
+    if (cmd === 'logout') {
       const p = session.settings.aiProvider;
       try {
         print(removeKey(cfg.keysPath, p)
@@ -347,7 +347,7 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
       print();
       return false;
     }
-    if (cmd === 'mod') {
+    if (cmd === 'mode') {
       if (arg && isMode(arg)) session.mode = arg;
       else if (arg) print(`${c.red('✗')} ${c.muted(`Geçersiz mod "${arg}" — ask, plan ya da build`)}`);
       else await chooseMode();
@@ -363,7 +363,7 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
       print();
       return false;
     }
-    if (cmd === 'saglayici') {
+    if (cmd === 'provider') {
       const next = await runSetup(session.settings, { config: cfg.configPath, keys: cfg.keysPath }, false);
       if (next) {
         session.settings = { ...next, autoApproveCommands: session.settings.autoApproveCommands };
@@ -372,7 +372,7 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
       print();
       return false;
     }
-    print(`${c.red('✗')} ${c.muted(`Bilinmeyen komut /${raw} — /yardim`)}`);
+    print(`${c.red('✗')} ${c.muted(`Bilinmeyen komut /${raw} — /help`)}`);
     print();
     return false;
   };

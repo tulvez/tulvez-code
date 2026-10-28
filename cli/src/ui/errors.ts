@@ -26,7 +26,7 @@ export function friendlyError(raw: string): FriendlyError {
   if (low.includes('exceeded your current quota') || low.includes('insufficient_quota') || low.includes('credit balance is too low')) {
     return {
       title: 'Hesabın kotası ya da bakiyesi bitti',
-      lines: ['Sağlayıcının panelinden bakiye ya da plan durumunu kontrol et.', 'Başka bir sağlayıcıya geçmek için /saglayici.'],
+      lines: ['Sağlayıcının panelinden bakiye ya da plan durumunu kontrol et.', 'Başka bir sağlayıcıya geçmek için /provider.'],
       detail,
     };
   }
@@ -36,7 +36,7 @@ export function friendlyError(raw: string): FriendlyError {
     const asked = /requested\s*:?\s*(\d+)/i.exec(text);
     const lines = ['İstek bu modelin tek seferde kabul ettiğinden büyük; Tulvez Code araç çıktılarını kısaltıp yeniden denedi ama sığmadı.'];
     if (limit) lines.push(`Sınır ${Number(limit[1]).toLocaleString('tr-TR')} token${asked ? `, istek ${Number(asked[1]).toLocaleString('tr-TR')} token` : ''}.`);
-    lines.push('/yeni ile yeni sohbet aç, daha küçük bir iş iste ya da /model veya /saglayici ile sınırı yüksek bir model seç.');
+    lines.push('/clear ile yeni sohbet aç, daha küçük bir iş iste ya da /model veya /provider ile sınırı yüksek bir model seç.');
     return { title: 'İstek çok büyük', lines, detail };
   }
   if (low.includes('rate limit') || low.includes('rate_limit') || /\b429\b/.test(low) || low.includes('too many requests')) {
@@ -45,17 +45,17 @@ export function friendlyError(raw: string): FriendlyError {
     if (limit && /tokens per minute|tpm/i.test(text)) lines.push(`Bu hesabın sınırı dakikada ${Number(limit[1]).toLocaleString('tr-TR')} token.`);
     const s = seconds(text);
     lines.push(s ? `Yaklaşık ${s} sn sonra yeniden dene.` : 'Biraz bekleyip yeniden dene.');
-    lines.push('Daha az token için /yeni ile yeni sohbet aç ya da /model ile daha küçük bir model seç.');
+    lines.push('Daha az token için /clear ile yeni sohbet aç ya da /model ile daha küçük bir model seç.');
     return { title: 'Hız sınırı', lines, detail };
   }
   if (/\b401\b/.test(low) || low.includes('invalid api key') || low.includes('incorrect api key') || low.includes('invalid x-api-key') || low.includes('unauthorized') || low.includes('authentication')) {
-    return { title: 'API anahtarı geçersiz', lines: ['Anahtarı /saglayici ile yeniden gir.'], detail };
+    return { title: 'API anahtarı geçersiz', lines: ['Anahtarı /provider ile yeniden gir.'], detail };
   }
   if ((/\b404\b/.test(low) && low.includes('model')) || low.includes('model_not_found') || low.includes('does not exist')) {
     return { title: 'Model bulunamadı', lines: ['Bu sağlayıcıda olan bir modeli /model ile seç.'], detail };
   }
   if (low.includes('fetch failed') || low.includes('enotfound') || low.includes('econnrefused') || low.includes('etimedout') || low.includes('econnreset') || low.includes('socket hang up')) {
-    return { title: 'Sağlayıcıya ulaşılamadı', lines: ['İnternet bağlantını ya da adres ayarını (/ayarlar) kontrol et; sonra yeniden dene.'], detail };
+    return { title: 'Sağlayıcıya ulaşılamadı', lines: ['İnternet bağlantını ya da adres ayarını (/config) kontrol et; sonra yeniden dene.'], detail };
   }
   return { title: 'Hata', lines: [detail] };
 }

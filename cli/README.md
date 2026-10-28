@@ -28,7 +28,7 @@ tulvez ayarlar                       # etkin ayarlar ve ayar dosyasının yeri
 haline döner. Sohbet üstte kendi kaydırmasıyla akar; giriş kutusu ve durum satırı hep ekranın en altında sabittir ve
 kaydırmaya katılmaz. Fare tekerleği, ↑ ↓ ve PgUp/PgDn sohbeti kaydırır; sürükleyerek seçme ve sağ tıkla yapıştırma
 terminalin kendisinde çalışır. Boş sohbette ortada logo, örnek istekler ve kısayollar görünür; ilk mesajla sohbet
-görünümüne geçilir (`/yeni` boş ekrana döner).
+görünümüne geçilir (`/clear` boş ekrana döner).
 
 İlk açılışta kurulum ekranı gelir: sağlayıcıyı ok tuşlarıyla seçer, anahtarı yapıştırıp istersen kaydeder, modeli
 listeden seçersin. Sohbette: mod renginde çerçeveli giriş kutusu, `/` ile komut menüsü, `@` ile dosya önerileri,
@@ -68,16 +68,18 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 
 | Komut | |
 |---|---|
-| `/mod <ask\|plan\|build>` | Modu değiştirir |
+| `/mode <ask\|plan\|build>` | Modu değiştirir |
 | `/model [kimlik]` | Modeli değiştirir (kimliksiz: sağlayıcının listesinden seç) |
-| `/saglayici` | Sağlayıcı, anahtar ve modeli yeniden kurar |
-| `/yeni` | Yeni sohbet (hafıza sıfırlanır, boş ekrana döner) |
-| `/geri-al` | Son yanıtın yazdığı dosyaları eski haline döndürür |
-| `/onay` | Komut onaylarını bu oturumda açar ya da kapatır |
-| `/ayarlar` | Etkin ayarları gösterir |
-| `/anahtar-sil` | Bu sağlayıcının kayıtlı anahtarını siler |
-| `/temizle` | Ekranı temizler (sohbet hafızası kalır) |
-| `/cikis` | Çıkar (Ctrl+D da olur) |
+| `/provider` | Sağlayıcı, anahtar ve modeli yeniden kurar |
+| `/clear` | Yeni sohbet (hafıza sıfırlanır, boş ekrana döner) |
+| `/undo` | Son yanıtın yazdığı dosyaları eski haline döndürür |
+| `/approve` | Komut onaylarını bu oturumda açar ya da kapatır |
+| `/config` | Etkin ayarları gösterir |
+| `/logout` | Bu sağlayıcının kayıtlı anahtarını siler |
+| `/help` | Komutlar ve kısayollar |
+| `/exit` | Çıkar (Ctrl+D da olur) |
+
+Eski Türkçe adlar (`/yeni`, `/geri-al`, `/saglayici`…) da çalışır.
 
 ## Güvenlik
 
@@ -86,13 +88,13 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
   güvendiğin işlerde kullan.
 - Girdi bir terminal değilse (boru hattı, CI) onay sorulamaz ve komut reddedilir; gerekiyorsa `-y` ver.
 - Projedeki `.mcp.json` sunucuları kod çalıştırabileceği için onay verilmeden başlamaz.
-- `/geri-al` yalnız Tulvez Code'un yazdığı dosyaları geri alır; terminal komutlarının yaptığı değişiklikleri değil.
+- `/undo` yalnız Tulvez Code'un yazdığı dosyaları geri alır; terminal komutlarının yaptığı değişiklikleri değil.
 
 ## Sağlayıcı ve API anahtarı
 
 Kurulum ekranında yapıştırdığın anahtarı **kaydedebilirsin** (Windows, macOS ve Linux'ta aynı):
 `~/.config/tulvez/anahtarlar.json` (Windows: `%APPDATA%\tulvez\anahtarlar.json`). Dosya yalnız senin okuyabileceğin
-izinle (600) yazılır; `cli.json`'a hiçbir zaman anahtar yazılmaz. `/anahtar-sil` kaydı siler.
+izinle (600) yazılır; `cli.json`'a hiçbir zaman anahtar yazılmaz. `/logout` kaydı siler.
 
 Ortam değişkeni varsa önce o kullanılır (CI ve betikler için): `TULVEZ_API_KEY` her sağlayıcıda geçerlidir; yoksa
 sağlayıcının kendi değişkenine bakılır. Sıra: ortam değişkeni → kayıtlı anahtar.
