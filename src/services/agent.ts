@@ -236,6 +236,8 @@ export interface AgentOptions {
   onConversation?: (messages: ModelMessage[]) => void;
   /** Bağlı MCP sunucularının araçları (yalnız Build modunda verilir). */
   mcpTools?: McpTool[];
+  /** Kullanıcı mesajına eklenen görseller (ekran görüntüsü vb.) */
+  images?: { data: Uint8Array; mediaType: string }[];
 }
 
 export async function runAgent(
@@ -256,7 +258,7 @@ export async function runAgent(
     return;
   }
 
-  const trivial = isTrivialRequest(userMessage);
+  const trivial = !memory?.images?.length && isTrivialRequest(userMessage);
   const repoMap = trivial ? '' : await repoMapFor();
   const skills = trivial ? '' : skillsPromptBlock(localSkills(getSkillsRoot()));
   const system = trivial ? buildChatPrompt(mode) : buildPrompt(mode, repoMap, skills);
@@ -281,7 +283,9 @@ export async function runAgent(
     }));
   const messages: ModelMessage[] = [
     ...compactConversation(pruneOldToolResults(past), budget),
-    { role: 'user', content: userMessage },
+    memory?.images?.length
+      ? { role: 'user', content: [{ type: 'text', text: userMessage }, ...memory.images.map((img) => ({ type: 'image' as const, image: img.data, mediaType: img.mediaType }))] }
+      : { role: 'user', content: userMessage },
   ];
 
   const maxAttempts = settings.autoApproveCommands ? 1 : 3;

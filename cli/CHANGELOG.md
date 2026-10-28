@@ -34,6 +34,8 @@
   `/context` ve durum satırında bağlam doluluğu.
 - Web araması (`web_search`): Brave Search ya da Tavily anahtarı varsa onlar, yoksa anahtarsız Tulvez Arama;
   `cli.json` → `webSearch` ile seçilir ya da kapatılır.
+- Görsel yapıştırma: Ctrl+V / Alt+V panodaki ekran görüntüsünü `[Görsel #1]` olarak ekler, mesajla modele gider
+  (görsel destekli model gerekir). Eski turlarda ve oturum kaydında görsel yer tutucuya iner.
 - Mesajın Claude Code'daki gibi arka planlı kutuda ("❯ metin"); `!` komutu ve `/` komutları da öyle.
 - Yanıt altındaki sayaç girdi ve çıktıyı ayrı gösterir ("2.430 girdi · 14 çıktı"). Selamlaşma ve kısa sohbette
   ("merhaba", "nasılsın", "teşekkürler") modele proje talimatları, proje haritası ve araç tanımları gönderilmez.

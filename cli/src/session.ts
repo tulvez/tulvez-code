@@ -3,6 +3,7 @@ import type { ModelMessage } from 'ai';
 import { compactedMessages, runAgent, summarizeConversation, type ToolResult } from '../../src/services/agent';
 import { beginCheckpoint, endCheckpoint, undoCheckpoint } from '../../src/services/checkpoint';
 import { McpManager, readProjectMcp, type McpServerEntry } from '../../src/services/mcp';
+import { withoutImages } from '../../src/services/conversation';
 import { mentionContext } from '../../src/services/mentions';
 import type { TulvezSettings } from '../../src/services/messages';
 import type { TodoItem } from '../../src/services/tools';
@@ -120,7 +121,7 @@ export class Session {
   record(): SessionRecord {
     return {
       id: this.id, root: this.root, title: this.title, createdAt: this.createdAt, updatedAt: Date.now(),
-      mode: this.mode, model: this.settings.model, history: this.history, prior: this.prior,
+      mode: this.mode, model: this.settings.model, history: this.history, prior: this.prior && withoutImages(this.prior),
     };
   }
 
@@ -211,7 +212,7 @@ export class Session {
     }
   }
 
-  async run(prompt: string): Promise<RunOutcome> {
+  async run(prompt: string, images: { data: Uint8Array; mediaType: string }[] = []): Promise<RunOutcome> {
     // Bağlam dolmak üzereyse önce konuşma özetlenir (Claude Code'un otomatik sıkıştırması)
     if (this.contextRatio >= AUTO_COMPACT_RATIO) await this.compact(true);
 
@@ -290,6 +291,7 @@ export class Session {
         },
       }, abort.signal, {
         prior: this.prior,
+        images,
         onConversation: (msgs) => { this.prior = msgs; },
         mcpTools,
       });

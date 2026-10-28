@@ -139,5 +139,16 @@ export function pruneOldToolResults(messages: ModelMessage[], keepTurns = 2): Mo
   const userIdx = messages.map((m, i) => (m.role === 'user' ? i : -1)).filter((i) => i >= 0);
   if (userIdx.length <= keepTurns) return messages;
   const protectFrom = userIdx[userIdx.length - keepTurns];
-  return messages.map((m, i) => (i < protectFrom ? shortenToolMessage(m) : m));
+  return messages.map((m, i) => (i < protectFrom ? withoutImages([shortenToolMessage(m)])[0] : m));
+}
+
+/**
+ * Görseller yer tutucu metne iner: eski turlarda her istekte yeniden gönderilmesin, oturum kaydına
+ * (JSON) bayt dizisi olarak yazılmasın.
+ */
+export function withoutImages(messages: ModelMessage[]): ModelMessage[] {
+  return messages.map((m) => {
+    if (m.role !== 'user' || typeof m.content === 'string' || !m.content.some((p) => p.type === 'image' || p.type === 'file')) return m;
+    return { ...m, content: m.content.map((p) => (p.type === 'image' || p.type === 'file' ? { type: 'text' as const, text: '[görsel: önceki mesajda gönderildi]' } : p)) };
+  });
 }

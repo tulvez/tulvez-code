@@ -1,4 +1,4 @@
-import { normalizePaste, readClipboard } from './clipboard';
+import { normalizePaste, readClipboard, readClipboardImage, type ClipboardImage } from './clipboard';
 import { isCtrlC, pushKeys, type Key } from './keys';
 import { screen } from './screen';
 import { type Paint, bold, c, charCols, columns, dim, fit, width } from './theme';
@@ -36,6 +36,8 @@ export interface EditorOptions {
   onCtrlC?: () => boolean;
   /** Ctrl+S; true dönerse tüketildi (ör. yanıtı durdurup sıradakini hemen gönder) */
   onSendNow?: (text: string) => boolean;
+  /** Panoda görsel varsa (Ctrl+V / Alt+V) çağrılır; kutuya konacak işareti döndürür. Yoksa görsel alınmaz. */
+  onImage?: (image: ClipboardImage) => string;
   /** Kutunun metnine dışarıdan erişim (sıradaki mesajları kutuya geri koymak için) */
   bind?: (api: EditorApi) => void;
   history?: string[];
@@ -243,8 +245,20 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
     let finished = false;
     /** Ctrl+V terminal tarafından yapıştırılmadan düz tuş geldiyse (cmd, VS Code): pano okunur. */
     const pasteFromClipboard = (): void => {
-      void readClipboard().then((clip) => {
-        if (finished) return;
+      void (async () => {
+        // Önce görsel (ekran görüntüsü): panoda varsa işaret konur, gönderince modele gider
+        if (opts.onImage && !opts.mask && !opts.singleLine) {
+          const img = await readClipboardImage();
+          if (finished) return;
+          if (img) {
+            insert(`${opts.onImage(img)} `);
+            render();
+            return;
+          }
+        }
+        return readClipboard();
+      })().then((clip) => {
+        if (finished || clip === undefined) return;
         if (clip === null) {
           notice = 'Pano okunamadı — terminalin kendi yapıştırmasını dene (Windows Terminal: Ctrl+Shift+V)';
         } else {

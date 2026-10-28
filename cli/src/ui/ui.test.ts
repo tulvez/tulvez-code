@@ -179,3 +179,12 @@ describe('tuş çevirici (pi-tui girdisi → bileşen tuşları)', async () => {
     expect(toKeys('\x1b[200~bir\riki\x1b[201~')).toEqual([[undefined, { name: 'paste', sequence: 'bir\riki' }]]);
   });
 });
+
+describe('pano görseli', async () => {
+  const { imageType } = await import('./clipboard');
+  it('türü ilk baytlardan tanır', () => {
+    expect(imageType(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0, 0]))).toBe('image/png');
+    expect(imageType(new Uint8Array([0xff, 0xd8, 0xff, 0]))).toBe('image/jpeg');
+    expect(imageType(new Uint8Array([1, 2, 3, 4]))).toBeNull();
+  });
+});

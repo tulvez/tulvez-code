@@ -48,6 +48,9 @@ export function friendlyError(raw: string): FriendlyError {
     lines.push('Daha az token için /clear ile yeni sohbet aç ya da /model ile daha küçük bir model seç.');
     return { title: 'Hız sınırı', lines, detail };
   }
+  if (/image|vision|multimodal|görsel/.test(low) && /not support|unsupported|does not support|cannot|invalid/.test(low)) {
+    return { title: 'Bu model görsel kabul etmiyor', lines: ['Görsel destekli bir model seç (/model) ya da mesajdan [Görsel #N] işaretini sil.'], detail };
+  }
   if (/\b401\b/.test(low) || low.includes('invalid api key') || low.includes('incorrect api key') || low.includes('invalid x-api-key') || low.includes('unauthorized') || low.includes('authentication')) {
     return { title: 'API anahtarı geçersiz', lines: ['Anahtarı /provider ile yeniden gir.'], detail };
   }

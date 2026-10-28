@@ -1,3 +1,4 @@
+import { getNativeClipboard } from '@earendil-works/pi-tui';
 import { execFile } from 'child_process';
 
 /**
@@ -63,4 +64,52 @@ export async function writeClipboard(text: string, platform: NodeJS.Platform = p
     if (ok) return true;
   }
   return false;
+}
+
+export interface ClipboardImage {
+  data: Uint8Array;
+  mediaType: string;
+}
+
+/** Görselin türü ilk baytlarından (PNG, JPEG, GIF, WebP); tanınmazsa null */
+export function imageType(data: Uint8Array): string | null {
+  const b = data;
+  if (b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b.length > 6 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return 'image/gif';
+  if (b.length > 12 && b[0] === 0x52 && b[1] === 0x49 && b[8] === 0x57 && b[9] === 0x45) return 'image/webp';
+  return null;
+}
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+function runBuffer(file: string, args: string[]): Promise<Buffer | null> {
+  return new Promise((resolve) => {
+    execFile(file, args, { timeout: 4000, windowsHide: true, maxBuffer: MAX_IMAGE_BYTES, encoding: 'buffer' }, (err, stdout) => {
+      resolve(err || !stdout.length ? null : stdout);
+    });
+  });
+}
+
+/**
+ * Panodaki görsel (ekran görüntüsü). Önce pi-tui'nin yerel yardımcısı (Windows, macOS, Linux X11),
+ * olmazsa Wayland/X11 komutları. Görsel yoksa ya da okunamazsa null.
+ */
+export async function readClipboardImage(): Promise<ClipboardImage | null> {
+  const fromBytes = (data: Uint8Array | null | undefined): ClipboardImage | null => {
+    if (!data || !data.length || data.length > MAX_IMAGE_BYTES) return null;
+    const mediaType = imageType(data);
+    return mediaType ? { data, mediaType } : null;
+  };
+  try {
+    const img = fromBytes(await getNativeClipboard()?.getImage());
+    if (img) return img;
+  } catch { /* yerel yardımcı yok ya da okunamadı */ }
+  if (process.platform === 'linux') {
+    for (const [file, args] of [['wl-paste', ['--type', 'image/png']], ['xclip', ['-selection', 'clipboard', '-t', 'image/png', '-o']]] as const) {
+      const img = fromBytes(await runBuffer(file, [...args]));
+      if (img) return img;
+    }
+  }
+  return null;
 }

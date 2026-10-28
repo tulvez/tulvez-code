@@ -55,7 +55,7 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | ↑ ↓ | önceki istekler (oturumlar arası saklanır) |
 | Tekerlek · PgUp/PgDn | sohbeti kaydır (giriş kutusu yerinde kalır) · Ctrl+Home/End başa/sona |
 | Sürükle · sağ tık | seç ve panoya kopyala · yapıştır |
-| Ctrl+V | yapıştır; terminal yapıştırmazsa (cmd, VS Code) pano okunur: Windows PowerShell, macOS `pbpaste`, Linux `wl-paste`/`xclip`/`xsel` |
+| Ctrl+V · Alt+V | yapıştır; panoda görsel (ekran görüntüsü) varsa kutuya `[Görsel #1]` olarak eklenir ve mesajla modele gider. Terminal yapıştırmazsa pano okunur: Windows/macOS yerel yardımcı, Linux `wl-paste`/`xclip`/`xsel` |
 | Ctrl+C | girişi sil · yanıt sürerken durdur · boşken iki kez: çık |
 | Ctrl+D | çık |
 

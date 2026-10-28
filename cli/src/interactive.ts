@@ -9,6 +9,7 @@ import { MODES, isMode } from './args';
 import { invalidateFiles, matchFiles, workspaceFiles } from './files';
 import { ago, listSessions, saveSession, sessionsDir, type SessionRecord } from './sessions';
 import { MarkdownStream } from './ui/markdown';
+import type { ClipboardImage } from './ui/clipboard';
 import { AUTO_COMPACT_RATIO, type Session } from './session';
 import { KEYS_FILE, configDir, removeKey, type LoadedConfig } from './settings';
 import { shortPath, welcomeView } from './ui/banner';
@@ -62,7 +63,7 @@ const SHORTCUTS: [string, string][] = [
   ['↑ ↓', 'önceki istekler'],
   ['Tekerlek', 'sohbeti kaydır · PgUp/PgDn sayfa · Ctrl+End en alta'],
   ['Sürükle', 'seç ve panoya kopyala · sağ tık yapıştırır'],
-  ['Ctrl+V', 'yapıştır (sağ tık da olur)'],
+  ['Ctrl+V · Alt+V', 'yapıştır · panoda görsel varsa [Görsel #1] olarak ekler'],
   ['Ctrl+C', 'yanıtı durdur · boşken iki kez: çık'],
 ];
 
@@ -242,6 +243,10 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
     else session.stop();
   };
 
+  /** Panodan yapıştırılan görseller (işaret numarasıyla) */
+  const images = new Map<number, ClipboardImage>();
+  let imageCount = 0;
+
   const runItem = async (text: string): Promise<void> => {
     if (text.startsWith('!')) {
       const command = text.slice(1).trim();
@@ -269,7 +274,9 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
       print();
       return;
     }
-    await session.run(text);
+    // Mesajdaki [Görsel #N] işaretlerinin görselleri isteğe eklenir
+    const attached = [...text.matchAll(/\[Görsel #(\d+)\]/g)].map((m) => images.get(Number(m[1]))).filter((x): x is ClipboardImage => !!x);
+    await session.run(text, attached);
     invalidateRepoMap();
     invalidateFiles();
     print();
@@ -474,6 +481,10 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
         ? 'Yazmaya devam et — Enter sıraya ekler, Ctrl+S durdurup hemen gönderir'
         : session.turns ? 'Devam et…' : 'Bir şey sor · @ dosya · / komutlar · ! terminal · ? kısayollar',
       bind: (api) => { editor = api; },
+      onImage: (img) => {
+        images.set(++imageCount, img);
+        return `[Görsel #${imageCount}]`;
+      },
       onShiftTab: () => {
         session.mode = MODE_ORDER[(MODE_ORDER.indexOf(session.mode) + 1) % MODE_ORDER.length];
       },
