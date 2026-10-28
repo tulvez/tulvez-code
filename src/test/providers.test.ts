@@ -7,7 +7,7 @@ const { buildPrompt } = await import('../services/ai');
 
 describe('sağlayıcı çözümleme', () => {
   it('her sağlayıcı için bir model döner', () => {
-    const providers = ['openai', 'anthropic', 'gemini', 'groq', 'opencode', 'ollama', 'custom'] as const;
+    const providers = ['openai', 'anthropic', 'gemini', 'groq', 'opencode', 'openrouter', 'ollama', 'custom'] as const;
     for (const aiProvider of providers) {
       const resolved = resolveModel({
         ...baseSettings,
@@ -31,6 +31,28 @@ describe('sağlayıcı çözümleme', () => {
     const resolved = resolveModel({ ...baseSettings, aiProvider: 'opencode', model: 'claude-sonnet-4-5' });
     expect(resolved.id).toBe('claude-sonnet-4-5');
     expect(resolved.source).toBe('OpenCode Zen');
+  });
+
+  it('OpenRouter: kendi adresi ve uygulama başlıkları; listede yalnız araç destekleyen modeller', async () => {
+    const { vi } = await import('vitest');
+    const seen: { url: string; headers: Record<string, string> }[] = [];
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      seen.push({ url: String(input), headers: Object.fromEntries(new Headers(init?.headers).entries()) });
+      return new Response('{"error":{"message":"x"}}', { status: 400, headers: { 'content-type': 'application/json' } });
+    });
+    const { runAgent } = await import('../services/agent');
+    await runAgent({ ...baseSettings, aiProvider: 'openrouter', apiKey: 'k', model: 'qwen/qwen3-coder', autoApproveCommands: true }, 'merhaba', 'ask', [], {
+      onChunk: () => undefined, onToolCall: () => undefined, onToolRequest: async () => true, onDone: () => undefined, onError: () => undefined,
+    });
+    spy.mockRestore();
+    expect(seen[0].url).toBe('https://openrouter.ai/api/v1/chat/completions');
+    expect(seen[0].headers['x-title']).toBe('Tulvez Code');
+    const { openRouterToolModels } = await import('../services/models');
+    expect(openRouterToolModels([
+      { id: 'b/araçlı', supported_parameters: ['tools', 'temperature'] },
+      { id: 'a/araçsız:free', supported_parameters: ['temperature'] },
+      { id: 'c/bilinmiyor' },
+    ])).toEqual(['b/araçlı']);
   });
 
   it('özel endpoint için baseURL zorunluluğu kontrol edilir', async () => {

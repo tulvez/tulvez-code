@@ -70,6 +70,20 @@ export function resolveModel(settings: TulvezSettings): ResolvedModel {
     return { model: zen.chatModel(id), id, source: 'OpenCode Zen' };
   }
 
+  if (provider === 'openrouter') {
+    const router = createOpenAICompatible({
+      name: 'openrouter',
+      apiKey: key,
+      baseURL: 'https://openrouter.ai/api/v1',
+      // OpenRouter'ın önerdiği uygulama başlıkları (istatistik ve sıralamada uygulama adı)
+      headers: { 'HTTP-Referer': 'https://tulvez.com', 'X-Title': 'Tulvez Code' },
+      includeUsage: true,
+      fetch: rateLimitedFetch,
+    });
+    const id = settings.model || 'qwen/qwen3-coder';
+    return { model: router.chatModel(id), id, source: 'OpenRouter' };
+  }
+
   if (provider === 'ollama') {
     const ollama = createOpenAICompatible({
       name: 'ollama',

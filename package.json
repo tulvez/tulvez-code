@@ -130,6 +130,7 @@
             "anthropic",
             "groq",
             "opencode",
+            "openrouter",
             "custom",
             "ollama"
           ],

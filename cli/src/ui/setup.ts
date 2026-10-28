@@ -12,8 +12,9 @@ const PROVIDER_CHOICES: Choice<Provider>[] = [
   { value: 'gemini', label: 'Google Gemini', hint: 'Gemini modelleri' },
   { value: 'groq', label: 'Groq', hint: 'hızlı açık modeller' },
   { value: 'opencode', label: 'OpenCode Zen', hint: 'tek anahtarla birçok model' },
+  { value: 'openrouter', label: 'OpenRouter', hint: 'tek anahtarla yüzlerce model · yalnız araç destekleyenler listelenir' },
   { value: 'ollama', label: 'Ollama', hint: 'bilgisayarında yerel model · anahtar gerekmez' },
-  { value: 'custom', label: 'Özel adres', hint: 'OpenAI uyumlu herhangi bir uç (OpenRouter, LM Studio…)' },
+  { value: 'custom', label: 'Özel adres', hint: 'OpenAI uyumlu herhangi bir uç (LM Studio, vLLM, kendi sunucun)' },
 ];
 
 export function providerName(p: Provider): string {

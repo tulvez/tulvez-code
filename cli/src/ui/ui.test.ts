@@ -188,3 +188,9 @@ describe('pano görseli', async () => {
     expect(imageType(new Uint8Array([1, 2, 3, 4]))).toBeNull();
   });
 });
+
+describe('OpenRouter hataları', () => {
+  it('araç desteklemeyen model "model bulunamadı" sanılmaz', () => {
+    expect(friendlyError('404 No endpoints found that support tool use. To learn more about provider routing, visit: https://openrouter.ai/docs/provider-routing').title).toBe('Bu model araç kullanamıyor');
+  });
+});

@@ -53,7 +53,8 @@ const PROVIDERS: ProviderDef[] = [
   { id: 'gemini',    label: 'Google Gemini', hint: 'Ücretsiz katman var',           icon: Gem,      keyHint: 'AIza…' },
   { id: 'groq',      label: 'Groq',          hint: 'Açık modeller, çok hızlı',      icon: Zap,      keyHint: 'gsk_…' },
   { id: 'opencode',  label: 'OpenCode Zen',  hint: 'Tek anahtarla birçok model',    icon: Boxes,    keyHint: 'zen-…' },
-  { id: 'custom',    label: 'Özel uç nokta', hint: 'OpenRouter, LM Studio, vLLM…',  icon: Server,   keyHint: 'sk-…' },
+  { id: 'openrouter', label: 'OpenRouter',   hint: 'Tek anahtarla yüzlerce model',  icon: Boxes,    keyHint: 'sk-or-…' },
+  { id: 'custom',    label: 'Özel uç nokta', hint: 'LM Studio, vLLM, kendi sunucun', icon: Server,   keyHint: 'sk-…' },
   { id: 'ollama',    label: 'Ollama',        hint: 'Yerel, anahtarsız',             icon: Home },
 ];
 

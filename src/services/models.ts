@@ -25,6 +25,15 @@ export async function listProviderModels(settings: TulvezSettings): Promise<stri
       .sort();
   }
 
+  if (provider === 'openrouter') {
+    // Yüzlerce model var; ajan araç çağırdığı için yalnız araç (tools) destekleyenler listelenir.
+    // Desteklemeyen modelde OpenRouter "No endpoints found that support tool use" hatası verir.
+    const res = await fetch('https://openrouter.ai/api/v1/models', { headers: key ? { Authorization: `Bearer ${key}` } : {} });
+    if (!res.ok) throw new Error(`Model listesi alınamadı (${res.status})`);
+    const json = (await res.json()) as { data?: { id: string; supported_parameters?: string[] }[] };
+    return openRouterToolModels(json.data ?? []);
+  }
+
   if (provider === 'ollama') {
     const res = await fetch(`${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/api/tags`);
     const json = (await res.json()) as { models?: { name: string }[] };
@@ -43,4 +52,8 @@ export async function listProviderModels(settings: TulvezSettings): Promise<stri
   if (!res.ok) throw new Error(`Model listesi alınamadı (${res.status})`);
   const json = (await res.json()) as { data?: { id: string }[] };
   return (json.data ?? []).map((m) => m.id).sort();
+}
+/** OpenRouter model listesinden araç çağırabilenler (supported_parameters içinde "tools") */
+export function openRouterToolModels(data: { id: string; supported_parameters?: string[] }[]): string[] {
+  return data.filter((m) => m.supported_parameters?.includes('tools')).map((m) => m.id).sort();
 }

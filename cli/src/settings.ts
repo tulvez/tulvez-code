@@ -15,7 +15,7 @@ import type { PermissionRules } from './permissions';
 
 export type Provider = TulvezSettings['aiProvider'];
 
-export const PROVIDERS: readonly Provider[] = ['openai', 'anthropic', 'gemini', 'groq', 'opencode', 'ollama', 'custom'];
+export const PROVIDERS: readonly Provider[] = ['openai', 'anthropic', 'gemini', 'groq', 'opencode', 'openrouter', 'ollama', 'custom'];
 
 /** Sağlayıcının anahtarını taşıyan ortam değişkenleri (ilk dolu olan kullanılır). */
 export const KEY_ENV: Record<Provider, string[]> = {
@@ -24,6 +24,7 @@ export const KEY_ENV: Record<Provider, string[]> = {
   gemini: ['TULVEZ_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY'],
   groq: ['TULVEZ_API_KEY', 'GROQ_API_KEY'],
   opencode: ['TULVEZ_API_KEY', 'OPENCODE_API_KEY'],
+  openrouter: ['TULVEZ_API_KEY', 'OPENROUTER_API_KEY'],
   ollama: ['TULVEZ_API_KEY'],
   custom: ['TULVEZ_API_KEY'],
 };

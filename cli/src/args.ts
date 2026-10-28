@@ -85,7 +85,8 @@ Kullanım:
 
 Seçenekler:
   -m, --mode <ask|plan|build> Mod (varsayılan build)
-      --provider <ad>         openai, anthropic, gemini, groq, opencode, ollama, custom
+      --provider <ad>         openai, anthropic, gemini, groq, opencode, openrouter,
+                              ollama, custom
       --model <kimlik>        Model kimliği
       --base-url <adres>      custom sağlayıcının OpenAI uyumlu adresi
   -C, --cwd <klasör>          Çalışma klasörü (araçlar yalnız burada okur/yazar)
@@ -98,7 +99,7 @@ Seçenekler:
 API anahtarı: kurulum ekranında yapıştırıp kaydedebilirsin (anahtarlar.json,
 yalnız senin okuyabildiğin dosya). Ortam değişkeni varsa önce o kullanılır:
   TULVEZ_API_KEY ya da sağlayıcınınki (OPENAI_API_KEY, ANTHROPIC_API_KEY,
-  GEMINI_API_KEY, GROQ_API_KEY, OPENCODE_API_KEY). Ollama anahtar istemez.
+  GEMINI_API_KEY, GROQ_API_KEY, OPENCODE_API_KEY, OPENROUTER_API_KEY). Ollama anahtar istemez.
 
 Diğer ortam değişkenleri: TULVEZ_PROVIDER, TULVEZ_MODEL, TULVEZ_BASE_URL,
 OLLAMA_HOST, TULVEZ_CONFIG_DIR, NO_COLOR.

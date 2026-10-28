@@ -13,7 +13,8 @@
 - Ask, Plan ve Build modları (`-m`, oturumda `/mod`); eklentiyle aynı araçlar, yapılacaklar listesi ve sohbet hafızası.
 - Komutlar ve araçlar her seferinde onay ister (`-y` ile sorulmaz); girdi terminal değilse onay verilmez.
 - `/undo`: son yanıtın yazdığı dosyaları eski haline döndürür.
-- Sağlayıcılar: OpenAI, Anthropic, Gemini, Groq, OpenCode Zen, Ollama, OpenAI uyumlu özel adres.
+- Sağlayıcılar: OpenAI, Anthropic, Gemini, Groq, OpenCode Zen, OpenRouter, Ollama, OpenAI uyumlu özel adres.
+  OpenRouter'da model listesi yalnız araç destekleyen modelleri gösterir; desteklemeyen modelin hatası Türkçe.
 - Ekran (pi-tui ile): tam ekran açılır, terminalin önceki komutları görünmez; çıkınca sohbet terminal geçmişine
   yazılır. Yalnız değişen satırlar çizilir (titreme yok). Fare tekerleği, PgUp/PgDn, Ctrl+Home/End ile kaydırma, "en
   alta in" düğmesi; sürükleyerek seçme ve panoya kopyalama, sağ tıkla yapıştırma; Windows'ta fare olayları yerel

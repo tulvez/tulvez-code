@@ -48,6 +48,9 @@ export function friendlyError(raw: string): FriendlyError {
     lines.push('Daha az token için /clear ile yeni sohbet aç ya da /model ile daha küçük bir model seç.');
     return { title: 'Hız sınırı', lines, detail };
   }
+  if (low.includes('support tool use') || low.includes('does not support tools') || low.includes('tool use is not supported') || low.includes('tools is not supported')) {
+    return { title: 'Bu model araç kullanamıyor', lines: ['Tulvez Code dosya okumak ve komut çalıştırmak için araç çağırır; bu model bunu desteklemiyor.', 'Araç destekleyen bir model seç (/model). OpenRouter\'da liste yalnız bunları gösterir.'], detail };
+  }
   if (/image|vision|multimodal|görsel/.test(low) && /not support|unsupported|does not support|cannot|invalid/.test(low)) {
     return { title: 'Bu model görsel kabul etmiyor', lines: ['Görsel destekli bir model seç (/model) ya da mesajdan [Görsel #N] işaretini sil.'], detail };
   }
