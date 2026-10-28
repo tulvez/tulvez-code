@@ -82,9 +82,19 @@ const ROLES: Record<AgentMode, string> = {
   build: `Rolün: kıdemli bir yazılım mühendisisin. İsteği direkt uygularsın: gerekiyorsa dosyaları oku, doğru dosyayı düzenle, komut çalıştır. Açıklama kısa, sonuç çalışır kod olsun.\n\nKomut kuralları: Kısa süren derleme/test komutlarını run_command ile çalıştır. Sunucu, GUI veya sonsuza kadar çalışacak uygulamalar (ör. tkinter penceresi, web sunucusu) için run_in_background kullan — bunlar run_command ile asla çalıştırılmaz. Arka plan sürecini durdurmak için stop_background kullan.\n\nÇok adımlı işler: İş üç ya da daha çok adım sürecekse önce todo_write ile yapılacaklar listesi yaz; her adıma başlarken onu in_progress, bitirince hemen completed yap. Basit, tek adımlık isteklerde liste tutma.\n\nDoğrulama: Değişiklikten sonra mümkünse projenin kendi kontrolünü çalıştır (derleme, tip denetimi ya da ilgili testler) ve sonucu kısaca bildir; çalıştıramadıysan bunu açıkça söyle.`,
 };
 
+// Araçların verimli kullanımı: az çağrı, az token, işi yarıda bırakmamak
+const TOOL_GUIDE = [
+  'Araç kullanımı:',
+  '- Projeyi tanımak için önce list_dir ile yapıya bak; sonra ilgili dosyaları read_files ile tek çağrıda birlikte oku.',
+  '- Bir şeyin nerede geçtiğini bulmak için önce grep_files kullan, yalnız eşleşen dosyaları oku. Aynı dosyayı aynı turda ikinci kez okuma.',
+  '- Kullanıcı "dosyaları oku", "neler var", "projeyi incele" derse yalnız listeyi verip durma: önemli dosyaları (README, paket/proje dosyası, giriş noktası) oku ve projenin ne yaptığını özetle.',
+  '- Araç hata verirse iletiyi oku, yolu ya da argümanı düzeltip yeniden dene; aynı hatalı çağrıyı tekrarlama.',
+  '- İş bitince ne yaptığını kısaca söyle; araç çağrısı yapıp sessizce bitirme.',
+].join('\n');
+
 // code_skills.md her istekte okunur: düzenleme eklenti yeniden yüklenmeden geçerli olur
 export function buildPrompt(mode: AgentMode, repoMap: string, skills = ''): string {
-  let base = `${identity()}\n\n${modesLine()}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}`;
+  let base = `${identity()}\n\n${modesLine()}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}\n\n${TOOL_GUIDE}`;
   const rules = projectRules();
   if (rules) base += `\n\n${rules}`;
   if (skills) base += `\n\n${skills}`;

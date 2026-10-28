@@ -3,6 +3,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { TulvezSettings } from './messages';
+import { rateLimitedFetch } from './rateLimit';
 
 export type ResolvedModel = {
   model: ReturnType<ReturnType<typeof createOpenAI>['chat']>;
@@ -19,7 +20,7 @@ export function resolveModel(settings: TulvezSettings): ResolvedModel {
   const key = settings.apiKey;
 
   if (provider === 'anthropic') {
-    const anthropic = createAnthropic({ apiKey: key });
+    const anthropic = createAnthropic({ apiKey: key, fetch: rateLimitedFetch });
     return {
       model: anthropic(settings.model || 'claude-3-5-haiku-20241022'),
       id: settings.model || 'claude-3-5-haiku-20241022',
@@ -28,7 +29,7 @@ export function resolveModel(settings: TulvezSettings): ResolvedModel {
   }
 
   if (provider === 'gemini') {
-    const google = createGoogleGenerativeAI({ apiKey: key });
+    const google = createGoogleGenerativeAI({ apiKey: key, fetch: rateLimitedFetch });
     return {
       model: google.chat(settings.model || 'gemini-2.5-flash'),
       id: settings.model || 'gemini-2.5-flash',
@@ -37,7 +38,7 @@ export function resolveModel(settings: TulvezSettings): ResolvedModel {
   }
 
   if (provider === 'openai') {
-    const openai = createOpenAI({ apiKey: key });
+    const openai = createOpenAI({ apiKey: key, fetch: rateLimitedFetch });
     return {
       model: openai.chat(settings.model || 'gpt-4o-mini'),
       id: settings.model || 'gpt-4o-mini',
@@ -51,6 +52,7 @@ export function resolveModel(settings: TulvezSettings): ResolvedModel {
       apiKey: key,
       baseURL: 'https://api.groq.com/openai/v1',
       includeUsage: true,
+      fetch: rateLimitedFetch,
     });
     const id = settings.model || 'llama-3.3-70b-versatile';
     return { model: groq.chatModel(id), id, source: 'Groq' };
@@ -62,6 +64,7 @@ export function resolveModel(settings: TulvezSettings): ResolvedModel {
       apiKey: key,
       baseURL: 'https://opencode.ai/zen/v1',
       includeUsage: true,
+      fetch: rateLimitedFetch,
     });
     const id = settings.model || 'claude-sonnet-4-5';
     return { model: zen.chatModel(id), id, source: 'OpenCode Zen' };
@@ -73,6 +76,7 @@ export function resolveModel(settings: TulvezSettings): ResolvedModel {
       apiKey: key || 'ollama',
       baseURL: `${(settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`,
       includeUsage: true,
+      fetch: rateLimitedFetch,
     });
     const id = settings.model || 'llama3';
     return { model: ollama.chatModel(id), id, source: 'Ollama' };
@@ -83,6 +87,7 @@ export function resolveModel(settings: TulvezSettings): ResolvedModel {
     apiKey: key,
     baseURL: (settings.baseUrl || '').replace(/\/$/, ''),
     includeUsage: true,
+    fetch: rateLimitedFetch,
   });
   const id = settings.model || 'gpt-4o-mini';
   return { model: custom.chatModel(id), id, source: 'Özel endpoint' };

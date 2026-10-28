@@ -11,6 +11,7 @@ import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
 import { compactConversation, withoutReasoning } from './conversation';
 import { recordBefore } from './checkpoint';
 import type { McpTool } from './mcp';
+import { onRateLimitWait } from './rateLimit';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -23,6 +24,8 @@ export interface AgentCallbacks {
   /** Ajanın yapılacaklar listesi (todo_write) değişti */
   onTodos?: (items: TodoItem[]) => void;
   onReasoning?: (text: string) => void;
+  /** Sağlayıcı hız sınırı: istek bu kadar saniye bekleyip yinelenecek */
+  onRateLimitWait?: (seconds: number) => void;
   onError: (err: string) => void;
 }
 
@@ -254,87 +257,92 @@ export async function runAgent(
     },
   };
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    chunkSeen = false;
-    try {
-      const tools = buildToolSet(settings, allowed, cb, mode === 'build' && !trivial ? memory?.mcpTools : []);
-      const result = streamText({
-        model: resolved.model,
-        system,
-        messages,
-        tools,
-        stopWhen: stepCountIs(MAX_STEPS),
-        abortSignal: signal,
-        // Sağlayıcı hatasında yalnız başarısız adım tekrarlanır (önceki araç adımları yeniden çalışmaz);
-        // SDK hız sınırında retry-after başlığına uyar (60 sn'ye kadar, ör. Groq "18 sn sonra dene").
-        maxRetries: 2,
-        // Varsayılan onError hatayı console.error ile basar; hata zaten akıştan yakalanıp gösteriliyor
-        // (CLI'da terminal arayüzünü bozuyordu)
-        onError: () => {},
-        // Bazı OpenAI-uyumlu uç noktalar (örn. gpt-oss-20b) önceki adımın
-        // düşünme (reasoning) parçalarını geri kabul etmez. Düşünme hâlâ
-        // üretilir ve arayüzde gösterilir; sadece isteğe geri eklenmez.
-        prepareStep: async ({ messages }) => ({ messages: withoutReasoning(messages) }),
-      });
+  const offRateLimit = onRateLimitWait((seconds) => callbacks.onRateLimitWait?.(seconds));
+  try {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      chunkSeen = false;
+      try {
+        const tools = buildToolSet(settings, allowed, cb, mode === 'build' && !trivial ? memory?.mcpTools : []);
+        const result = streamText({
+          model: resolved.model,
+          system,
+          messages,
+          tools,
+          stopWhen: stepCountIs(MAX_STEPS),
+          abortSignal: signal,
+          // Hız sınırı (429) sağlayıcının fetch'inde beklenip yinelenir (rateLimit.ts: yalnız başarısız
+          // istek, retry-after'a uyarak); SDK'nın kendi yeniden denemesi üst üste bekletmesin diye kapalı
+          maxRetries: 0,
+          // Varsayılan onError hatayı console.error ile basar; hata zaten akıştan yakalanıp gösteriliyor
+          // (CLI'da terminal arayüzünü bozuyordu)
+          onError: () => {},
+          // Bazı OpenAI-uyumlu uç noktalar (örn. gpt-oss-20b) önceki adımın
+          // düşünme (reasoning) parçalarını geri kabul etmez. Düşünme hâlâ
+          // üretilir ve arayüzde gösterilir; sadece isteğe geri eklenmez.
+          prepareStep: async ({ messages }) => ({ messages: withoutReasoning(messages) }),
+        });
 
-      let sawText = false;
-      let streamError: { message: string } | null = null;
-      for await (const part of result.fullStream) {
-        if (part.type === 'text-delta') {
-          if (part.text) { sawText = true; cb.onChunk(part.text); }
-        } else if (part.type === 'reasoning-delta') {
-          if (part.text) cb.onReasoning?.(part.text);
-        } else if (part.type === 'error') {
-          streamError = { message: (part.error as { message?: string })?.message ?? String(part.error) };
+        let sawText = false;
+        let streamError: { message: string } | null = null;
+        for await (const part of result.fullStream) {
+          if (part.type === 'text-delta') {
+            if (part.text) { sawText = true; cb.onChunk(part.text); }
+          } else if (part.type === 'reasoning-delta') {
+            if (part.text) cb.onReasoning?.(part.text);
+          } else if (part.type === 'error') {
+            streamError = { message: (part.error as { message?: string })?.message ?? String(part.error) };
+          }
         }
-      }
 
-      // Durdurulunca SDK hata fırlatmaz: akış "abort" parçasıyla kapanır ve usage/text
-      // beklenirse sonuç gelmeyebilir. Normal bitiş gibi işlenmesin.
-      if (signal?.aborted) {
-        cb.onCancelled?.();
+        // Durdurulunca SDK hata fırlatmaz: akış "abort" parçasıyla kapanır ve usage/text
+        // beklenirse sonuç gelmeyebilir. Normal bitiş gibi işlenmesin.
+        if (signal?.aborted) {
+          cb.onCancelled?.();
+          return;
+        }
+
+        if (streamError) throw new Error(streamError.message);
+
+        const usage = await result.usage;
+        const finishReason = await result.finishReason;
+        const text = (await result.text).trim();
+
+        if (!text && !sawText && finishReason !== 'tool-calls') {
+          cb.onChunk('_(Model boş yanıt döndü. Modeli değiştirmeyi veya isteği kısaltmayı dene.)_');
+        } else if (finishReason === 'length') {
+          cb.onChunk('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmek için "devam" yazabilirsin._');
+        } else if (finishReason === 'tool-calls') {
+          cb.onChunk(`\n\n_⚠️ Bu istekte ${MAX_STEPS} adım sınırına ulaştım. Kaldığım yerden sürdürmem için "devam" yaz._`);
+        }
+
+        if (memory?.onConversation) {
+          const produced = await result.responseMessages;
+          memory.onConversation(withoutReasoning([...messages, ...produced]));
+        }
+
+        cb.onDone({
+          inputTokens: usage.inputTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          costUsd: calcCost(resolved.id, usage.inputTokens ?? 0, usage.outputTokens ?? 0),
+          contextWindow: contextWindow(resolved.id),
+          model: resolved.id,
+        });
         return;
+      } catch (err) {
+        if (signal?.aborted) {
+          cb.onCancelled?.();
+          return;
+        }
+        const raw = err instanceof Error ? err.message : String(err);
+        if (!isRetryable(raw) || attempt >= maxAttempts || chunkSeen) {
+          cb.onError(raw);
+          return;
+        }
+        await delay(1200 * attempt * attempt);
       }
-
-      if (streamError) throw new Error(streamError.message);
-
-      const usage = await result.usage;
-      const finishReason = await result.finishReason;
-      const text = (await result.text).trim();
-
-      if (!text && !sawText && finishReason !== 'tool-calls') {
-        cb.onChunk('_(Model boş yanıt döndü. Modeli değiştirmeyi veya isteği kısaltmayı dene.)_');
-      } else if (finishReason === 'length') {
-        cb.onChunk('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmek için "devam" yazabilirsin._');
-      } else if (finishReason === 'tool-calls') {
-        cb.onChunk(`\n\n_⚠️ Bu istekte ${MAX_STEPS} adım sınırına ulaştım. Kaldığım yerden sürdürmem için "devam" yaz._`);
-      }
-
-      if (memory?.onConversation) {
-        const produced = await result.responseMessages;
-        memory.onConversation(withoutReasoning([...messages, ...produced]));
-      }
-
-      cb.onDone({
-        inputTokens: usage.inputTokens ?? 0,
-        outputTokens: usage.outputTokens ?? 0,
-        costUsd: calcCost(resolved.id, usage.inputTokens ?? 0, usage.outputTokens ?? 0),
-        contextWindow: contextWindow(resolved.id),
-        model: resolved.id,
-      });
-      return;
-    } catch (err) {
-      if (signal?.aborted) {
-        cb.onCancelled?.();
-        return;
-      }
-      const raw = err instanceof Error ? err.message : String(err);
-      if (!isRetryable(raw) || attempt >= maxAttempts || chunkSeen) {
-        cb.onError(raw);
-        return;
-      }
-      await delay(1200 * attempt * attempt);
     }
+  } finally {
+    offRateLimit();
   }
 }
 
@@ -344,8 +352,10 @@ function isRetryable(message: string): boolean {
   if (m.includes('exceeded your current quota') || m.includes('quota exceeded') || m.includes('billing')) {
     return false;
   }
+  // Hız sınırı fetch katmanında (rateLimit.ts) zaten beklendi; turu hemen baştan almak yeni 429 getirir
+  if (m.includes('rate limit') || m.includes('rate_limit') || m.includes('429')) return false;
   return (
-    m.includes('429') || m.includes('503') || m.includes('502') || m.includes('500') ||
+    m.includes('503') || m.includes('502') || m.includes('500') ||
     m.includes('overloaded') || m.includes('high demand') ||
     m.includes('econnreset') || m.includes('etimedout') || m.includes('socket hang up') ||
     m.includes('fetch failed') || m.includes('network') || m.includes('rate limit')

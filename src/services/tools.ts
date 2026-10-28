@@ -63,21 +63,21 @@ export async function agentCommand(raw: string, cwd?: string): Promise<{ command
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'read_file',
-    description: 'Çalışma alanındaki bir dosyanın içeriğini satır numaralarıyla okur.',
+    description: 'Çalışma alanındaki bir dosyanın içeriğini satır numaralarıyla okur. Birden çok dosya gerekiyorsa read_files kullan.',
     requiresApproval: false,
     readOnly: true,
     schema: z.object({ path: z.string().describe('Dosya yolu (çalışma alanına göre)') }),
   },
   {
     name: 'read_files',
-    description: 'Birden fazla dosyayı aynı anda okur (bağlam için verimli).',
+    description: 'Birden fazla dosyayı tek çağrıda okur. İlgili dosyaları (ör. README, paket dosyası, giriş noktası) tek tek değil bununla birlikte oku.',
     requiresApproval: false,
     readOnly: true,
     schema: z.object({ paths: z.array(z.string()).describe('Dosya yolları') }),
   },
   {
     name: 'grep_files',
-    description: 'Çalışma alanında regex ile arama yapar; dosya:satır eşleşmeleri döner.',
+    description: 'Çalışma alanında regex ile arama yapar; dosya:satır eşleşmeleri döner. Bir sembolün, metnin ya da ayarın nerede geçtiğini bulmak için dosyaları okumadan önce bunu kullan.',
     requiresApproval: false,
     readOnly: true,
     schema: z.object({
@@ -88,7 +88,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'list_dir',
-    description: 'Bir klasörün ağacını (derinlik sınırlı) listeler.',
+    description: 'Bir klasörün ağacını (derinlik sınırlı) listeler. Projenin yapısını tanımak için ilk adım budur.',
     requiresApproval: false,
     readOnly: true,
     schema: z.object({
@@ -98,7 +98,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'list_files',
-    description: 'Bir klasördeki dosyaları tek seviye listeler.',
+    description: 'Bir klasördeki dosyaları tek seviye listeler. Ağaç gerekiyorsa list_dir kullan.',
     requiresApproval: false,
     readOnly: true,
     schema: z.object({ directory: z.string().optional().describe('Klasör yolu (varsayılan: kök)') }),

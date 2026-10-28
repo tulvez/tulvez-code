@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { baseSettings } from './vsmock';
 
 const { runAgent } = await import('../services/agent');
+const { retryAfterSeconds } = await import('../services/rateLimit');
 
 /**
  * Sağlayıcı hız sınırı (429): yalnız başarısız adım retry-after'a uyularak yeniden denenir ve
@@ -56,6 +57,7 @@ function run() {
     onChunk: (t) => events.push(`chunk:${t}`),
     onToolCall: () => undefined,
     onToolRequest: async () => true,
+    onRateLimitWait: (s) => events.push(`bekle:${s}`),
     onDone: () => events.push('done'),
     onError: (e) => events.push(`error:${e}`),
   });
@@ -63,27 +65,38 @@ function run() {
 }
 
 describe('hız sınırı', () => {
-  it('429 sonrası adım yeniden denenir ve yanıt gelir', async () => {
+  it('429 sonrası istek bekleyip yinelenir, bekleme bildirilir, yanıt gelir', async () => {
     requests = 0;
     failFirst = 1;
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { events, done } = run();
     await done;
-    expect(events).toEqual(['chunk:tamam', 'done']);
+    expect(events).toEqual(['bekle:0', 'chunk:tamam', 'done']);
     expect(requests).toBe(2);
     expect(consoleError).not.toHaveBeenCalled();
   });
 
-  it('sürekli 429: hata kullanıcıya iletilir, terminale basılmaz', async () => {
+  it('sürekli 429: 3 beklemeden sonra hata kullanıcıya iletilir, tur baştan alınmaz, terminale basılmaz', async () => {
     requests = 0;
     failFirst = 99;
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { events, done } = run();
     await done;
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatch(/^error:.*Rate limit/);
-    // 1 istek + SDK'nın 2 yeniden denemesi
-    expect(requests).toBe(3);
+    expect(events.filter((e) => e.startsWith('bekle:'))).toHaveLength(3);
+    expect(events[events.length - 1]).toMatch(/^error:.*Rate limit/);
+    // 1 istek + 3 bekleyip yineleme; dış döngü hız sınırında turu yeniden başlatmaz
+    expect(requests).toBe(4);
     expect(consoleError).not.toHaveBeenCalled();
+  });
+});
+
+describe('retry-after okuma', () => {
+  const h = (o: Record<string, string>) => new Headers(o);
+  it('başlıklar ve ileti gövdesi', () => {
+    expect(retryAfterSeconds(h({ 'retry-after': '18' }))).toBe(18);
+    expect(retryAfterSeconds(h({ 'retry-after-ms': '1500' }))).toBe(1.5);
+    expect(retryAfterSeconds(h({}), 'Please try again in 17.78s.')).toBeCloseTo(17.78);
+    expect(retryAfterSeconds(h({}), 'try again in 1m2.5s')).toBeCloseTo(62.5);
+    expect(retryAfterSeconds(h({}), 'başka bir hata')).toBeNull();
   });
 });
