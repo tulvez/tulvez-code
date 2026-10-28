@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { L } from './i18n';
 
 /**
  * GitHub hesabındaki beceriler (varsayılan github.com/tulvez).
@@ -103,7 +104,7 @@ async function get(url: string, accept?: string): Promise<Response> {
     if (accept) headers.Accept = accept;
     return await fetch(url, { signal: ctrl.signal, headers });
   } catch (err) {
-    if ((err as Error).name === 'AbortError') throw new Error('GitHub zaman aşımına uğradı');
+    if ((err as Error).name === 'AbortError') throw new Error(L('GitHub zaman aşımına uğradı', 'GitHub timed out'));
     throw err;
   } finally {
     clearTimeout(timer);
@@ -112,8 +113,8 @@ async function get(url: string, accept?: string): Promise<Response> {
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await get(url, 'application/vnd.github+json');
-  if (res.status === 403 || res.status === 429) throw new Error('GitHub istek sınırı doldu, biraz sonra tekrar dene');
-  if (!res.ok) throw new Error(`GitHub yanıt vermedi (HTTP ${res.status})`);
+  if (res.status === 403 || res.status === 429) throw new Error(L('GitHub istek sınırı doldu, biraz sonra tekrar dene', 'GitHub rate limit reached, try again a little later'));
+  if (!res.ok) throw new Error(L(`GitHub yanıt vermedi (HTTP ${res.status})`, `GitHub did not respond (HTTP ${res.status})`));
   return (await res.json()) as T;
 }
 
@@ -151,7 +152,7 @@ function readStamp(dir: string): { repo?: string; sha?: string; source?: string 
  * Dönüş: true = yeni/güncellendi.
  */
 export async function syncOrgSkill(skill: OrgSkill, root: string): Promise<boolean> {
-  if (!ID_RE.test(skill.id)) throw new Error('Geçersiz beceri kimliği');
+  if (!ID_RE.test(skill.id)) throw new Error(L('Geçersiz beceri kimliği', 'Invalid skill id'));
   const dest = path.join(root, skill.id);
   const stamp = readStamp(dest);
   // Aynı adla bilgisayardan yüklenen beceri GitHub'dakinin üstüne yazılmaz.
@@ -162,9 +163,9 @@ export async function syncOrgSkill(skill: OrgSkill, root: string): Promise<boole
   if (stamp.sha === tree.sha && stamp.repo === skill.repo && fs.existsSync(path.join(dest, 'SKILL.md'))) return false;
 
   const files = tree.tree.filter((t) => t.type === 'blob' && safeRelPath(t.path));
-  if (tree.truncated || files.length > MAX_FILES) throw new Error(`${skill.repo}: çok fazla dosya`);
+  if (tree.truncated || files.length > MAX_FILES) throw new Error(L(`${skill.repo}: çok fazla dosya`, `${skill.repo}: too many files`));
   const total = files.reduce((n, f) => n + (f.size ?? 0), 0);
-  if (total > MAX_TOTAL_BYTES || files.some((f) => (f.size ?? 0) > MAX_FILE_BYTES)) throw new Error(`${skill.repo}: beceri çok büyük`);
+  if (total > MAX_TOTAL_BYTES || files.some((f) => (f.size ?? 0) > MAX_FILE_BYTES)) throw new Error(L(`${skill.repo}: beceri çok büyük`, `${skill.repo}: the skill is too large`));
   if (!files.some((f) => f.path === 'SKILL.md')) throw new Error(`${skill.repo}: SKILL.md yok`);
 
   fs.mkdirSync(root, { recursive: true });
@@ -223,7 +224,7 @@ function copyTree(src: string, dest: string, budget = { files: 0, bytes: 0 }): v
       budget.files += 1;
       budget.bytes += size;
       if (budget.files > MAX_FILES || size > MAX_FILE_BYTES || budget.bytes > MAX_TOTAL_BYTES) {
-        throw new Error('Beceri çok büyük (en çok 300 dosya, 8 MB)');
+        throw new Error(L('Beceri çok büyük (en çok 300 dosya, 8 MB)', 'The skill is too large (at most 300 files, 8 MB)'));
       }
       fs.copyFileSync(from, to);
     }
@@ -255,7 +256,7 @@ function skillFileIn(dir: string): string | null {
 
 function installLocal(meta: SkillMeta, skillMd: string, root: string, fallbackName: string, fromDir?: string, skillFile?: string): LocalSkill {
   const id = skillId(meta.name, fallbackName);
-  if (!ID_RE.test(id)) throw new Error(`${fallbackName}: becerinin adı geçersiz`);
+  if (!ID_RE.test(id)) throw new Error(L(`${fallbackName}: becerinin adı geçersiz`, `${fallbackName}: invalid skill name`));
   fs.mkdirSync(root, { recursive: true });
   const tmp = fs.mkdtempSync(path.join(root, `.${id}-`));
   try {
@@ -283,13 +284,13 @@ export function importLocalSkill(src: string, root: string): LocalSkill {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
     const file = skillFileIn(src);
-    if (!file) throw new Error(`${path.basename(src)}: klasörde beceri dosyası (.md) yok`);
-    if (fs.statSync(file).size > MAX_SKILL_MD_BYTES) throw new Error(`${path.basename(file)} çok büyük`);
+    if (!file) throw new Error(L(`${path.basename(src)}: klasörde beceri dosyası (.md) yok`, `${path.basename(src)}: no skill file (.md) in the folder`));
+    if (fs.statSync(file).size > MAX_SKILL_MD_BYTES) throw new Error(L(`${path.basename(file)} çok büyük`, `${path.basename(file)} is too large`));
     const { meta, skillMd } = mdToSkill(fs.readFileSync(file, 'utf8'), path.basename(src));
     return installLocal(meta, skillMd, root, path.basename(src), src, file);
   }
-  if (!isMd(path.basename(src))) throw new Error(`${path.basename(src)}: yalnız .md dosyası ya da klasör yüklenebilir`);
-  if (stat.size > MAX_SKILL_MD_BYTES) throw new Error(`${path.basename(src)} çok büyük`);
+  if (!isMd(path.basename(src))) throw new Error(L(`${path.basename(src)}: yalnız .md dosyası ya da klasör yüklenebilir`, `${path.basename(src)}: only .md files or folders can be uploaded`));
+  if (stat.size > MAX_SKILL_MD_BYTES) throw new Error(L(`${path.basename(src)} çok büyük`, `${path.basename(src)} is too large`));
   const base = path.basename(src).replace(/\.md$/i, '');
   const { meta, skillMd } = mdToSkill(fs.readFileSync(src, 'utf8'), base);
   return installLocal(meta, skillMd, root, base);
@@ -307,13 +308,13 @@ export function importLocalSkills(sources: string[], root: string): { imported: 
   };
   for (const src of sources) {
     let isDir = false;
-    try { isDir = fs.statSync(src).isDirectory(); } catch { errors.push(`${path.basename(src)} okunamadı`); continue; }
+    try { isDir = fs.statSync(src).isDirectory(); } catch { errors.push(L(`${path.basename(src)} okunamadı`, `${path.basename(src)} could not be read`)); continue; }
     if (!isDir || skillFileIn(src)) { one(src); continue; }
     const entries = fs.readdirSync(src, { withFileTypes: true }).filter((e) => !e.name.startsWith('.'));
     const items = entries
       .filter((e) => (e.isFile() && isMd(e.name)) || (e.isDirectory() && skillFileIn(path.join(src, e.name))))
       .map((e) => path.join(src, e.name));
-    if (items.length === 0) errors.push(`${path.basename(src)}: klasörde beceri bulunamadı`);
+    if (items.length === 0) errors.push(L(`${path.basename(src)}: klasörde beceri bulunamadı`, `${path.basename(src)}: no skills found in the folder`));
     items.forEach(one);
   }
   return { imported, errors };
@@ -321,9 +322,9 @@ export function importLocalSkills(sources: string[], root: string): { imported: 
 
 /** Kurulu beceriyi <hedef>/<ad> klasörüne kopyalar (eklentinin iç dosyası hariç). Dönüş: yeni klasör. */
 export function exportLocalSkill(root: string, id: string, destParent: string): string {
-  if (!ID_RE.test(id)) throw new Error('Geçersiz beceri kimliği');
+  if (!ID_RE.test(id)) throw new Error(L('Geçersiz beceri kimliği', 'Invalid skill id'));
   const src = path.join(root, id);
-  if (!fs.existsSync(path.join(src, 'SKILL.md'))) throw new Error('Beceri kurulu değil');
+  if (!fs.existsSync(path.join(src, 'SKILL.md'))) throw new Error(L('Beceri kurulu değil', 'The skill is not installed'));
   const dest = path.join(destParent, id);
   if (fs.existsSync(dest)) throw new Error(`${dest} zaten var`);
   copyTree(src, dest);

@@ -12,6 +12,8 @@ export interface Host {
   setting<T>(key: string, fallback: T): T;
   /** Ajan bir dosyada [start, end] satırlarını (0 tabanlı) yazdı. */
   onAiEdit(filePath: string, start: number, end: number): void;
+  /** Ortamın arayüz dili (ör. "tr", "en-US"); tulvez.language "auto" iken kullanılır. */
+  uiLanguage?(): string | undefined;
 }
 
 const noHost: Host = {

@@ -8,4 +8,5 @@ export const vscodeHost: Host = {
   workspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
   setting: <T>(key: string, fallback: T): T => vscode.workspace.getConfiguration('tulvez').get<T>(key, fallback),
   onAiEdit: markAiEdit,
+  uiLanguage: () => vscode.env?.language,
 };

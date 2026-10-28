@@ -15,11 +15,14 @@ export function createCliHost(
     gitCoAuthor: file.gitCoAuthor ?? true,
     skillsRegistry: file.skillsRegistry,
     webSearch: file.webSearch ?? 'auto',
+    language: file.language ?? 'auto',
   };
   return {
     surface: 'cli',
     workspaceRoot: () => root,
     setting: <T>(key: string, fallback: T): T => (settings[key] === undefined ? fallback : (settings[key] as T)),
     onAiEdit: (filePath) => onEdit(filePath),
+    // CLI arayüzü Türkçe: "auto" Türkçe yanıt demek; cli.json → "language": "en" İngilizce yapar
+    uiLanguage: () => 'tr',
   };
 }

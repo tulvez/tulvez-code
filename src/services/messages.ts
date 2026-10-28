@@ -1,5 +1,5 @@
 export interface TulvezSettings {
-  aiProvider: 'openai' | 'gemini' | 'anthropic' | 'ollama' | 'groq' | 'opencode' | 'openrouter' | 'custom';
+  aiProvider: 'openai' | 'gemini' | 'anthropic' | 'ollama' | 'groq' | 'opencode' | 'opencode-go' | 'openrouter' | 'custom';
   model: string;
   apiKey: string;
   ollamaUrl: string;
@@ -13,6 +13,8 @@ export interface TulvezSettings {
   showThinking: boolean;
   /** Tulvez Code'un attığı commit'lere ek katkıcı (Co-authored-by) satırı ekle */
   gitCoAuthor: boolean;
+  /** Arayüz ve yanıt dili: auto (VS Code'un dili) · tr · en */
+  language: 'auto' | 'tr' | 'en';
 }
 
 /** VS Code başlık çubuğu düğmelerinin webview'a ilettiği komutlar */

@@ -10,6 +10,7 @@ import { EarthGlobe } from './components/EarthGlobe';
 import { prettyModel } from './lib/modelName';
 import { chatTitle, chatToMarkdown } from './lib/chatMarkdown';
 import { mentionMenu, mentionQuery, slashMenu, type SkillItem } from './lib/slashMenu';
+import { L, LANG, LOCALE } from './lib/i18n';
 import { vscode } from './services/vscode';
 import type { HostToWebviewMessage, TulvezSettings } from './types';
 import {
@@ -62,32 +63,32 @@ interface ChatSession { id: number; title: string; messages: ChatMessage[]; mode
 interface RunConfirm { command: string; }
 
 const MODES: { id: AgentMode; label: string; sublabel: string; icon: ReactNode; color: string; placeholder: string }[] = [
-  { id: 'ask',   label: 'Ask',   sublabel: 'Okur ve açıklar, dosyaya dokunmaz', icon: <MessageSquare size={13} />, color: 'var(--mode-ask)',   placeholder: "Tulvez Code'a sorun..." },
-  { id: 'plan',  label: 'Plan',  sublabel: 'Adım adım plan çıkarır',            icon: <Lightbulb size={13} />,     color: 'var(--mode-plan)',  placeholder: 'Tulvez Code ile planlayın...' },
-  { id: 'build', label: 'Build', sublabel: 'Dosyaları düzenler, araç kullanır', icon: <Hammer size={13} />,        color: 'var(--mode-build)', placeholder: 'Tulvez Code ile inşa edin...' },
+  { id: 'ask',   label: 'Ask',   sublabel: L('Okur ve açıklar, dosyaya dokunmaz', 'Reads and explains, never touches files'), icon: <MessageSquare size={13} />, color: 'var(--mode-ask)',   placeholder: L("Tulvez Code'a sorun...", 'Ask Tulvez Code...') },
+  { id: 'plan',  label: 'Plan',  sublabel: L('Adım adım plan çıkarır', 'Makes a step-by-step plan'),                  icon: <Lightbulb size={13} />,     color: 'var(--mode-plan)',  placeholder: L('Tulvez Code ile planlayın...', 'Plan with Tulvez Code...') },
+  { id: 'build', label: 'Build', sublabel: L('Dosyaları düzenler, araç kullanır', 'Edits files and uses tools'),     icon: <Hammer size={13} />,        color: 'var(--mode-build)', placeholder: L('Tulvez Code ile inşa edin...', 'Build with Tulvez Code...') },
 ];
 
 const SLASH_COMMANDS = [
-  { cmd: '/run',     hint: 'Terminal komutu çalıştır' },
-  { cmd: '/review',  hint: 'Kod incelemesi yap' },
-  { cmd: '/commit',  hint: "Değişiklikleri commit'le" },
-  { cmd: '/diff',    hint: 'Git değişikliklerini göster' },
-  { cmd: '/explain', hint: 'Seçili kodu açıkla' },
-  { cmd: '/skill',   hint: 'Kurulu bir beceriyi seç ve çalıştır' },
+  { cmd: '/run',     hint: L('Terminal komutu çalıştır', 'Run a terminal command') },
+  { cmd: '/review',  hint: L('Kod incelemesi yap', 'Review your changes') },
+  { cmd: '/commit',  hint: L("Değişiklikleri commit'le", 'Commit your changes') },
+  { cmd: '/diff',    hint: L('Git değişikliklerini göster', 'Show git changes') },
+  { cmd: '/explain', hint: L('Seçili kodu açıkla', 'Explain the selected code') },
+  { cmd: '/skill',   hint: L('Kurulu bir beceriyi seç ve çalıştır', 'Pick and run an installed skill') },
 ];
 
 // Akan yanıt parçaları bu aralıkla toplanıp tek seferde çizilir.
 const STREAM_FLUSH_MS = 48;
 
 function formatCost(usd: number): string {
-  if (usd === 0) return 'ücretsiz';
+  if (usd === 0) return L('ücretsiz', 'free');
   if (usd < 0.001) return `$${(usd * 1000).toFixed(3)}m`;
   return `$${usd.toFixed(4)}`;
 }
 
 function formatTokens(n: number): string {
-  if (n >= 10000) return `${(n / 1000).toFixed(1).replace('.', ',')}k`;
-  return n.toLocaleString('tr-TR');
+  if (n >= 10000) return `${(n / 1000).toFixed(1).replace('.', LANG === 'en' ? '.' : ',')}k`;
+  return n.toLocaleString(LOCALE);
 }
 
 // C:\Users\dev\projeler\tulvez-code → projeler/tulvez-code
@@ -99,10 +100,10 @@ function shortPath(p: string): string {
 function dayGroup(ts: number): string {
   const start = (d: Date) => { const c = new Date(d); c.setHours(0, 0, 0, 0); return c.getTime(); };
   const diff = Math.round((start(new Date()) - start(new Date(ts))) / 86400000);
-  if (diff <= 0) return 'Bugün';
-  if (diff === 1) return 'Dün';
-  if (diff < 7) return 'Bu hafta';
-  return 'Daha eski';
+  if (diff <= 0) return L('Bugün', 'Today');
+  if (diff === 1) return L('Dün', 'Yesterday');
+  if (diff < 7) return L('Bu hafta', 'This week');
+  return L('Daha eski', 'Older');
 }
 
 // Boş sohbetin arka planı: sabit tohumlu yıldız alanı + arada bir kayan yıldız.
@@ -303,8 +304,8 @@ function TooNarrow() {
   return (
     <div className="tz-narrow" role="status">
       <TulvezMark size={22} />
-      <p className="tz-narrow-title">Tulvez Code buraya sığmıyor</p>
-      <p>Paneli kenarından sürükleyip genişlet.</p>
+      <p className="tz-narrow-title">{L('Tulvez Code buraya sığmıyor', 'Tulvez Code does not fit here')}</p>
+      <p>{L('Paneli kenarından sürükleyip genişlet.', 'Drag the panel edge to make it wider.')}</p>
     </div>
   );
 }
@@ -341,23 +342,23 @@ function useTyping(full: string, active: boolean, speed = 8) {
 const isShellTool = (name?: string): boolean => name === 'run_command' || name === 'run_in_background';
 
 const TOOL_INFO: Record<string, { label: string; busy: string; icon: ReactNode }> = {
-  read_file:       { label: 'Okundu',     busy: 'Okunuyor',     icon: <FileText size={12} /> },
-  read_files:      { label: 'Okundu',     busy: 'Okunuyor',     icon: <FileText size={12} /> },
-  write_file:      { label: 'Yazıldı',    busy: 'Yazılıyor',    icon: <FilePen size={12} /> },
-  replace_in_file: { label: 'Düzenlendi', busy: 'Düzenleniyor', icon: <FilePen size={12} /> },
-  edit_file:       { label: 'Düzenlendi', busy: 'Düzenleniyor', icon: <FilePen size={12} /> },
-  grep_files:      { label: 'Arandı',     busy: 'Aranıyor',     icon: <Search size={12} /> },
-  list_dir:        { label: 'Listelendi', busy: 'Listeleniyor', icon: <FolderTree size={12} /> },
-  list_files:      { label: 'Listelendi', busy: 'Listeleniyor', icon: <FolderTree size={12} /> },
-  stop_background: { label: 'Durduruldu', busy: 'Durduruluyor', icon: <Square size={11} /> },
-  web_fetch:       { label: 'Sayfa okundu', busy: 'Sayfa açılıyor', icon: <Globe size={12} /> },
+  read_file:       { label: L('Okundu', 'Read'),         busy: L('Okunuyor', 'Reading'),       icon: <FileText size={12} /> },
+  read_files:      { label: L('Okundu', 'Read'),         busy: L('Okunuyor', 'Reading'),       icon: <FileText size={12} /> },
+  write_file:      { label: L('Yazıldı', 'Written'),     busy: L('Yazılıyor', 'Writing'),      icon: <FilePen size={12} /> },
+  replace_in_file: { label: L('Düzenlendi', 'Edited'),   busy: L('Düzenleniyor', 'Editing'),   icon: <FilePen size={12} /> },
+  edit_file:       { label: L('Düzenlendi', 'Edited'),   busy: L('Düzenleniyor', 'Editing'),   icon: <FilePen size={12} /> },
+  grep_files:      { label: L('Arandı', 'Searched'),     busy: L('Aranıyor', 'Searching'),     icon: <Search size={12} /> },
+  list_dir:        { label: L('Listelendi', 'Listed'),   busy: L('Listeleniyor', 'Listing'),   icon: <FolderTree size={12} /> },
+  list_files:      { label: L('Listelendi', 'Listed'),   busy: L('Listeleniyor', 'Listing'),   icon: <FolderTree size={12} /> },
+  stop_background: { label: L('Durduruldu', 'Stopped'),  busy: L('Durduruluyor', 'Stopping'),  icon: <Square size={11} /> },
+  web_fetch:       { label: L('Sayfa okundu', 'Page read'), busy: L('Sayfa açılıyor', 'Opening page'), icon: <Globe size={12} /> },
 };
 
 function formatDuration(ms?: number): string {
   if (ms === undefined) return '';
   if (ms < 1000) return `${ms} ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1).replace('.', ',')} sn`;
-  return `${Math.floor(ms / 60_000)} dk ${Math.round((ms % 60_000) / 1000)} sn`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1).replace('.', LANG === 'en' ? '.' : ',')} ${L('sn', 's')}`;
+  return `${Math.floor(ms / 60_000)} ${L('dk', 'min')} ${Math.round((ms % 60_000) / 1000)} ${L('sn', 's')}`;
 }
 
 function StepState({ status }: { status?: ToolStatus }) {
@@ -374,10 +375,10 @@ function CommandStep({ msg }: { msg: ChatMessage }) {
   const status: ToolStatus = isUserRun ? ((msg.exitCode ?? 0) === 0 ? 'ok' : 'error') : (msg.status ?? 'ok');
   const output = isUserRun ? msg.text : msg.output;
   const command = isUserRun ? '' : msg.text;
-  const meta = status === 'running' ? 'çalışıyor'
-    : status === 'rejected' ? 'reddedildi'
-    : msg.exitCode !== undefined && msg.exitCode !== 0 ? `çıkış ${msg.exitCode}`
-    : status === 'error' ? 'hata' : formatDuration(msg.durationMs) || 'tamam';
+  const meta = status === 'running' ? L('çalışıyor', 'running')
+    : status === 'rejected' ? L('reddedildi', 'denied')
+    : msg.exitCode !== undefined && msg.exitCode !== 0 ? `${L('çıkış', 'exit')} ${msg.exitCode}`
+    : status === 'error' ? L('hata', 'error') : formatDuration(msg.durationMs) || L('tamam', 'done');
   return (
     <div className={`tz-turn tz-cmd is-${status}`}>
       <details open={status !== 'running' && !!output}>
@@ -397,13 +398,13 @@ function CommandStep({ msg }: { msg: ChatMessage }) {
 
 /** Dosya okuma, arama, düzenleme gibi araçlar: tek satır, açılınca sonuç. */
 function ToolStep({ msg }: { msg: ChatMessage }) {
-  const info = TOOL_INFO[msg.toolName ?? ''] ?? { label: msg.toolName ?? 'araç', busy: msg.toolName ?? 'araç', icon: <Zap size={11} /> };
+  const info = TOOL_INFO[msg.toolName ?? ''] ?? { label: msg.toolName ?? L('araç', 'tool'), busy: msg.toolName ?? L('araç', 'tool'), icon: <Zap size={11} /> };
   const status = msg.status ?? 'ok';
   return (
     <details className={`tz-turn tz-tool tz-step is-${status}`}>
       <summary>
         <span className="tz-tool-icon">{status === 'ok' ? info.icon : <StepState status={status} />}</span>
-        <span className="tz-tool-name">{status === 'running' ? info.busy : status === 'rejected' ? 'Reddedildi' : info.label}</span>
+        <span className="tz-tool-name">{status === 'running' ? info.busy : status === 'rejected' ? L('Reddedildi', 'Denied') : info.label}</span>
         <span className="tz-tool-hint" title={msg.text}>{msg.text}</span>
         {msg.output ? <ChevronRight size={12} className="tz-fold-icon" /> : null}
       </summary>
@@ -442,8 +443,8 @@ function AssistantBody({ msg, copied, animate, live, showThinking, onCopy, onAni
         <details className="tz-reasoning" open={busy || undefined}>
           <summary>
             <Brain size={12} />
-            <span>Düşünüş</span>
-            <span className="tz-reasoning-count">{reasoning.length.toLocaleString('tr-TR')} karakter</span>
+            <span>{L('Düşünüş', 'Reasoning')}</span>
+            <span className="tz-reasoning-count">{reasoning.length.toLocaleString(LOCALE)} {L('karakter', 'characters')}</span>
             <ChevronRight size={12} className="tz-fold-icon" />
           </summary>
           <div className="tz-reasoning-body">{reasoning}</div>
@@ -452,13 +453,13 @@ function AssistantBody({ msg, copied, animate, live, showThinking, onCopy, onAni
       {(displayed || busy) && (
         <div className="tz-md">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
-          {busy && <span className="tz-thinking-text">Düşünüyor…</span>}
+          {busy && <span className="tz-thinking-text">{L('Düşünüyor…', 'Thinking…')}</span>}
         </div>
       )}
-      {stopped && <div className="tz-stopped">Yanıt durduruldu</div>}
+      {stopped && <div className="tz-stopped">{L('Yanıt durduruldu', 'Reply stopped')}</div>}
       {done && !busy && !live && (
         <div className="tz-ai-foot">
-          <button className="tz-ghost-icon" type="button" title={copied ? 'Kopyalandı' : 'Kopyala'} onClick={() => onCopy(msg)}>
+          <button className="tz-ghost-icon" type="button" title={copied ? L('Kopyalandı', 'Copied') : L('Kopyala', 'Copy')} onClick={() => onCopy(msg)}>
             {copied ? <Check size={13} /> : <Copy size={13} />}
           </button>
           {hasUsage && (
@@ -493,7 +494,7 @@ function TodoPanel({ items }: { items: Todo[] }) {
     <div className={`tz-todos ${open ? 'is-open' : ''}`}>
       <button type="button" className="tz-todos-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <ListChecks size={13} />
-        <span className="tz-todos-title">{open || !current ? 'Yapılacaklar' : current.content}</span>
+        <span className="tz-todos-title">{open || !current ? L('Yapılacaklar', 'To-do') : current.content}</span>
         <span className="tz-todos-count">{done}/{items.length}</span>
         <ChevronDown size={12} className="tz-todos-chev" />
       </button>
@@ -514,15 +515,15 @@ function TodoPanel({ items }: { items: Todo[] }) {
 function UndoBar({ cp, onUndo }: { cp: Checkpoint; onUndo: (id: string) => void }) {
   const n = cp.files.length;
   const list = cp.files.join('\n');
-  if (cp.state === 'done') return <div className="tz-undo is-done" title={list}><Check size={12} /> {n} dosya geri alındı</div>;
+  if (cp.state === 'done') return <div className="tz-undo is-done" title={list}><Check size={12} /> {L(`${n} dosya geri alındı`, `${n} file${n === 1 ? '' : 's'} restored`)}</div>;
   return (
     <div className="tz-undo" title={list}>
-      <span className="tz-undo-files">{n === 1 ? cp.files[0] : `${n} dosya değişti`}</span>
+      <span className="tz-undo-files">{n === 1 ? cp.files[0] : L(`${n} dosya değişti`, `${n} files changed`)}</span>
       {cp.state === 'error'
         ? <span className="tz-undo-note">{cp.note}</span>
         : (
           <button className="tz-btn tz-btn-ghost tz-btn-sm" type="button" disabled={cp.state === 'busy'} onClick={() => onUndo(cp.id)}>
-            <Undo2 size={12} /> {cp.state === 'busy' ? 'Geri alınıyor…' : 'Geri al'}
+            <Undo2 size={12} /> {cp.state === 'busy' ? L('Geri alınıyor…', 'Undoing…') : L('Geri al', 'Undo')}
           </button>
         )}
     </div>
@@ -543,7 +544,7 @@ const MessageItem = memo(function MessageItem({ msg, copied, animate, live, show
       <details className="tz-turn tz-tool">
         <summary>
           <span className="tz-tool-icon"><Zap size={11} /></span>
-          <span className="tz-tool-name">{msg.toolName ?? 'araç'}</span>
+          <span className="tz-tool-name">{msg.toolName ?? L('araç', 'tool')}</span>
           <span className="tz-tool-hint is-dup">{msg.text.slice(0, 90)}</span>
           <ChevronRight size={12} className="tz-fold-icon" />
         </summary>
@@ -567,7 +568,7 @@ const MessageItem = memo(function MessageItem({ msg, copied, animate, live, show
         <div className="tz-error">
           <p>{msg.text.replace(/^❌\s*/, '')}</p>
           <button className="tz-btn tz-btn-ghost tz-btn-sm" type="button" onClick={onRetry}>
-            <RotateCcw size={12} /> Tekrar dene
+            <RotateCcw size={12} /> {L('Tekrar dene', 'Try again')}
           </button>
         </div>
         {msg.checkpoint && <UndoBar cp={msg.checkpoint} onUndo={onUndo} />}
@@ -623,7 +624,7 @@ export function App(): JSX.Element {
           !!m && typeof m === 'object' && typeof m.text === 'string'
           && Number.isFinite(m.id) && m.text.length < 20000,
       // Kapanırken yarım kalan araç adımı sonsuza dek "çalışıyor" görünmesin
-      ).map((m) => (m.status === 'running' ? { ...m, status: 'error' as const, output: m.output ?? 'Yarıda kaldı.' } : m));
+      ).map((m) => (m.status === 'running' ? { ...m, status: 'error' as const, output: m.output ?? L('Yarıda kaldı.', 'Interrupted.') } : m));
     } catch { return []; }
   });
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -818,7 +819,7 @@ export function App(): JSX.Element {
   const saveCurrentSession = (msgs: ChatMessage[]) => {
     if (msgs.length === 0) return;
     const first = msgs.find((m) => m.role === 'user') ?? msgs.find((m) => m.text.startsWith('❌'));
-    const title = first?.text.replace(/^❌\s*/, '').trim().slice(0, 40) || 'Sohbet';
+    const title = first?.text.replace(/^❌\s*/, '').trim().slice(0, 40) || L('Sohbet', 'Chat');
     setSessions((prev) => {
       const existing = prev.findIndex((s) => s.id === sessionIdRef.current);
       const session: ChatSession = {
@@ -943,7 +944,7 @@ export function App(): JSX.Element {
         flushStream();
         setMessages((prev) => [...prev, {
           id: nextId.current++, role: 'command',
-          text: msg.output || '(çıktı yok)', exitCode: msg.exitCode,
+          text: msg.output || L('(çıktı yok)', '(no output)'), exitCode: msg.exitCode,
         }]);
       } else if (msg.type === 'cancelled') {
         flushStream();
@@ -955,7 +956,7 @@ export function App(): JSX.Element {
         // Yanıt "durduruldu" işaretlenir; sonucu gelmeyecek araç adımları da kapanır
         setMessages((prev) => prev.map((m) => {
           if (m.id === sid) return { ...m, stopped: true };
-          if (m.role === 'tool' && m.status === 'running') return { ...m, status: 'error' as const, output: m.output ?? 'Durduruldu.' };
+          if (m.role === 'tool' && m.status === 'running') return { ...m, status: 'error' as const, output: m.output ?? L('Durduruldu.', 'Stopped.') };
           return m;
         }));
       } else if (msg.type === 'systemNotice') {
@@ -1053,7 +1054,7 @@ export function App(): JSX.Element {
     ? slashMenu(input, SLASH_COMMANDS, skillItems)
       ?? mentionMenu(input, fileMatches && fileMatches.query === atQuery ? fileMatches.files : null)
     : null;
-  const menuIsSkills = menu?.title === 'Beceriler';
+  const menuIsSkills = menu?.kind === 'skills';
   // Beceri listesi her açılışta tazelenir (Ayarlar'dan kurulan/kaldırılan hemen görünsün)
   useEffect(() => {
     if (menuIsSkills) vscode.postMessage({ type: 'getSkills' });
@@ -1234,19 +1235,19 @@ export function App(): JSX.Element {
     return (
       <div className="tz-page">
         <header className="tz-topbar">
-          <button className="tz-icon-btn" type="button" title="Sohbete dön" onClick={() => setPage('chat')}>
+          <button className="tz-icon-btn" type="button" title={L('Sohbete dön', 'Back to chat')} onClick={() => setPage('chat')}>
             <ChevronLeft size={16} strokeWidth={2} />
           </button>
-          <span className="tz-topbar-title">Sohbet geçmişi</span>
+          <span className="tz-topbar-title">{L('Sohbet geçmişi', 'Chat history')}</span>
           {sessions.length > 0 && <span className="tz-count">{sessions.length}</span>}
         </header>
         {sessions.length > 0 && (
           <div className="tz-history-search">
             <Search size={13} />
-            <input type="text" placeholder="Sohbetlerde ara" value={historyQuery} spellCheck={false}
+            <input type="text" placeholder={L('Sohbetlerde ara', 'Search chats')} value={historyQuery} spellCheck={false}
               onChange={(e) => setHistoryQuery(e.target.value)} />
             {historyQuery && (
-              <button className="tz-ghost-icon" type="button" title="Temizle" onClick={() => setHistoryQuery('')}>
+              <button className="tz-ghost-icon" type="button" title={L('Temizle', 'Clear')} onClick={() => setHistoryQuery('')}>
                 <X size={12} />
               </button>
             )}
@@ -1256,13 +1257,13 @@ export function App(): JSX.Element {
           {sessions.length === 0 ? (
             <div className="tz-blank">
               <Clock size={20} strokeWidth={1.6} />
-              <p className="tz-blank-title">Henüz geçmiş yok</p>
-              <p className="tz-blank-sub">Yeni sohbete geçtiğinde eskisi burada saklanır.</p>
+              <p className="tz-blank-title">{L('Henüz geçmiş yok', 'No history yet')}</p>
+              <p className="tz-blank-sub">{L('Yeni sohbete geçtiğinde eskisi burada saklanır.', 'When you start a new chat, the old one is kept here.')}</p>
             </div>
           ) : list.length === 0 ? (
             <div className="tz-blank">
               <Search size={18} strokeWidth={1.6} />
-              <p className="tz-blank-sub">"{historyQuery}" ile eşleşen sohbet yok.</p>
+              <p className="tz-blank-sub">{L(`"${historyQuery}" ile eşleşen sohbet yok.`, `No chat matches "${historyQuery}".`)}</p>
             </div>
           ) : groups.map((g) => (
             <section key={g.name} className="tz-history-group">
@@ -1273,10 +1274,10 @@ export function App(): JSX.Element {
                     <span className="tz-history-title">{s.title}</span>
                     <span className="tz-history-meta">
                       <span className="tz-mode-dot" />
-                      {MODES.find((m) => m.id === s.mode)?.label} · {s.messages.length} mesaj · {new Date(s.ts).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
+                      {MODES.find((m) => m.id === s.mode)?.label} · {s.messages.length} {L('mesaj', 'messages')} · {new Date(s.ts).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' })}
                     </span>
                   </button>
-                  <button type="button" className="tz-ghost-icon tz-history-del" title="Kalıcı sil" onClick={() => deleteSession(s.id)}>
+                  <button type="button" className="tz-ghost-icon tz-history-del" title={L('Kalıcı sil', 'Delete permanently')} onClick={() => deleteSession(s.id)}>
                     <Trash2 size={13} />
                   </button>
                 </div>
@@ -1298,22 +1299,23 @@ export function App(): JSX.Element {
             <span key={i} className={i <= setupStep ? 'is-on' : ''} />
           ))}
         </div>
-        <p className="tz-kicker">Kurulum · {Math.min(setupStep + 1, steps)}/{steps}</p>
+        <p className="tz-kicker">{L('Kurulum', 'Setup')} · {Math.min(setupStep + 1, steps)}/{steps}</p>
 
         {setupStep === 0 && (
           <>
-            <p className="tz-setup-title">Hangi yapay zekâyı kullanacaksın?</p>
+            <p className="tz-setup-title">{L('Hangi yapay zekâyı kullanacaksın?', 'Which AI will you use?')}</p>
             <div className="tz-select">
               <select value={setupProvider}
                 onChange={(e) => setSetupProvider(e.target.value as TulvezSettings['aiProvider'])}>
-                <option value="gemini">Google Gemini (ücretsiz katman)</option>
-                <option value="opencode">OpenCode Zen (kendi bakiyen)</option>
-                <option value="openrouter">OpenRouter (tek anahtarla birçok model)</option>
-                <option value="custom">Özel (OpenAI uyumlu)</option>
+                <option value="gemini">{L('Google Gemini (ücretsiz katman)', 'Google Gemini (free tier)')}</option>
+                <option value="opencode">{L('OpenCode (kullandıkça öde; ücretsiz modelleri yalnız OpenCode’da)', 'OpenCode (pay as you go; its free models only work in OpenCode)')}</option>
+                <option value="opencode-go">{L('OpenCode Go (aylık abonelik)', 'OpenCode Go (monthly subscription)')}</option>
+                <option value="openrouter">{L('OpenRouter (tek anahtarla birçok model)', 'OpenRouter (many models, one key)')}</option>
+                <option value="custom">{L('Özel (OpenAI uyumlu)', 'Custom (OpenAI-compatible)')}</option>
                 <option value="openai">OpenAI</option>
                 <option value="anthropic">Anthropic</option>
-                <option value="groq">Groq (çok hızlı)</option>
-                <option value="ollama">Ollama (yerel, anahtarsız)</option>
+                <option value="groq">{L('Groq (çok hızlı)', 'Groq (very fast)')}</option>
+                <option value="ollama">{L('Ollama (yerel, anahtarsız)', 'Ollama (local, no key)')}</option>
               </select>
               <ChevronDown size={13} />
             </div>
@@ -1327,7 +1329,7 @@ export function App(): JSX.Element {
                 }
                 setSetupStep(setupProvider === 'ollama' && settings?.showModels ? 2 : 1);
               }}>
-                Devam
+                {L('Devam', 'Continue')}
               </button>
             </div>
           </>
@@ -1335,20 +1337,20 @@ export function App(): JSX.Element {
 
         {setupStep === 1 && (
           <>
-            <p className="tz-setup-title">API anahtarını gir</p>
-            <p className="tz-setup-hint">Anahtar yalnızca VS Code SecretStorage'da şifreli saklanır, hiçbir yere gönderilmez.</p>
-            <input className="tz-field" type="password" placeholder="API anahtarı" value={setupKey}
+            <p className="tz-setup-title">{L('API anahtarını gir', 'Enter your API key')}</p>
+            <p className="tz-setup-hint">{L("Anahtar yalnızca VS Code SecretStorage'da şifreli saklanır, hiçbir yere gönderilmez.", "The key is stored encrypted only in VS Code's SecretStorage and is never sent anywhere else.")}</p>
+            <input className="tz-field" type="password" placeholder={L('API anahtarı', 'API key')} value={setupKey}
               onChange={(e) => setSetupKey(e.target.value)} autoComplete="off" spellCheck={false} />
             {setupProvider === 'custom' && (
-              <input className="tz-field" type="text" placeholder="Adres — örn. https://openrouter.ai/api/v1 ya da http://localhost:1234/v1"
+              <input className="tz-field" type="text" placeholder={L('Adres — örn. https://openrouter.ai/api/v1 ya da http://localhost:1234/v1', 'Address — e.g. https://openrouter.ai/api/v1 or http://localhost:1234/v1')}
                 value={setupBaseUrl} onChange={(e) => setSetupBaseUrl(e.target.value)} spellCheck={false} />
             )}
             <div className="tz-setup-actions">
-              <button className="tz-btn tz-btn-ghost" type="button" onClick={() => setSetupStep(0)}>Geri</button>
+              <button className="tz-btn tz-btn-ghost" type="button" onClick={() => setSetupStep(0)}>{L('Geri', 'Back')}</button>
               {setupProvider === 'ollama' ? (
                 <button className="tz-btn tz-btn-primary" type="button"
                   onClick={() => { setHasApiKey(true); setSetupStep(0); }}>
-                  Hazır
+                  {L('Hazır', 'Done')}
                 </button>
               ) : (
                 <button className="tz-btn tz-btn-primary" type="button" disabled={!setupKey.trim()}
@@ -1364,7 +1366,7 @@ export function App(): JSX.Element {
                     setHasApiKey(true);
                     if (settings.showModels) setSetupStep(2);
                   }}>
-                  Kaydet ve devam
+                  {L('Kaydet ve devam', 'Save and continue')}
                 </button>
               )}
             </div>
@@ -1373,9 +1375,9 @@ export function App(): JSX.Element {
 
         {setupStep === 2 && (
           <>
-            <p className="tz-setup-title">Model seç</p>
+            <p className="tz-setup-title">{L('Model seç', 'Choose a model')}</p>
             {liveModels.length === 0 ? (
-              <p className="tz-setup-hint">Modeller yükleniyor…</p>
+              <p className="tz-setup-hint">{L('Modeller yükleniyor…', 'Loading models…')}</p>
             ) : (
               <div className="tz-setup-models">
                 {liveModels.slice(0, 40).map((m) => (
@@ -1389,7 +1391,7 @@ export function App(): JSX.Element {
               </div>
             )}
             <div className="tz-setup-actions">
-              <button className="tz-btn tz-btn-ghost" type="button" onClick={() => setSetupStep(0)}>Geri</button>
+              <button className="tz-btn tz-btn-ghost" type="button" onClick={() => setSetupStep(0)}>{L('Geri', 'Back')}</button>
               <button className="tz-btn tz-btn-primary" type="button"
                 onClick={() => {
                   if (!settings) return;
@@ -1401,7 +1403,7 @@ export function App(): JSX.Element {
                   setSettings(next);
                   if (setupModel) setModel(setupModel);
                 }}>
-                Hazır
+                {L('Hazır', 'Done')}
               </button>
             </div>
           </>
@@ -1417,19 +1419,19 @@ export function App(): JSX.Element {
         <TulvezMark size={30} className="tz-welcome-logo" />
         <span>Tulvez Code</span>
       </h1>
-      <p className="tz-welcome-title"><WordReveal text="Bugün neyi inşa ediyoruz?" start={0.15} /></p>
-      <p className="tz-welcome-sub"><WordReveal text="Kodun hakkında sor, bir plan çıkar ya da doğrudan düzenlet." start={0.45} step={0.035} /></p>
-      <p className="tz-kicker tz-welcome-ws" title={workspacePath}>{workspaceName || 'çalışma alanı açık değil'}</p>
+      <p className="tz-welcome-title"><WordReveal text={L('Bugün neyi inşa ediyoruz?', 'What are we building today?')} start={0.15} /></p>
+      <p className="tz-welcome-sub"><WordReveal text={L('Kodun hakkında sor, bir plan çıkar ya da doğrudan düzenlet.', 'Ask about your code, make a plan or have it edited directly.')} start={0.45} step={0.035} /></p>
+      <p className="tz-kicker tz-welcome-ws" title={workspacePath}>{workspaceName || L('çalışma alanı açık değil', 'no workspace open')}</p>
 
       {hasApiKey === false && renderSetup()}
 
       {!workspacePath && (
         <button className="tz-btn tz-btn-ghost tz-welcome-folder" type="button" onClick={() => vscode.postMessage({ type: 'openFolder' })}>
-          <FolderOpen size={14} /> Klasör aç
+          <FolderOpen size={14} /> {L('Klasör aç', 'Open folder')}
         </button>
       )}
 
-      <p className="tz-welcome-hint"><kbd>/</kbd> komutlar · <kbd>@</kbd> dosya · <kbd>Shift</kbd>+<kbd>Enter</kbd> yeni satır</p>
+      <p className="tz-welcome-hint"><kbd>/</kbd> {L('komutlar', 'commands')} · <kbd>@</kbd> {L('dosya', 'file')} · <kbd>Shift</kbd>+<kbd>Enter</kbd> {L('yeni satır', 'new line')}</p>
     </div>
   );
 
@@ -1440,19 +1442,19 @@ export function App(): JSX.Element {
         <div className="tz-ask">
           <div className="tz-ask-head">
             <Terminal size={12} />
-            <span className="tz-ask-kicker">KOMUT İZNİ</span>
-            <button className="tz-ghost-icon" type="button" title="Kapat" onClick={() => setRunConfirm(null)}><X size={12} /></button>
+            <span className="tz-ask-kicker">{L('KOMUT İZNİ', 'RUN COMMAND')}</span>
+            <button className="tz-ghost-icon" type="button" title={L('Kapat', 'Close')} onClick={() => setRunConfirm(null)}><X size={12} /></button>
           </div>
           <code className="tz-ask-code">{runConfirm.command}</code>
           <div className="tz-ask-actions">
             <button className="tz-btn tz-btn-primary tz-btn-sm" type="button" onClick={() => approveRun(false)}>
-              <Check size={12} /> Çalıştır
+              <Check size={12} /> {L('Çalıştır', 'Run')}
             </button>
             <button className="tz-btn tz-btn-ghost tz-btn-sm" type="button" onClick={() => approveRun(true)}>
-              Her zaman izin ver
+              {L('Her zaman izin ver', 'Always allow')}
             </button>
             <button className="tz-btn tz-btn-quiet tz-btn-sm" type="button" onClick={() => setRunConfirm(null)}>
-              İptal
+              {L('İptal', 'Cancel')}
             </button>
           </div>
         </div>
@@ -1462,20 +1464,20 @@ export function App(): JSX.Element {
         <div className="tz-ask">
           <div className="tz-ask-head">
             <Zap size={12} />
-            <span className="tz-ask-kicker">ARAÇ İZNİ · <b>{toolApproval.tool}</b></span>
-            <button className="tz-ghost-icon" type="button" title="Reddet" onClick={() => answerTool(false)}><X size={12} /></button>
+            <span className="tz-ask-kicker">{L('ARAÇ İZNİ', 'ALLOW TOOL')} · <b>{toolApproval.tool}</b></span>
+            <button className="tz-ghost-icon" type="button" title={L('Reddet', 'Deny')} onClick={() => answerTool(false)}><X size={12} /></button>
           </div>
           <code className="tz-ask-code">{toolApproval.args}</code>
           <div className="tz-ask-actions">
             <button className="tz-btn tz-btn-primary tz-btn-sm" type="button" onClick={() => answerTool(true)}>
-              <Check size={12} /> İzin ver
+              <Check size={12} /> {L('İzin ver', 'Allow')}
             </button>
-            <button className="tz-btn tz-btn-ghost tz-btn-sm" type="button" title="Bundan sonraki izinler sorulmaz; Ayarlar → İzinler'den geri alınır"
+            <button className="tz-btn tz-btn-ghost tz-btn-sm" type="button" title={L("Bundan sonraki izinler sorulmaz; Ayarlar → İzinler'den geri alınır", 'You will not be asked again; change it in Settings → Permissions')}
               onClick={() => answerTool(true, true)}>
-              Her zaman izin ver
+              {L('Her zaman izin ver', 'Always allow')}
             </button>
             <button className="tz-btn tz-btn-quiet tz-btn-sm" type="button" onClick={() => answerTool(false)}>
-              Reddet
+              {L('Reddet', 'Deny')}
             </button>
           </div>
         </div>
@@ -1550,7 +1552,7 @@ export function App(): JSX.Element {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top" className="tz-menu tz-menu-modes"
                 onCloseAutoFocus={(e) => { e.preventDefault(); focusInput(); }}>
-                <p className="tz-menu-label">Mod</p>
+                <p className="tz-menu-label">{L('Mod', 'Mode')}</p>
                 {MODES.map((m) => (
                   <DropdownMenuItem key={m.id}
                     className={`tz-menu-item tz-mode-item ${mode === m.id ? 'is-on' : ''}`}
@@ -1570,10 +1572,10 @@ export function App(): JSX.Element {
               value={model}
               models={liveModels}
               onSelect={(m) => { setModel(m); focusInput(); }}
-              emptyText="Modeller yüklenmedi — Ayarlar'dan bağlantıyı sına"
+              emptyText={L("Modeller yüklenmedi — Ayarlar'dan bağlantıyı sına", 'Models not loaded — test the connection in Settings')}
               trigger={(
                 <button className="tz-chip tz-chip-model" type="button"
-                  title={model === DEFAULT_MODEL ? `Varsayılan model${settings?.model ? `: ${settings.model}` : ''}` : model}>
+                  title={model === DEFAULT_MODEL ? `${L('Varsayılan model', 'Default model')}${settings?.model ? `: ${settings.model}` : ''}` : model}>
                   <span className="tz-chip-label">{modelLabel}</span>
                   <ChevronDown size={11} />
                 </button>
@@ -1582,11 +1584,11 @@ export function App(): JSX.Element {
           </div>
           <div className="tz-composer-right">
             {streaming ? (
-              <button className="tz-send tz-send-stop" type="button" title="Durdur" onClick={() => vscode.postMessage({ type: 'cancelStream' })}>
+              <button className="tz-send tz-send-stop" type="button" title={L('Durdur', 'Stop')} onClick={() => vscode.postMessage({ type: 'cancelStream' })}>
                 <Square size={10} strokeWidth={3} fill="currentColor" />
               </button>
             ) : (
-              <button className="tz-send" type="submit" title="Gönder (Enter)" disabled={!input.trim()}>
+              <button className="tz-send" type="submit" title={L('Gönder (Enter)', 'Send (Enter)')} disabled={!input.trim()}>
                 <ArrowUp size={15} strokeWidth={2.4} />
               </button>
             )}
@@ -1601,7 +1603,7 @@ export function App(): JSX.Element {
           </span>
         )}
         {messages.length > 0 && (
-          <span className="tz-meta-stats" title={`${totalTokens.toLocaleString('tr-TR')} token · ${formatCost(totalCost)}${lastUsage ? ` · bağlam %${ctxPct}` : ''}`}>
+          <span className="tz-meta-stats" title={`${totalTokens.toLocaleString(LOCALE)} token · ${formatCost(totalCost)}${lastUsage ? ` · ${L('bağlam', 'context')} %${ctxPct}` : ''}`}>
             <span>{formatTokens(totalTokens)} token</span>
             {/* Dar panelde dizin adı öncelikli: maliyet ve bağlam ipucuna (title) geçer */}
             {width >= 300 && <span className="tz-dot-sep" />}
@@ -1609,7 +1611,7 @@ export function App(): JSX.Element {
             {width >= 300 && lastUsage && (
               <>
                 <span className="tz-dot-sep" />
-                <span className="tz-ctx" title={`Bağlam penceresinin %${ctxPct}'i dolu`}>
+                <span className="tz-ctx" title={L(`Bağlam penceresinin %${ctxPct}'i dolu`, `Context window ${ctxPct}% full`)}>
                   <span className="tz-ctx-bar"><span style={{ width: `${ctxPct}%` }} /></span>
                   %{ctxPct}
                 </span>
@@ -1626,16 +1628,16 @@ export function App(): JSX.Element {
     <>
       {!IN_SIDEBAR && (
         <header className="tz-toolbar">
-          <button className="tz-icon-btn" type="button" title="Yeni sohbet" onClick={newChat}>
+          <button className="tz-icon-btn" type="button" title={L('Yeni sohbet', 'New chat')} onClick={newChat}>
             <SquarePen size={15} strokeWidth={1.9} />
           </button>
-          <button className="tz-icon-btn" type="button" title="Sohbeti Markdown olarak kaydet" onClick={exportChat}>
+          <button className="tz-icon-btn" type="button" title={L('Sohbeti Markdown olarak kaydet', 'Save chat as Markdown')} onClick={exportChat}>
             <Save size={15} strokeWidth={1.9} />
           </button>
-          <button className="tz-icon-btn" type="button" title="Geçmiş" onClick={() => setPage('history')}>
+          <button className="tz-icon-btn" type="button" title={L('Geçmiş', 'History')} onClick={() => setPage('history')}>
             <Clock size={15} strokeWidth={1.9} />
           </button>
-          <button className="tz-icon-btn" type="button" title="Ayarlar" onClick={() => setPage('settings')}>
+          <button className="tz-icon-btn" type="button" title={L('Ayarlar', 'Settings')} onClick={() => setPage('settings')}>
             <Settings size={15} strokeWidth={1.9} />
           </button>
         </header>
@@ -1672,9 +1674,9 @@ export function App(): JSX.Element {
           </div>
         </div>
         {messages.length > 0 && showJump && (
-          <button className="tz-jump" type="button" title="En alta git" onClick={jumpToBottom}>
+          <button className="tz-jump" type="button" title={L('En alta git', 'Jump to bottom')} onClick={jumpToBottom}>
             <ArrowDown size={13} strokeWidth={2.2} />
-            {streaming && <span>Yanıt sürüyor</span>}
+            {streaming && <span>{L('Yanıt sürüyor', 'Reply in progress')}</span>}
           </button>
         )}
       </div>

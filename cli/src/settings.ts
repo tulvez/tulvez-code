@@ -15,7 +15,7 @@ import type { PermissionRules } from './permissions';
 
 export type Provider = TulvezSettings['aiProvider'];
 
-export const PROVIDERS: readonly Provider[] = ['openai', 'anthropic', 'gemini', 'groq', 'opencode', 'openrouter', 'ollama', 'custom'];
+export const PROVIDERS: readonly Provider[] = ['openai', 'anthropic', 'gemini', 'groq', 'opencode', 'opencode-go', 'openrouter', 'ollama', 'custom'];
 
 /** Sağlayıcının anahtarını taşıyan ortam değişkenleri (ilk dolu olan kullanılır). */
 export const KEY_ENV: Record<Provider, string[]> = {
@@ -24,6 +24,7 @@ export const KEY_ENV: Record<Provider, string[]> = {
   gemini: ['TULVEZ_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY'],
   groq: ['TULVEZ_API_KEY', 'GROQ_API_KEY'],
   opencode: ['TULVEZ_API_KEY', 'OPENCODE_API_KEY'],
+  'opencode-go': ['TULVEZ_API_KEY', 'OPENCODE_GO_API_KEY'],
   openrouter: ['TULVEZ_API_KEY', 'OPENROUTER_API_KEY'],
   ollama: ['TULVEZ_API_KEY'],
   custom: ['TULVEZ_API_KEY'],
@@ -42,6 +43,8 @@ export interface CliConfigFile {
   skillsRegistry?: string;
   /** web_search kaynağı: auto (BRAVE_API_KEY / TAVILY_API_KEY varsa o, yoksa Tulvez Arama), brave, tavily, tulvez, off */
   webSearch?: 'auto' | 'brave' | 'tavily' | 'tulvez' | 'off';
+  /** Modelin yanıt dili: auto (Türkçe), tr, en */
+  language?: 'auto' | 'tr' | 'en';
   /** Eklentideki tulvez.mcpServers ile aynı biçim */
   mcpServers?: unknown;
   /** İzin kuralları (permissions.ts) */
@@ -171,6 +174,7 @@ export function readConfigFile(file: string, warnings: string[]): CliConfigFile 
     if (['auto', 'brave', 'tavily', 'tulvez', 'off'].includes(obj.webSearch)) out.webSearch = obj.webSearch as CliConfigFile['webSearch'];
     else warnings.push(`webSearch "${obj.webSearch}" tanınmadı (${file}); geçerliler: auto, brave, tavily, tulvez, off.`);
   }
+  if (obj.language === 'auto' || obj.language === 'tr' || obj.language === 'en') out.language = obj.language;
   if (obj.permissions && typeof obj.permissions === 'object') {
     const p = obj.permissions as Record<string, unknown>;
     const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
@@ -218,6 +222,7 @@ export function loadConfig(
   }
 
   const settings: TulvezSettings = {
+    language: cfg.language ?? 'auto',
     aiProvider: provider,
     model,
     apiKey,

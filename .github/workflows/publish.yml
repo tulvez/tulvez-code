@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write   # GitHub yayın kaydı ve VSIX eki için
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -35,11 +38,26 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Tek paket: Marketplace'e yüklenen VSIX'in aynısı GitHub yayınına da eklenir
       - name: VSIX üret ve yayınla
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VSIX="tulvez-code-${TAG_NAME#v}.vsix"
           if [[ "$TAG_NAME" == *-beta* || "$TAG_NAME" == *-alpha* || "$TAG_NAME" == *-rc* ]]; then
-            npx @vscode/vsce publish --pre-release -p ${{ secrets.VSCE_PAT }}
+            npx @vscode/vsce package --pre-release -o "$VSIX"
+            npx @vscode/vsce publish --packagePath "$VSIX" -p ${{ secrets.VSCE_PAT }}   # ön sürüm bilgisi paketin içinde
           else
-            npx @vscode/vsce publish -p ${{ secrets.VSCE_PAT }}
+            npx @vscode/vsce package -o "$VSIX"
+            npx @vscode/vsce publish --packagePath "$VSIX" -p ${{ secrets.VSCE_PAT }}
           fi
+          echo "VSIX=$VSIX" >> "$GITHUB_ENV"
+
+      - name: GitHub yayın kaydı
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          node scripts/surum-notu.mjs "$TAG_NAME" > surum-notu.md
+          ON=""; [[ "$TAG_NAME" == *-* ]] && ON="--prerelease"
+          gh release create "$TAG_NAME" "$VSIX" --verify-tag $ON \
+            --title "$(node scripts/surum-notu.mjs "$TAG_NAME" --baslik)" --notes-file surum-notu.md

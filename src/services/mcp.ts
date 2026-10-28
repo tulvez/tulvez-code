@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
+import { L } from './i18n';
 
 /**
  * MCP (Model Context Protocol) sunucuları: dış araçlar (veritabanı, GitHub, tarayıcı…).
@@ -103,16 +104,16 @@ export function resultText(result: unknown): string {
     const part = (p ?? {}) as { type?: string; text?: string; resource?: { uri?: string; text?: string } };
     if (part.type === 'text') return part.text ?? '';
     if (part.type === 'resource') return part.resource?.text ?? `(kaynak: ${part.resource?.uri ?? '?'})`;
-    if (part.type === 'image') return '(görsel — metin olarak gösterilemiyor)';
+    if (part.type === 'image') return L('(görsel — metin olarak gösterilemiyor)', '(image — cannot be shown as text)');
     return JSON.stringify(part);
-  }).join('\n').trim() || (r.structuredContent ? JSON.stringify(r.structuredContent, null, 2) : '(boş sonuç)');
-  return r.isError ? `Hata: ${text}` : text;
+  }).join('\n').trim() || (r.structuredContent ? JSON.stringify(r.structuredContent, null, 2) : L('(boş sonuç)', '(empty result)'));
+  return r.isError ? `${L('Hata', 'Error')}: ${text}` : text;
 }
 
 async function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   try {
-    return await Promise.race([p, new Promise<T>((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} ${ms / 1000} saniyede yanıt vermedi`)), ms); })]);
+    return await Promise.race([p, new Promise<T>((_, reject) => { timer = setTimeout(() => reject(new Error(L(`${what} ${ms / 1000} saniyede yanıt vermedi`, `${what} did not respond within ${ms / 1000} seconds`))), ms); })]);
   } finally {
     clearTimeout(timer);
   }
@@ -159,7 +160,7 @@ export class McpManager {
     const results = await Promise.all(entries.map(async (entry, i): Promise<McpTool[]> => {
       if (entry.config.disabled) return [];
       try {
-        const tools = await withTimeout(this.connect(entry, cwd), CONNECT_TIMEOUT_MS, `${entry.name} sunucusu`);
+        const tools = await withTimeout(this.connect(entry, cwd), CONNECT_TIMEOUT_MS, L(`${entry.name} sunucusu`, `The ${entry.name} server`));
         this.status[i] = { ...this.status[i], state: 'connected', tools: tools.length };
         this.log(`MCP ✓ ${entry.name}: ${tools.length} araç`);
         return tools;
@@ -197,7 +198,7 @@ export class McpManager {
         description: `[MCP · ${entry.name}] ${tool.description ?? name}`.slice(0, 1024),
         inputSchema: tool.inputSchema,
         execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
-          if (!tool.execute) return 'Hata: araç çalıştırılamıyor.';
+          if (!tool.execute) return L('Hata: araç çalıştırılamıyor.', 'Error: the tool cannot be run.');
           return resultText(await tool.execute(args, { toolCallId: `mcp-${Date.now()}`, messages: [], abortSignal: signal }));
         },
       };

@@ -64,4 +64,13 @@ describe('sürüm bilgisi denetimi', () => {
     const d = kopya((dir) => fs.appendFileSync(path.join(dir, 'CHANGELOG.md'), '\n## Yayınlanmadı\n\n- x\n'));
     expect(calistir(d).kod).toBe(0);
   });
+
+  it('GitHub yayın notu özet, değişiklik listesi ve kurulum bağlantısını taşır', () => {
+    const r = cp.spawnSync(process.execPath, [path.join(KOK, 'scripts', 'surum-notu.mjs'), `v${pkgSurum()}`], { encoding: 'utf8' });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('### Değişiklikler');
+    expect(r.stdout).toContain(`tulvez.tulvez-code@${pkgSurum()}`);
+    const b = cp.spawnSync(process.execPath, [path.join(KOK, 'scripts', 'surum-notu.mjs'), pkgSurum(), '--baslik'], { encoding: 'utf8' });
+    expect(b.stdout.trim()).toMatch(new RegExp(`^Tulvez Code ${pkgSurum().replace(/\./g, '\\.')} — .+`));
+  });
 });

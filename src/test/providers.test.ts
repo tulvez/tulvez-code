@@ -27,10 +27,11 @@ describe('sağlayıcı çözümleme', () => {
     expect(resolveModel({ ...baseSettings, aiProvider: 'ollama', model: '', apiKey: '' }).id).toBe('llama3');
   });
 
-  it('OpenCode Zen doğru endpoint kullanır', () => {
+  it('OpenCode: Claude Anthropic biçimiyle çağrılır (ayrıntı: opencode.test.ts)', () => {
     const resolved = resolveModel({ ...baseSettings, aiProvider: 'opencode', model: 'claude-sonnet-4-5' });
     expect(resolved.id).toBe('claude-sonnet-4-5');
-    expect(resolved.source).toBe('OpenCode Zen');
+    expect(resolved.source).toBe('OpenCode');
+    expect((resolved.model as unknown as { provider: string }).provider).toContain('anthropic');
   });
 
   it('OpenRouter: kendi adresi ve uygulama başlıkları; listede yalnız araç destekleyen modeller', async () => {

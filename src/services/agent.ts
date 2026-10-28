@@ -6,13 +6,15 @@ import { buildChatPrompt, buildPrompt } from './ai';
 import type { AgentMode, ChatTurn } from './types';
 import { TOOL_DEFINITIONS, applyBudget, executeTool, formatTodos, normalizeTodos, resolveEditPath, snapshotBeforeEdit, type TodoItem } from './tools';
 import { buildRepoMap } from './repomap';
-import { resolveModel } from './providers';
+import { resolveModel, type ClientInfo } from './providers';
 import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
 import { compactConversation, fitToolResults, pruneOldToolResults, withoutReasoning } from './conversation';
 import { recordBefore } from './checkpoint';
 import type { McpTool } from './mcp';
 import { onRateLimitWait } from './rateLimit';
 import { host } from './host';
+import { isFreeOnlyError } from './opencode';
+import { L } from './i18n';
 
 export interface AgentCallbacks {
   onChunk: (text: string) => void;
@@ -189,8 +191,8 @@ function buildToolSet(
         if (!settings.autoApproveCommands && pre?.decision !== 'allow') {
           const allowed = await cb.onToolRequest(nextToolReqId(), t.name, JSON.stringify(args, null, 2).slice(0, 2000));
           if (!allowed) {
-            cb.onToolResult?.({ callId, tool: t.name, output: 'Kullanıcı aracı reddetti.', status: 'rejected' });
-            return 'Kullanıcı aracı reddetti.';
+            cb.onToolResult?.({ callId, tool: t.name, output: L('Kullanıcı aracı reddetti.', 'The user denied the tool.'), status: 'rejected' });
+            return L('Kullanıcı aracı reddetti.', 'The user denied the tool.');
           }
         }
         try {
@@ -202,7 +204,7 @@ function buildToolSet(
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           cb.onToolResult?.({ callId, tool: t.name, output: message, status: 'error' });
-          return `Hata: ${message}`;
+          return `${L('Hata', 'Error')}: ${message}`;
         }
       },
     } as ToolSet[string];
@@ -243,8 +245,8 @@ function buildToolSet(
             JSON.stringify(args, null, 2).slice(0, 2000),
           );
           if (!allowed) {
-            report('Kullanıcı aracı reddetti.', 'rejected');
-            return 'Kullanıcı aracı reddetti.';
+            report(L('Kullanıcı aracı reddetti.', 'The user denied the tool.'), 'rejected');
+            return L('Kullanıcı aracı reddetti.', 'The user denied the tool.');
           }
         }
         if (def.name === 'write_file' || def.name === 'replace_in_file') {
@@ -287,6 +289,8 @@ export interface AgentOptions {
   subagent?: boolean;
   /** Kullanıcı mesajına eklenen görseller (ekran görüntüsü vb.) */
   images?: { data: Uint8Array; mediaType: string }[];
+  /** Sağlayıcıya kendimizi tanıtmak için: eklenti sürümü ve sohbet kimliği */
+  client?: ClientInfo;
 }
 
 export async function runAgent(
@@ -299,18 +303,18 @@ export async function runAgent(
   memory?: AgentOptions,
 ): Promise<void> {
   if (settings.aiProvider === 'custom' && !settings.baseUrl) {
-    callbacks.onError('Base URL boş. Ayarlar\'dan OpenAI uyumlu endpoint adresini girin.');
+    callbacks.onError(L("Base URL boş. Ayarlar'dan OpenAI uyumlu endpoint adresini girin.", 'The base URL is empty. Enter the OpenAI-compatible endpoint address in Settings.'));
     return;
   }
   if (settings.aiProvider !== 'ollama' && !settings.apiKey) {
-    callbacks.onError('API anahtarı eksik. Ayarlar\'dan ekleyin.');
+    callbacks.onError(L("API anahtarı eksik. Ayarlar'dan ekleyin.", 'The API key is missing. Add it in Settings.'));
     return;
   }
 
   const trivial = !memory?.images?.length && isTrivialRequest(userMessage);
   let resolved;
   try {
-    resolved = resolveModel(settings);
+    resolved = resolveModel(settings, memory?.client);
   } catch (err) {
     callbacks.onError(err instanceof Error ? err.message : String(err));
     return;
@@ -421,11 +425,11 @@ export async function runAgent(
         const text = (await result.text).trim();
 
         if (!text && !sawText && finishReason !== 'tool-calls') {
-          cb.onChunk('_(Model boş yanıt döndü. Modeli değiştirmeyi veya isteği kısaltmayı dene.)_');
+          cb.onChunk(L('_(Model boş yanıt döndü. Modeli değiştirmeyi veya isteği kısaltmayı dene.)_', '_(The model returned an empty reply. Try another model or a shorter request.)_'));
         } else if (finishReason === 'length') {
-          cb.onChunk('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmek için "devam" yazabilirsin._');
+          cb.onChunk(L('\n\n_⚠️ Cevap modelin çıktı sınırında kesildi. Devam etmek için "devam" yazabilirsin._', '\n\n_⚠️ The reply was cut off at the model\'s output limit. Type "continue" to go on._'));
         } else if (finishReason === 'tool-calls') {
-          cb.onChunk(`\n\n_⚠️ Bu istekte ${MAX_STEPS} adım sınırına ulaştım. Kaldığım yerden sürdürmem için "devam" yaz._`);
+          cb.onChunk(L(`\n\n_⚠️ Bu istekte ${MAX_STEPS} adım sınırına ulaştım. Kaldığım yerden sürdürmem için "devam" yaz._`, `\n\n_⚠️ I reached the ${MAX_STEPS}-step limit for this request. Type "continue" for me to pick up where I left off._`));
         }
 
         if (memory?.onConversation) {
@@ -436,7 +440,7 @@ export async function runAgent(
         cb.onDone({
           inputTokens: usage.inputTokens ?? 0,
           outputTokens: usage.outputTokens ?? 0,
-          costUsd: calcCost(resolved.id, usage.inputTokens ?? 0, usage.outputTokens ?? 0),
+          costUsd: resolved.cost?.(usage.inputTokens ?? 0, usage.outputTokens ?? 0) ?? calcCost(resolved.id, usage.inputTokens ?? 0, usage.outputTokens ?? 0),
           contextWindow: contextWindow(resolved.id),
           model: resolved.id,
           cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens,
@@ -473,6 +477,8 @@ export async function runAgent(
 }
 
 function isRetryable(message: string): boolean {
+  // OpenCode'un "ücretsiz modeller yalnız OpenCode'da" yanıtı 429 olsa da beklemekle geçmez
+  if (isFreeOnlyError(message)) return false;
   const m = message.toLowerCase();
   // Günlük kota tükendiyse tekrar denemenin anlamı yok (saatlerce sürebilir)
   if (m.includes('exceeded your current quota') || m.includes('quota exceeded') || m.includes('billing')) {

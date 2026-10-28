@@ -899,7 +899,7 @@ details[open] > summary .tz-fold-icon { transform: rotate(90deg); }
 .tz-slash-item.is-active { background: var(--tn-surface-3); }
 .tz-slash-item:disabled { cursor: default; opacity: 0.7; }
 .tz-slash-item.is-skill { flex-direction: column; align-items: stretch; gap: 2px; }
-.tz-slash-item.is-skill .tz-slash-hint { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; }
+.tz-slash-item.is-skill .tz-slash-hint { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; min-height: calc(2 * 1.4em); }
 .tz-slash-cmd { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--tn-accent); flex-shrink: 0; min-width: 64px; }
 .tz-slash-hint { font-size: 12px; color: var(--tn-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -1138,6 +1138,8 @@ details[open] > summary .tz-fold-icon { transform: rotate(90deg); }
 .cx-row-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .cx-row-title { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--tn-text); }
 .cx-row-desc { font-size: 11.5px; line-height: 1.45; color: var(--tn-text-3); }
+/* Beceri açıklaması: en çok 2 satır ve her zaman 2 satır yer kaplar — satırlar aynı yükseklikte */
+.cx-desc-fixed { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: calc(2 * 1.45em); }
 .cx-row-control { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .cx-row-extra { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 

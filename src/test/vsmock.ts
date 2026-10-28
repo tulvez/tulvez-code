@@ -60,4 +60,5 @@ export const baseSettings = {
   showModels: false,
   showThinking: true,
   gitCoAuthor: true,
+  language: 'auto' as const,
 };

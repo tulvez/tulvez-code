@@ -9,7 +9,7 @@ Gizlilik odaklı, BYOK yapay zeka kodlama asistanı — VS Code için.
 ## Özellikler
 
 - **Ask / Plan / Build modları** — Soru sor, adım adım plan üret veya Tulvez'in kodu doğrudan yazmasını sağla
-- **Çoklu sağlayıcı** — OpenAI, Anthropic, Google Gemini, Groq, Ollama (yerel/çevrimdışı)
+- **Çoklu sağlayıcı** — OpenAI, Anthropic, Google Gemini, Groq, OpenCode, OpenCode Go, Ollama (yerel/çevrimdışı)
 - **Gerçek araç kullanımı** — `read_file`, `grep_files`, `write_file`, `replace_in_file`, `run_command` ile dosyalarına gerçekten dokunur; yalnız açık klasörde çalışır, Ask ve Plan modları salt okur
 - **Beceriler (skills)** — Tulvez'in GitHub'daki becerileri ([scale-engineer](https://github.com/tulvez/scale-engineer) gibi) kendiliğinden kurulur ve güncellenir; isteğin bir beceriye uyarsa Tulvez onu kendisi kullanır; `/skill` yazınca listeden seçebilir, kendi becerini bilgisayardan yükleyebilir ya da indirebilirsin
 - **Sohbet hafızası** — Tulvez önceki mesajlarda okuduğu dosyaları ve komut çıktılarını hatırlar; bağlam dolunca eski araç çıktılarını kendisi kısaltır
@@ -22,6 +22,7 @@ Gizlilik odaklı, BYOK yapay zeka kodlama asistanı — VS Code için.
 - **Onay akışı** — Dosya düzenlemeleri otomatik uygulanır; terminal komutları onay ister (ayarlanabilir)
 - **Git kısayolları** — `/commit`, `/review`, `/diff`, `/explain`
 - **Markdown render**, düşünüş animasyonu, token / maliyet / bağlam istatistikleri
+- **Türkçe ve İngilizce** — Arayüz ve yanıtlar VS Code'un dilini izler; Ayarlar'dan da seçilir
 - **Tam BYOK** — API anahtarın yalnızca VS Code'un şifreli `SecretStorage`'ında saklanır. Tulvez sunucusuna hiçbir şey gönderilmez.
 
 ## Desteklenen Sağlayıcılar
@@ -32,6 +33,8 @@ Gizlilik odaklı, BYOK yapay zeka kodlama asistanı — VS Code için.
 | OpenAI | GPT-4o, o1, o3… |
 | Anthropic | Claude 3.5 / 3.7… |
 | Groq | Çok hızlı çıkarım |
+| OpenCode | Kullandıkça öde; Claude, GPT, Gemini ve açık modeller tek anahtarla. Ücretsiz modelleri (big-pickle, *-free) OpenCode'un kuralı gereği yalnız OpenCode uygulamasında çalışır |
+| OpenCode Go | Aylık abonelik, açık modeller |
 | Ollama | Yerel, API anahtarı gerekmez |
 | Özel (OpenAI uyumlu) | OpenRouter, LM Studio, vLLM, Jan… |
 
@@ -87,7 +90,7 @@ Privacy-focused, BYOK AI coding assistant for VS Code.
 ### Features
 
 - **Ask / Plan / Build modes** — Ask questions, generate step-by-step plans, or let Tulvez actively write and edit your code
-- **Multi-provider** — OpenAI, Anthropic, Google Gemini, Groq, Ollama (local/offline)
+- **Multi-provider** — OpenAI, Anthropic, Google Gemini, Groq, OpenCode, OpenCode Go, Ollama (local/offline)
 - **Real tool use** — `read_file`, `grep_files`, `write_file`, `replace_in_file`, `run_command` — Tulvez actually touches your files, only inside the open folder; Ask and Plan modes are read-only
 - **Skills** — Tulvez's skills on GitHub (such as [scale-engineer](https://github.com/tulvez/scale-engineer)) install and update themselves; when your request matches one, Tulvez uses it on its own; type `/skill` to pick one from a list, or upload and download your own skills
 - **Conversation memory** — Tulvez remembers the files it read and the command output from earlier messages; when the context fills up it trims old tool output on its own
@@ -100,6 +103,7 @@ Privacy-focused, BYOK AI coding assistant for VS Code.
 - **Approval flow** — File edits are applied automatically; terminal commands require your confirmation (configurable)
 - **Git shortcuts** — `/commit`, `/review`, `/diff`, `/explain`
 - **Markdown rendering**, reasoning animation, token / cost / context-window stats
+- **Turkish and English** — The interface and replies follow your VS Code language; you can also pick one in Settings
 - **100% BYOK** — Your API key lives only in VS Code's encrypted `SecretStorage`. Nothing is sent to Tulvez servers.
 
 ### Supported Providers
@@ -110,6 +114,8 @@ Privacy-focused, BYOK AI coding assistant for VS Code.
 | OpenAI | GPT-4o, o1, o3… |
 | Anthropic | Claude 3.5 / 3.7… |
 | Groq | Very fast inference |
+| OpenCode | Pay as you go; Claude, GPT, Gemini and open models with one key. Its free models (big-pickle, *-free) only work in the OpenCode app, by OpenCode's rule |
+| OpenCode Go | Monthly subscription, open models |
 | Ollama | Local, no API key needed |
 | Custom (OpenAI-compatible) | OpenRouter, LM Studio, vLLM, Jan… |
 

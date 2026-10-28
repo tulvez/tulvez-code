@@ -3,6 +3,7 @@ import * as path from 'path';
 import { host } from './host';
 import type { AgentMode } from './types';
 import { getInstructions } from './skills';
+import { currentLang } from './i18n';
 
 // Başka yardımcıların da okuduğu proje talimat dosyaları (ilk bulunanlar, sırayla)
 const RULE_FILES = ['AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md', '.cursorrules', '.clinerules', '.windsurfrules'];
@@ -72,6 +73,13 @@ const MODE_INFO: Record<AgentMode, string> = {
   plan: 'Şu anki modun: Plan. Bu modda isteği adım adım planlarsın; kod yazmaz, değişiklik yapmazsın.',
   build: 'Şu anki modun: Build. Bu modda dosyaları okur, düzenler ve komut çalıştırırsın.',
 };
+// Yanıt dili Tulvez Code'un diline uyar; kullanıcı başka dilde yazarsa o dil
+function languageLine(): string {
+  return currentLang() === 'en'
+    ? 'Language: reply to the user in English. If the user writes in another language, reply in that language.'
+    : 'Dil: kullanıcıya Türkçe yanıt ver. Kullanıcı başka bir dilde yazarsa o dilde yanıt ver.';
+}
+
 function modesLine(): string {
   return `Tulvez Code'un üç modu var: Ask (soru-cevap), Plan (planlama), Build (uygulama). Kullanıcı modu ${SURFACE[host().surface].modeSwitch} değiştirir.`;
 }
@@ -97,12 +105,12 @@ const TOOL_GUIDE = [
 
 /** Selamlaşma ve kısa sohbet için küçük istem: proje talimatları, araç yönergesi ve harita yok. */
 export function buildChatPrompt(mode: AgentMode): string {
-  return `${identity()}\n\n${MODE_INFO[mode]}\n\nKullanıcı selamlaşıyor ya da kısa sohbet ediyor: kısa ve doğal yanıt ver.`;
+  return `${identity()}\n\n${languageLine()}\n\n${MODE_INFO[mode]}\n\nKullanıcı selamlaşıyor ya da kısa sohbet ediyor: kısa ve doğal yanıt ver.`;
 }
 
 // code_skills.md her istekte okunur: düzenleme eklenti yeniden yüklenmeden geçerli olur
 export function buildPrompt(mode: AgentMode, repoMap: string, skills = ''): string {
-  let base = `${identity()}\n\n${modesLine()}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}\n\n${TOOL_GUIDE}`;
+  let base = `${identity()}\n\n${languageLine()}\n\n${modesLine()}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}\n\n${TOOL_GUIDE}`;
   const rules = projectRules();
   if (rules) base += `\n\n${rules}`;
   if (skills) base += `\n\n${skills}`;

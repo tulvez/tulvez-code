@@ -1,4 +1,6 @@
 import type { TulvezSettings } from './messages';
+import { listOpencodeModels } from './opencode';
+import { L } from './i18n';
 
 /**
  * Sağlayıcının hesabında gerçekten kullanılabilen modelleri döndürür.
@@ -40,16 +42,19 @@ export async function listProviderModels(settings: TulvezSettings): Promise<stri
     return (json.models ?? []).map((m) => m.name).sort();
   }
 
+  if (provider === 'opencode' || provider === 'opencode-go') {
+    return listOpencodeModels(provider === 'opencode-go' ? 'go' : 'console', key);
+  }
+
   const baseURL =
     provider === 'groq' ? 'https://api.groq.com/openai/v1'
-    : provider === 'opencode' ? 'https://opencode.ai/zen/v1'
     : provider === 'custom' ? (settings.baseUrl || '').replace(/\/$/, '')
     : 'https://api.openai.com/v1';
 
   const res = await fetch(`${baseURL}/models`, {
     headers: key ? { Authorization: `Bearer ${key}` } : {},
   });
-  if (!res.ok) throw new Error(`Model listesi alınamadı (${res.status})`);
+  if (!res.ok) throw new Error(L(`Model listesi alınamadı (${res.status})`, `Could not get the model list (${res.status})`));
   const json = (await res.json()) as { data?: { id: string }[] };
   return (json.data ?? []).map((m) => m.id).sort();
 }
