@@ -72,6 +72,7 @@ export const HELP = `Tulvez Code CLI — terminalde yapay zekâ kodlama yardımc
 
 Kullanım:
   tulvez                      Bu klasörde etkileşimli oturum açar
+                              (ilk açılışta sağlayıcı/anahtar/model kurulumu)
   tulvez "istek"              Tek istek: yanıtı yazar ve çıkar
   komut | tulvez "istek"      Girdi isteğe eklenir (ör. hata çıktısını açıklat)
   tulvez ayarlar              Etkin ayarları ve ayar dosyasının yerini gösterir
@@ -86,20 +87,13 @@ Seçenekler:
   -h, --help                  Bu yardım
   -v, --version               Sürüm
 
-API anahtarı yalnız ortam değişkeninden okunur, dosyaya yazılmaz:
+API anahtarı ortam değişkeninden okunur, ayar dosyasına yazılmaz:
   TULVEZ_API_KEY ya da sağlayıcınınki (OPENAI_API_KEY, ANTHROPIC_API_KEY,
   GEMINI_API_KEY, GROQ_API_KEY, OPENCODE_API_KEY). Ollama anahtar istemez.
+  Kurulum ekranında yapıştırılan anahtar o oturumda kullanılır; Windows'ta
+  istenirse kullanıcı ortam değişkenine (setx) kaydedilir.
 
 Diğer ortam değişkenleri: TULVEZ_PROVIDER, TULVEZ_MODEL, TULVEZ_BASE_URL,
 OLLAMA_HOST, TULVEZ_CONFIG_DIR, NO_COLOR.
 
-Oturum içi komutlar: /yardim yazın.`;
-
-export const SESSION_HELP = `Oturum komutları:
-  /mod <ask|plan|build>   Modu değiştirir
-  /model <kimlik>         Modeli değiştirir
-  /yeni                   Sohbeti sıfırlar
-  /geri-al                Son yanıtın yaptığı dosya değişikliklerini geri alır
-  /ayarlar                Etkin ayarları gösterir
-  /cikis                  Çıkar (Ctrl+D da olur)
-Ctrl+C: süren yanıtı durdurur; boş satırda iki kez basınca çıkar.`;
+Oturumda / yazınca komutlar listelenir; /yardim tüm kısayolları gösterir.`;

@@ -172,6 +172,24 @@ export function loadConfig(
   };
 }
 
+/**
+ * Ayar dosyasına yalnız verilen alanları yazar; dosyadaki diğer alanlar korunur.
+ * Anahtar alanı kabul edilmez (tip düzeyinde de yok).
+ */
+export function saveConfigFile(file: string, patch: Pick<CliConfigFile, 'provider' | 'model' | 'baseUrl'>): void {
+  let current: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, '')) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) current = parsed as Record<string, unknown>;
+  } catch { /* yok ya da bozuk: baştan yazılır */ }
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined || v === '') delete current[k];
+    else current[k] = v;
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(current, null, 2)}\n`, 'utf8');
+}
+
 /** OLLAMA_HOST "127.0.0.1:11434" biçiminde de gelebilir. */
 function normalizeOllama(host: string): string {
   const h = host.trim().replace(/\/+$/, '');

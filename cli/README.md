@@ -24,7 +24,24 @@ npm test 2>&1 | tulvez "neden kırıldı?"   # girdi isteğe eklenir
 tulvez ayarlar                       # etkin ayarlar ve ayar dosyasının yeri
 ```
 
-Tek istekte yanıt stdout'a, araç adımları stderr'e yazılır: `tulvez "…" > yanit.md` yalnız yanıtı kaydeder.
+İlk açılışta kurulum ekranı gelir: sağlayıcıyı ok tuşlarıyla seçer, anahtarı yapıştırır, modeli listeden seçersin.
+Sonra oturum: renkli açılış ekranı, mod renginde çerçeveli giriş kutusu, `/` ile komut menüsü, `@` ile dosya önerileri,
+akarken düşünme göstergesi, biçimlendirilmiş yanıt (başlık, liste, kod bloğu) ve seçmeli onay kutuları.
+
+Çıktı bir dosyaya ya da başka bir komuta yönlendirilirse düz metne geçer: yanıt stdout'a, araç adımları stderr'e
+yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
+
+### Kısayollar
+
+| Tuş | |
+|---|---|
+| Enter | gönder |
+| `\` + Enter | yeni satır (yapıştırılan çok satırlı metin de olduğu gibi kalır) |
+| Shift+Tab | modu değiştir: Build → Plan → Ask |
+| Esc | süren yanıtı durdur · iki kez: girişi sil |
+| ↑ ↓ | önceki istekler (oturumlar arası saklanır) |
+| Ctrl+C | girişi sil · boşken iki kez: çık |
+| Ctrl+D | çık |
 
 ### Modlar
 
@@ -39,13 +56,14 @@ Tek istekte yanıt stdout'a, araç adımları stderr'e yazılır: `tulvez "…" 
 | Komut | |
 |---|---|
 | `/mod <ask\|plan\|build>` | Modu değiştirir |
-| `/model <kimlik>` | Modeli değiştirir |
+| `/model [kimlik]` | Modeli değiştirir (kimliksiz: sağlayıcının listesinden seç) |
+| `/saglayici` | Sağlayıcı, anahtar ve modeli yeniden kurar |
 | `/yeni` | Sohbeti sıfırlar |
 | `/geri-al` | Son yanıtın yazdığı dosyaları eski haline döndürür |
+| `/onay` | Komut onaylarını bu oturumda açar ya da kapatır |
 | `/ayarlar` | Etkin ayarları gösterir |
+| `/temizle` | Ekranı temizler |
 | `/cikis` | Çıkar (Ctrl+D da olur) |
-
-Ctrl+C süren yanıtı durdurur; boş satırda iki kez basınca çıkar.
 
 ## Güvenlik
 
@@ -58,8 +76,9 @@ Ctrl+C süren yanıtı durdurur; boş satırda iki kez basınca çıkar.
 
 ## Sağlayıcı ve API anahtarı
 
-Anahtar yalnız ortam değişkeninden okunur, hiçbir dosyaya yazılmaz. `TULVEZ_API_KEY` her sağlayıcıda geçerlidir;
-yoksa sağlayıcının kendi değişkenine bakılır.
+Anahtar ortam değişkeninden okunur, ayar dosyasına yazılmaz. `TULVEZ_API_KEY` her sağlayıcıda geçerlidir;
+yoksa sağlayıcının kendi değişkenine bakılır. Kurulum ekranında yapıştırılan anahtar o oturumda kullanılır;
+Windows'ta istersen kullanıcı ortam değişkenine kaydedilir (`setx`), macOS/Linux'ta kabuk profiline eklemen gerekir.
 
 | Sağlayıcı (`--provider`) | Anahtar değişkeni |
 |---|---|

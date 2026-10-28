@@ -5,6 +5,10 @@
 İlk sürüm. Tulvez Code eklentisinin ajanı terminalde.
 
 - `tulvez`: bulunulan klasörde etkileşimli oturum; `tulvez "istek"`: tek istek, yanıt stdout'a, adımlar stderr'e.
+- Terminal arayüzü: degrade renkli TULVEZ logosu ve "Code CLI" yazısı, ilk açılışta kurulum (sağlayıcı → anahtar →
+  model, ok tuşlarıyla), mod renginde çerçeveli giriş kutusu, `/` komut menüsü, `@` dosya önerileri, düşünme
+  göstergesi, markdown biçimli yanıt, seçmeli onaylar ("bu oturumda bir daha sorma"), Shift+Tab ile mod değiştirme,
+  oturumlar arası komut geçmişi. Ek bağımlılık yok; çıktı yönlendirilince düz metne geçer.
 - Boru hattı: `komut | tulvez "açıkla"` girdiyi isteğe ekler.
 - Ask, Plan ve Build modları (`-m`, oturumda `/mod`); eklentiyle aynı araçlar, yapılacaklar listesi ve sohbet hafızası.
 - Komutlar ve araçlar her seferinde onay ister (`-y` ile sorulmaz); girdi terminal değilse onay verilmez.
