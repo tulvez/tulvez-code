@@ -7,6 +7,8 @@ import type { AgentMode } from '../../src/services/types';
 import pkg from '../package.json';
 import { MODES, isMode } from './args';
 import { invalidateFiles, matchFiles, workspaceFiles } from './files';
+import { ago, listSessions, saveSession, sessionsDir, type SessionRecord } from './sessions';
+import { MarkdownStream } from './ui/markdown';
 import type { Session } from './session';
 import { KEYS_FILE, configDir, removeKey, type LoadedConfig } from './settings';
 import { shortPath, welcomeView } from './ui/banner';
@@ -29,6 +31,7 @@ export const COMMANDS: Command[] = [
   { name: '/model', hint: 'modeli değiştir', idleOnly: true },
   { name: '/provider', hint: 'sağlayıcı, anahtar ve modeli yeniden kur', idleOnly: true },
   { name: '/clear', hint: 'yeni sohbet (hafıza sıfırlanır)', idleOnly: true },
+  { name: '/resume', hint: 'kayıtlı bir oturumu sürdür', idleOnly: true },
   { name: '/undo', hint: 'son yanıtın dosya değişikliklerini geri al', idleOnly: true },
   { name: '/approve', hint: 'komut onaylarını aç ya da kapat' },
   { name: '/config', hint: 'etkin ayarlar' },
@@ -38,7 +41,7 @@ export const COMMANDS: Command[] = [
 
 /** Eski Türkçe adlar ve yaygın eş anlamlılar çalışmaya devam eder */
 const ALIASES: Record<string, string> = {
-  yardim: 'help', yardım: 'help', mod: 'mode', saglayici: 'provider', sağlayıcı: 'provider', yeni: 'clear', new: 'clear',
+  yardim: 'help', yardım: 'help', surdur: 'resume', sürdür: 'resume', continue: 'resume', mod: 'mode', saglayici: 'provider', sağlayıcı: 'provider', yeni: 'clear', new: 'clear',
   temizle: 'clear', 'geri-al': 'undo', onay: 'approve', ayarlar: 'config', 'anahtar-sil': 'logout', cikis: 'exit',
   çıkış: 'exit', quit: 'exit',
 };
@@ -173,7 +176,14 @@ function remember(root: string, note: string): string {
 
 const MODE_ORDER: AgentMode[] = ['build', 'plan', 'ask'];
 
-export async function interactive(session: Session, cfg: LoadedConfig, root: string): Promise<void> {
+export interface InteractiveOptions {
+  /** --continue: bu klasördeki son oturumu sürdür */
+  continueLast?: boolean;
+  /** --resume: kayıtlı oturumlardan seç */
+  resume?: boolean;
+}
+
+export async function interactive(session: Session, cfg: LoadedConfig, root: string, start: InteractiveOptions = {}): Promise<void> {
   const history = loadHistory();
   const suggest = suggester(root);
   const modeColor = (): Paint => fg(MODE_COLOR[session.mode]);
@@ -314,6 +324,11 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
       print(`${c.yellow('!')} ${c.muted(`/${cmd} yanıt sürerken kullanılamaz — Esc ile durdur ya da yanıtın bitmesini bekle`)}`);
       return false;
     }
+    if (cmd === 'resume') {
+      const picked = await pickSession();
+      if (picked) replay(picked);
+      return false;
+    }
     if (cmd === 'clear') {
       session.reset();
       invalidateRepoMap();
@@ -377,6 +392,51 @@ export async function interactive(session: Session, cfg: LoadedConfig, root: str
     print();
     return false;
   };
+
+  // --- Oturum kaydı (--continue, --resume, /resume) ---
+  const sessionsPath = sessionsDir(configDir());
+  session.onSaved = (r) => saveSession(sessionsPath, r);
+
+  const replay = (r: SessionRecord): void => {
+    session.restore(r);
+    screen.clearTranscript();
+    print(`${c.brand('↺')} ${c.text('Oturum sürdürülüyor')} ${c.muted(`· ${r.history.length / 2} istek · ${ago(r.updatedAt)}`)}`);
+    print();
+    for (const t of r.history) {
+      if (t.role === 'user') {
+        printUserMessage(t.text);
+      } else {
+        const md = new MarkdownStream((l) => print(l));
+        md.push(t.text);
+        md.flush();
+      }
+      print();
+    }
+  };
+
+  const pickSession = async (): Promise<SessionRecord | null> => {
+    const list = listSessions(sessionsPath, root);
+    if (!list.length) {
+      print(`${c.muted('Bu klasörde kayıtlı oturum yok.')}`);
+      print();
+      return null;
+    }
+    return select<SessionRecord>({
+      title: 'Hangi oturum sürdürülsün?',
+      filter: list.length > 9,
+      summary: false,
+      choices: list.slice(0, 40).map((r) => ({ value: r, label: r.title || '(adsız)', hint: `${ago(r.updatedAt)} · ${r.history.length / 2} istek` })),
+    });
+  };
+
+  if (start.continueLast) {
+    const last = listSessions(sessionsPath, root)[0];
+    if (last) replay(last);
+    else { print(c.muted('Bu klasörde sürdürülecek oturum yok; yeni sohbet açıldı.')); print(); }
+  } else if (start.resume) {
+    const picked = await pickSession();
+    if (picked) replay(picked);
+  }
 
   for (;;) {
     const result = await readInput({

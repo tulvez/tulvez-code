@@ -112,7 +112,7 @@ async function main(): Promise<number> {
       if (warning) print(`${c.yellow('!')} ${c.muted(warning)}`);
       void syncSkillsIfStale(skillsRoot).catch(() => {});
       const session = new Session(settings, root, new FancyUi(), cfg.mcpServers, args.mode, true);
-      await interactive(session, cfg, root);
+      await interactive(session, cfg, root, { continueLast: args.continueLast, resume: args.resume });
       turns = session.turns;
       await session.close();
     } finally {

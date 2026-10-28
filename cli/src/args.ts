@@ -13,6 +13,10 @@ export interface CliArgs {
   version: boolean;
   /** `tulvez ayarlar`: etkin ayarları gösterir */
   showConfig: boolean;
+  /** -c, --continue: bu klasördeki son oturumu sürdür */
+  continueLast: boolean;
+  /** -r, --resume: kayıtlı oturumlardan seç */
+  resume: boolean;
 }
 
 export const MODES: readonly AgentMode[] = ['ask', 'plan', 'build'];
@@ -31,7 +35,7 @@ const VALUE_FLAGS: Record<string, keyof CliArgs> = {
 
 /** Komut satırını ayrıştırır; hatalı kullanımda okunur bir Error fırlatır. */
 export function parseArgs(argv: string[]): CliArgs {
-  const out: CliArgs = { prompt: '', mode: 'build', yes: false, help: false, version: false, showConfig: false };
+  const out: CliArgs = { prompt: '', mode: 'build', yes: false, help: false, version: false, showConfig: false, continueLast: false, resume: false };
   const words: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -42,6 +46,8 @@ export function parseArgs(argv: string[]): CliArgs {
     if (a === '-h' || a === '--help' || a === '--yardim') { out.help = true; continue; }
     if (a === '-v' || a === '--version' || a === '--surum') { out.version = true; continue; }
     if (a === '-y' || a === '--yes') { out.yes = true; continue; }
+    if (a === '-c' || a === '--continue') { out.continueLast = true; continue; }
+    if (a === '-r' || a === '--resume') { out.resume = true; continue; }
     // --model=x biçimi
     const eq = a.startsWith('--') ? a.indexOf('=') : -1;
     const name = eq > 0 ? a.slice(0, eq) : a;
@@ -83,6 +89,8 @@ Seçenekler:
       --model <kimlik>        Model kimliği
       --base-url <adres>      custom sağlayıcının OpenAI uyumlu adresi
   -C, --cwd <klasör>          Çalışma klasörü (araçlar yalnız burada okur/yazar)
+  -c, --continue              Bu klasördeki son oturumu sürdür
+  -r, --resume                Kayıtlı oturumlardan seçip sürdür
   -y, --yes                   Komut ve araç onaylarını sormadan ver
   -h, --help                  Bu yardım
   -v, --version               Sürüm

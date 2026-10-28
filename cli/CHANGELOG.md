@@ -27,6 +27,9 @@
 - Komutlar İngilizce (`/help`, `/mode`, `/model`, `/provider`, `/clear`, `/undo`, `/approve`, `/config`, `/logout`,
   `/exit`), her birinin yanında kısa Türkçe açıklama; eski Türkçe adlar da çalışır.
 - Modelin düşünme metni ekrana dökülmez; yalnız "Düşünüyor…" göstergesi.
+- Oturum kaydı: `tulvez -c` (`--continue`) bu klasördeki son oturumu, `tulvez -r` (`--resume`) ya da `/resume`
+  listeden seçileni sürdürür; konuşma ekrana gelir, model araç sonuçları dahil hatırlar. Kayıtlar `sessions/`
+  altında (izin 600, en çok 50).
 - Mesajın Claude Code'daki gibi arka planlı kutuda ("❯ metin"); `!` komutu ve `/` komutları da öyle.
 - Yanıt altındaki sayaç girdi ve çıktıyı ayrı gösterir ("2.430 girdi · 14 çıktı"). Selamlaşma ve kısa sohbette
   ("merhaba", "nasılsın", "teşekkürler") modele proje talimatları, proje haritası ve araç tanımları gönderilmez.

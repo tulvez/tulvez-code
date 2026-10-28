@@ -22,6 +22,8 @@ tulvez "README'ye kurulum bölümü ekle"   # tek istek: yanıtı yazar ve çık
 tulvez -m ask "bu depo ne yapıyor?"   # salt okuma
 npm test 2>&1 | tulvez "neden kırıldı?"   # girdi isteğe eklenir
 tulvez ayarlar                       # etkin ayarlar ve ayar dosyasının yeri
+tulvez -c                            # bu klasördeki son oturumu sürdür (--continue)
+tulvez -r                            # kayıtlı oturumlardan seç (--resume)
 ```
 
 `tulvez` tam ekran açılır (Claude Code'un tam ekran modu gibi): terminalin önceki komutları görünmez; çıkınca terminal
@@ -73,6 +75,7 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | `/model [kimlik]` | Modeli değiştirir (kimliksiz: sağlayıcının listesinden seç) |
 | `/provider` | Sağlayıcı, anahtar ve modeli yeniden kurar |
 | `/clear` | Yeni sohbet (hafıza sıfırlanır, boş ekrana döner) |
+| `/resume` | Bu klasördeki kayıtlı bir oturumu sürdürür |
 | `/undo` | Son yanıtın yazdığı dosyaları eski haline döndürür |
 | `/approve` | Komut onaylarını bu oturumda açar ya da kapatır |
 | `/config` | Etkin ayarları gösterir |
@@ -81,6 +84,13 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 | `/exit` | Çıkar (Ctrl+D da olur) |
 
 Eski Türkçe adlar (`/yeni`, `/geri-al`, `/saglayici`…) da çalışır.
+
+## Oturum kaydı
+
+Her tamamlanan yanıttan sonra oturum ayar klasörüne (`sessions/`, dosya izni 600) kaydedilir; en çok 50 oturum
+tutulur. `tulvez -c` bu klasördeki son oturumu, `tulvez -r` ya da `/resume` listeden seçileni açar: önceki konuşma
+ekrana gelir ve model araç sonuçları dahil hatırlar. Kayıt okunan dosyaların içeriğini ve komut çıktılarını
+barındırabilir.
 
 ## Güvenlik
 

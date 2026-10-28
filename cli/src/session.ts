@@ -7,6 +7,7 @@ import { mentionContext } from '../../src/services/mentions';
 import type { TulvezSettings } from '../../src/services/messages';
 import type { TodoItem } from '../../src/services/tools';
 import type { AgentMode, ChatTurn } from '../../src/services/types';
+import { newSessionId, sessionTitle, type SessionRecord } from './sessions';
 
 export type Approval = 'evet' | 'hep' | 'hayir';
 
@@ -53,6 +54,12 @@ export type RunOutcome = 'done' | 'cancelled' | 'error';
 
 export class Session {
   mode: AgentMode;
+  /** Kayıt kimliği (--resume); yeni sohbette yenilenir */
+  id = newSessionId();
+  private createdAt = Date.now();
+  private title = '';
+  /** Tamamlanan her yanıttan sonra çağrılır (oturum kaydı) */
+  onSaved: ((record: SessionRecord) => void) | null = null;
   private prior: ModelMessage[] | null = null;
   private history: ChatTurn[] = [];
   private lastCheckpoint: string | null = null;
@@ -90,10 +97,37 @@ export class Session {
   }
 
   reset(): void {
+    this.id = newSessionId();
+    this.createdAt = Date.now();
+    this.title = '';
     this.prior = null;
     this.history = [];
     this.lastCheckpoint = null;
     this.notes = [];
+  }
+
+  /** Kaydedilecek hali */
+  record(): SessionRecord {
+    return {
+      id: this.id, root: this.root, title: this.title, createdAt: this.createdAt, updatedAt: Date.now(),
+      mode: this.mode, model: this.settings.model, history: this.history, prior: this.prior,
+    };
+  }
+
+  /** Kayıttan sürdürür: konuşma hafızası ve kimlik geri gelir (sonraki yanıtlar aynı kayda yazılır). */
+  restore(r: SessionRecord): void {
+    this.reset();
+    this.id = r.id;
+    this.createdAt = r.createdAt;
+    this.title = r.title;
+    this.history = r.history.slice();
+    this.prior = r.prior;
+    this.mode = r.mode;
+  }
+
+  /** Düz metin geçmiş (ekranda yeniden göstermek için) */
+  get transcript(): readonly ChatTurn[] {
+    return this.history;
   }
 
   /** Bir sonraki isteğe modelin bilmesi gereken bağlamı ekler. */
@@ -216,6 +250,8 @@ export class Session {
     }
     if (outcome === 'done') {
       this.history.push({ role: 'user', text: prompt }, { role: 'assistant', text: answer });
+      if (!this.title) this.title = sessionTitle(prompt);
+      try { this.onSaved?.(this.record()); } catch { /* kayıt yazılamazsa oturum sürer */ }
     } else {
       // Yarım kalan tur konuşma hafızasına girmez; düz metin geçmişe düşülür
       this.prior = null;
