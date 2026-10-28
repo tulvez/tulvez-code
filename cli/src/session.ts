@@ -22,15 +22,17 @@ export interface TurnUsage {
  * (ui/plain) aynı arayüzü uygular; oturum yalnız akışı yönetir.
  */
 export interface SessionUi {
-  /** Tur başladı (düşünme göstergesi); `stop` Esc/Ctrl+C ile yanıtı durdurur. */
-  begin(stop: () => void): void;
+  /** Tur başladı (düşünme göstergesi). Durdurma tuşlarını giriş kutusu yönetir. */
+  begin(): void;
   /** Tur bitti (nasıl biterse bitsin). */
   end(): void;
   text(chunk: string): void;
   reasoning(chunk: string): void;
   todos(items: TodoItem[]): void;
-  toolCall(tool: string, summary: string): void;
+  toolCall(tool: string, summary: string, callId: string): void;
   toolResult(r: ToolResult): void;
+  /** Sağlayıcı hız sınırı: istek bu kadar saniye bekleyip yinelenecek */
+  waiting(seconds: number): void;
   /** Komut/araç izni; soramıyorsa null (girdi terminal değil). */
   approve(tool: string, detail: string, signal: AbortSignal): Promise<Approval | null>;
   /** Evet/hayır sorusu; soramıyorsa null. */
@@ -50,7 +52,8 @@ export class Session {
   private prior: ModelMessage[] | null = null;
   private history: ChatTurn[] = [];
   private lastCheckpoint: string | null = null;
-  private undoNote = '';
+  /** Sonraki isteğin başına eklenecek bağlam notları (geri alma, "!" ile çalıştırılan komutlar) */
+  private notes: string[] = [];
   private mcp: McpManager | null = null;
   private projectMcpDecided: boolean | null = null;
   private abort: AbortController | null = null;
@@ -86,7 +89,12 @@ export class Session {
     this.prior = null;
     this.history = [];
     this.lastCheckpoint = null;
-    this.undoNote = '';
+    this.notes = [];
+  }
+
+  /** Bir sonraki isteğe modelin bilmesi gereken bağlamı ekler. */
+  addNote(note: string): void {
+    this.notes.push(note);
   }
 
   async close(): Promise<void> {
@@ -127,9 +135,9 @@ export class Session {
     let text = prompt;
     const mentioned = await mentionContext(prompt, this.root).catch(() => '');
     if (mentioned) text = `${text}\n\n${mentioned}`;
-    if (this.undoNote) {
-      text = `${this.undoNote}\n\n${text}`;
-      this.undoNote = '';
+    if (this.notes.length) {
+      text = `${this.notes.join('\n\n')}\n\n${text}`;
+      this.notes = [];
     }
 
     const abort = new AbortController();
@@ -139,7 +147,7 @@ export class Session {
 
     let outcome: RunOutcome = 'done';
     let answer = '';
-    this.ui.begin(() => this.stop());
+    this.ui.begin();
     try {
       await runAgent(this.settings, text, this.mode, this.history, {
         onChunk: (chunk) => {
@@ -150,8 +158,9 @@ export class Session {
           if (this.settings.showThinking) this.ui.reasoning(chunk);
         },
         onTodos: (items) => this.ui.todos(items),
-        onToolCall: (tool, summary) => this.ui.toolCall(tool, summary),
+        onToolCall: (tool, summary, callId) => this.ui.toolCall(tool, summary, callId),
         onToolResult: (r) => this.ui.toolResult(r),
+        onRateLimitWait: (seconds) => this.ui.waiting(seconds),
         onToolRequest: async (_id, tool, args) => {
           let detail = args;
           try {
@@ -224,7 +233,7 @@ export class Session {
       this.lastCheckpoint = null;
       const files = r.restored.map((f) => this.rel(f)).join(', ');
       this.ui.success(`Geri alındı: ${files}`);
-      this.undoNote = `(Not: kullanıcı önceki yanıtındaki dosya değişikliklerini geri aldı; şu dosyalar o yanıttan önceki haline döndü: ${files}. Bu dosyaları yeniden okumadan içerikleri hakkında varsayımda bulunma.)`;
+      this.notes.push(`(Not: kullanıcı önceki yanıtındaki dosya değişikliklerini geri aldı; şu dosyalar o yanıttan önceki haline döndü: ${files}. Bu dosyaları yeniden okumadan içerikleri hakkında varsayımda bulunma.)`);
     } catch (err) {
       this.ui.error(err instanceof Error ? err.message : String(err));
     }

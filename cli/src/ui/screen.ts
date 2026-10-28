@@ -13,8 +13,8 @@ import { BRAND, c, columns, dim, gradient, truncateAnsi, wrapAnsi } from './them
  * karşılama ekranı görünür; ilk mesajla karşılama silinir, sohbet üstten akmaya başlar.
  */
 
-type Slot = 'setup' | 'spinner' | 'select' | 'suggest' | 'notice';
-const SLOT_ORDER: Slot[] = ['setup', 'spinner', 'select', 'suggest', 'notice'];
+type Slot = 'setup' | 'stream' | 'spinner' | 'queue' | 'select' | 'suggest' | 'notice';
+const SLOT_ORDER: Slot[] = ['setup', 'stream', 'spinner', 'queue', 'select', 'suggest', 'notice'];
 
 interface Cursor { row: number; col: number }
 

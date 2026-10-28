@@ -16,6 +16,11 @@
 - Sağlayıcılar: OpenAI, Anthropic, Gemini, Groq, OpenCode Zen, Ollama, OpenAI uyumlu özel adres.
 - Ekran: giriş kutusu ve durum satırı hep altta sabit; sohbet terminalin kendi geçmişine yazılır (kaydırma,
   seçme, sağ tıkla yapıştırma terminalde çalışır); boş sohbette ortada logo ve örnekler, ilk mesajla sohbet görünümü.
+- Mesaj sırası: yanıt sürerken yazılıp Enter'a basılan mesaj sıraya eklenir, yanıt bitince gönderilir; Ctrl+S
+  yanıtı durdurup sıradakini hemen gönderir, Esc durdurur ve sıradakileri kutuya geri koyar.
+- Claude Code düzeni: `?` kısayollar, `!` ile komut doğrudan terminalde (çıktısı modele de gider), `#` ile not
+  AGENTS.md'ye; araç adımları "● Oku(dosya) └ 42 satır okundu"; düzenlemelerde renkli fark; yanıt akarken canlı görünür.
+- Hız sınırında istek bekleyip yinelenir ve bekleme ekranda görünür ("18 sn bekleyip devam ediyorum").
 - Hatalar Türkçe ve ne yapılacağıyla (hız sınırı, geçersiz anahtar, kota, bağlantı, model); kütüphane çıktısı
   ekran yerine `cli.log` dosyasına.
 - API anahtarı: kurulumda kaydedilebilir (`anahtarlar.json`, izin 600; Windows, macOS, Linux); ortam değişkeni varsa

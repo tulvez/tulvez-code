@@ -44,6 +44,17 @@ export class MarkdownStream {
     }
   }
 
+  /**
+   * Henüz tamamlanmamış satırın görünümü (akarken canlı gösterilir; satır bitince kalıcı yazılır).
+   * Durum değiştirmez: kod bloğu içindeyse kod, değilse satır içi biçimli metin.
+   */
+  peek(): string | null {
+    const raw = this.buffer.replace(/\r$/, '');
+    if (!raw.trim()) return null;
+    const body = this.inCode ? `${c.muted('│')} ${c.code(raw)}` : inline(raw);
+    return this.firstLine ? `${c.text('●')} ${body}` : `  ${body}`;
+  }
+
   private emit(text: string): void {
     // Baştaki boş satırlar atlanır; ilk dolu satır ● ile işaretlenir
     if (this.firstLine) {

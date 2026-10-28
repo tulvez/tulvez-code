@@ -19,10 +19,25 @@ export interface SuggestionSet {
   to: number;
 }
 
+export interface EditorApi {
+  getText(): string;
+  setText(text: string): void;
+  /** Yeniden çiz (yer tutucu gibi dışarıdan değişen durumlar için) */
+  refresh(): void;
+}
+
 export interface EditorOptions {
-  /** Kutu ve imleç rengi */
-  accent: () => Paint;
-  placeholder?: string;
+  /** Kutu ve imleç rengi; yazılan metne göre değişebilir (ör. "!" kipi) */
+  accent: (text: string) => Paint;
+  placeholder?: string | (() => string);
+  /** Esc (öneri listesi kapalıyken); true dönerse tüketildi (ör. yanıt durduruldu) */
+  onEscape?: () => boolean;
+  /** Ctrl+C, giriş boşken; true dönerse tüketildi (ör. yanıt durduruldu) */
+  onCtrlC?: () => boolean;
+  /** Ctrl+S; true dönerse tüketildi (ör. yanıtı durdurup sıradakini hemen gönder) */
+  onSendNow?: (text: string) => boolean;
+  /** Kutunun metnine dışarıdan erişim (sıradaki mesajları kutuya geri koymak için) */
+  bind?: (api: EditorApi) => void;
   history?: string[];
   suggest?: (text: string, cursor: number) => SuggestionSet | null;
   /** Shift+Tab */
@@ -141,8 +156,9 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
 
   const render = (): void => {
     const cols = columns();
-    const accent = opts.accent();
-    const box = layoutBox(chars, cursor, { accent, placeholder: opts.placeholder, mask: opts.mask, label: opts.label });
+    const accent = opts.accent(text());
+    const placeholder = typeof opts.placeholder === 'function' ? opts.placeholder() : opts.placeholder;
+    const box = layoutBox(chars, cursor, { accent, placeholder, mask: opts.mask, label: opts.label });
     if (sugg) {
       const list = sugg.items.slice(0, MAX_SUGGESTIONS);
       const labelW = Math.min(28, Math.max(...list.map((s) => width(s.label))) + 2);
@@ -235,15 +251,18 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
       const now = Date.now();
       if (isCtrlC(key)) {
         if (chars.length) { setText(''); sugg = null; }
+        else if (opts.onCtrlC?.()) return render();
         else if (now - lastCtrlC < 1500) return done({ exit: true });
         else { lastCtrlC = now; notice = 'Çıkmak için Ctrl+C\'ye yeniden bas'; }
         return render();
       }
       if (key.ctrl && key.name === 'd' && !chars.length) return done({ exit: true });
       if ((key.ctrl || key.meta) && key.name === 'v') return pasteFromClipboard();
+      if (key.ctrl && key.name === 's' && opts.onSendNow?.(text())) return render();
       if (key.name === 'escape') {
         if (sugg) { sugg = null; suggDismissed = true; return render(); }
         if (opts.mask || opts.singleLine) return done(null);
+        if (opts.onEscape?.()) return render();
         if (chars.length && now - lastEsc < 600) { setText(''); return render(); }
         lastEsc = now;
         if (chars.length) notice = 'Silmek için Esc\'ye yeniden bas';
@@ -339,6 +358,18 @@ export function readInput(opts: EditorOptions): Promise<EditorResult> {
 
     const release = pushKeys(onKey);
     process.stdout.on('resize', onResize);
+    opts.bind?.({
+      getText: text,
+      setText: (s) => {
+        if (finished) return;
+        setText(s);
+        updateSuggestions();
+        render();
+      },
+      refresh: () => {
+        if (!finished) render();
+      },
+    });
     updateSuggestions();
     render();
   });

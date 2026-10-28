@@ -40,14 +40,18 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 
 | Tuş | |
 |---|---|
-| Enter | gönder |
+| Enter | gönder · yanıt sürerken **sıraya ekler** (yanıt bitince sırayla gönderilir) |
+| Ctrl+S | süren yanıtı durdur, sıradaki ilk mesajı hemen gönder (kutuda yazı varsa önce o) |
+| Esc | süren yanıtı durdur; sıradaki mesajlar düzenlemek için kutuya geri gelir · boşta iki kez: girişi sil |
+| `?` | kısayol listesi |
+| `!komut` | komutu doğrudan terminalde çalıştır; çıktısı bir sonraki istekte modele de gider |
+| `# not` | notu AGENTS.md'ye ekle (sonraki isteklerde proje kuralı olarak okunur) |
 | `\` + Enter | yeni satır (yapıştırılan çok satırlı metin de olduğu gibi kalır) |
 | Shift+Tab | modu değiştir: Build → Plan → Ask |
-| Esc | süren yanıtı durdur · iki kez: girişi sil |
 | ↑ ↓ | önceki istekler (oturumlar arası saklanır) |
 | Tekerlek · sürükle · sağ tık | terminalin kendisi: kaydır, seç, yapıştır |
 | Ctrl+V | yapıştır; terminal yapıştırmazsa (cmd, VS Code) pano okunur: Windows PowerShell, macOS `pbpaste`, Linux `wl-paste`/`xclip`/`xsel` |
-| Ctrl+C | girişi sil · boşken iki kez: çık |
+| Ctrl+C | girişi sil · yanıt sürerken durdur · boşken iki kez: çık |
 | Ctrl+D | çık |
 
 ### Modlar

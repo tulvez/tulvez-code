@@ -87,6 +87,11 @@ export class PlainUi implements SessionUi {
     }
   }
 
+  waiting(seconds: number): void {
+    this.lineBreak();
+    note(dim(`  Sağlayıcı hız sınırı: ${seconds} sn bekleyip yeniden deniyorum…`));
+  }
+
   async approve(tool: string, detail: string, signal: AbortSignal): Promise<Approval | null> {
     this.lineBreak();
     note(yellow(`? ${toolLabel(tool)} izni:`));

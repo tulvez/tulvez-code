@@ -48,6 +48,14 @@ export function fg(hex: string): Paint {
   return (text) => (colorEnabled ? `\x1b[${code}m${text}\x1b[39m` : text);
 }
 
+/** Arka plan rengi (fark satırları) */
+export function bg(hex: string): Paint {
+  const f = fgCode(hexToRgb(hex));
+  // 24 bit / 256 renk: 38;… → 48;… · 16 renk: ön plan 30–37/90–97 → arka plan 40–47/100–107
+  const code = f.startsWith('38;') ? `48;${f.slice(3)}` : String(Number(f) + 10);
+  return (text) => (colorEnabled ? `\x1b[${code}m${text}\x1b[49m` : text);
+}
+
 const sgr = (on: number, off: number): Paint => (text) => (colorEnabled ? `\x1b[${on}m${text}\x1b[${off}m` : text);
 export const bold = sgr(1, 22);
 export const dim = sgr(2, 22);

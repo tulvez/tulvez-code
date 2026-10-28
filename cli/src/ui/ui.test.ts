@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { matchFiles } from '../files';
 import { normalizePaste } from './clipboard';
+import { diffSummary, lineDiff } from './diff';
 import { friendlyError } from './errors';
 import { MarkdownStream } from './markdown';
 import { box, fit, fitStart, truncateAnsi, width, wrapAnsi, wrapPlain } from './theme';
@@ -86,6 +87,35 @@ describe('ölçü yardımcıları', () => {
 
   it('wrapPlain genişliğe böler', () => {
     expect(wrapPlain('abcdef', 4)).toEqual(['abcd', 'ef']);
+  });
+});
+
+describe('düzenleme farkı', () => {
+  it('tek bölge değişimi: eklenen/silinen satırlar ve başlangıç satırı', () => {
+    const d = lineDiff('a\nb\nc\nd\n', 'a\nB\nB2\nd\n');
+    expect(d).toMatchObject({ added: 2, removed: 2, start: 2, removedLines: ['b', 'c'], addedLines: ['B', 'B2'] });
+    expect(diffSummary(d)).toBe('2 satır eklendi, 2 satır silindi');
+  });
+  it('yeni dosya: sondaki satır sonu boş satır sayılmaz', () => {
+    expect(lineDiff('', 'selam dunya\n')).toMatchObject({ added: 1, removed: 0, addedLines: ['selam dunya'] });
+  });
+  it('değişiklik yoksa özet söyler; Windows satır sonu fark sayılmaz', () => {
+    expect(diffSummary(lineDiff('x\r\ny\r\n', 'x\ny\n'))).toBe('değişiklik yok');
+  });
+});
+
+describe('akan satırın önizlemesi', () => {
+  it('yarım satır gösterilir ama yazılmaz; satır bitince yazılır', () => {
+    const out: string[] = [];
+    const md = new MarkdownStream((l) => out.push(l));
+    md.push('Merhaba `dün');
+    expect(md.peek()).toBe('● Merhaba `dün');
+    expect(out).toEqual([]);
+    md.push('ya`\n');
+    expect(out).toEqual(['● Merhaba dünya']);
+    expect(md.peek()).toBeNull();
+    md.push('ikinci');
+    expect(md.peek()).toBe('  ikinci');
   });
 });
 
