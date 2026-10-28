@@ -93,6 +93,11 @@ const TOOL_GUIDE = [
   '- İş bitince ne yaptığını kısaca söyle; araç çağrısı yapıp sessizce bitirme.',
 ].join('\n');
 
+/** Selamlaşma ve kısa sohbet için küçük istem: proje talimatları, araç yönergesi ve harita yok. */
+export function buildChatPrompt(mode: AgentMode): string {
+  return `${identity()}\n\n${MODE_INFO[mode]}\n\nKullanıcı selamlaşıyor ya da kısa sohbet ediyor: kısa ve doğal yanıt ver.`;
+}
+
 // code_skills.md her istekte okunur: düzenleme eklenti yeniden yüklenmeden geçerli olur
 export function buildPrompt(mode: AgentMode, repoMap: string, skills = ''): string {
   let base = `${identity()}\n\n${modesLine()}\n${MODE_INFO[mode]}\n\n${ROLES[mode]}\n\n${TOOL_GUIDE}`;

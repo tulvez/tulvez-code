@@ -2,7 +2,7 @@ import { stepCountIs, streamText, type ModelMessage, type ToolSet } from 'ai';
 import * as path from 'path';
 import type { TulvezSettings } from './messages';
 import { calcCost } from './cost';
-import { buildPrompt } from './ai';
+import { buildChatPrompt, buildPrompt } from './ai';
 import type { AgentMode, ChatTurn } from './types';
 import { TOOL_DEFINITIONS, applyBudget, executeTool, formatTodos, normalizeTodos, resolveEditPath, snapshotBeforeEdit, type TodoItem } from './tools';
 import { buildRepoMap } from './repomap';
@@ -89,12 +89,23 @@ export function requestLimitFrom(message: string): number | null {
   return limit ? Number(limit[1]) : 0;
 }
 
-function isTrivialRequest(text: string): boolean {
-  const t = text.trim().toLowerCase().replace(/[.!?.,]/g, '');
-  if (t.length > 24) return false;
-  const trivial = ['merhaba', 'selam', 'hey', 'hi', 'hello', 'merhaba tulvez', 'sen kimsin',
-    'kimsin', 'kimsin sen', 'ne yapabilirsin', 'nasilsin', 'iyi misin', 'teskirler'];
-  return trivial.includes(t);
+const TRIVIAL = new Set([
+  'merhaba', 'merhabalar', 'selam', 'selamlar', 'slm', 'mrb', 'hey', 'hi', 'hello', 'merhaba tulvez', 'selam tulvez',
+  'sen kimsin', 'kimsin', 'kimsin sen', 'ne yapabilirsin', 'nasilsin', 'naber', 'nbr', 'iyi misin', 'nasil gidiyor',
+  'tesekkurler', 'tesekkur ederim', 'tsk', 'sag ol', 'sagol', 'eyvallah', 'gunaydin', 'iyi aksamlar', 'iyi geceler',
+  'tamam', 'tamamdir', 'ok', 'okey', 'peki', 'super', 'harika', 'thanks', 'thank you',
+]);
+
+/**
+ * Selamlaşma ve kısa sohbet: modele proje haritası, proje talimatları ve araç tanımları gitmez
+ * (her istekte binlerce token tutuyordu; "merhaba"ya yanıt için gereksiz).
+ */
+export function isTrivialRequest(text: string): boolean {
+  const t = text.trim().toLocaleLowerCase('tr-TR')
+    .replace(/[ıİ]/g, 'i').replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ö/g, 'o').replace(/ü/g, 'u')
+    .replace(/[.!?,:;)(]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!t || t.length > 30) return false;
+  return TRIVIAL.has(t) || TRIVIAL.has(t.replace(/ (sen|siz)$/, '')) || TRIVIAL.has(t.replace(/^(selam|merhaba) /, ''));
 }
 
 function toolSummary(name: string, args: Record<string, unknown>): string {
@@ -236,7 +247,7 @@ export async function runAgent(
   const trivial = isTrivialRequest(userMessage);
   const repoMap = trivial ? '' : await repoMapFor();
   const skills = trivial ? '' : skillsPromptBlock(localSkills(getSkillsRoot()));
-  const system = buildPrompt(mode, repoMap, skills);
+  const system = trivial ? buildChatPrompt(mode) : buildPrompt(mode, repoMap, skills);
   const allowed = trivial ? [] : toolsForMode(mode);
 
   let resolved;
