@@ -14,6 +14,7 @@ export function createCliHost(
   const settings: Record<string, unknown> = {
     gitCoAuthor: file.gitCoAuthor ?? true,
     skillsRegistry: file.skillsRegistry,
+    webSearch: file.webSearch ?? 'auto',
   };
   return {
     surface: 'cli',

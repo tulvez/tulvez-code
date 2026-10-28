@@ -87,6 +87,13 @@ yazılır (`tulvez "…" > yanit.md` yalnız yanıtı kaydeder).
 
 Eski Türkçe adlar (`/yeni`, `/geri-al`, `/saglayici`…) da çalışır.
 
+## Web araması
+
+Ajan güncel bilgi, hata iletisi ya da belge gerekince `web_search` ile arar, sonucu `web_fetch` ile açar (adres
+indirme onay ister). Kaynak: `BRAVE_API_KEY` varsa Brave Search, `TAVILY_API_KEY` varsa Tavily, ikisi de yoksa
+anahtarsız **Tulvez Arama** (tulvez.com). `cli.json` → `"webSearch": "off"` aramayı kapatır; `brave`, `tavily`,
+`tulvez` kaynağı sabitler.
+
 ## Oturum kaydı
 
 Her tamamlanan yanıttan sonra oturum ayar klasörüne (`sessions/`, dosya izni 600) kaydedilir; en çok 50 oturum

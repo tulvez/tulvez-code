@@ -37,6 +37,8 @@ export interface CliConfigFile {
   gitCoAuthor?: boolean;
   showThinking?: boolean;
   skillsRegistry?: string;
+  /** web_search kaynağı: auto (BRAVE_API_KEY / TAVILY_API_KEY varsa o, yoksa Tulvez Arama), brave, tavily, tulvez, off */
+  webSearch?: 'auto' | 'brave' | 'tavily' | 'tulvez' | 'off';
   /** Eklentideki tulvez.mcpServers ile aynı biçim */
   mcpServers?: unknown;
 }

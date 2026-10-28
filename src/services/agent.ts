@@ -128,6 +128,7 @@ function toolSummary(name: string, args: Record<string, unknown>): string {
   if (name === 'grep_files') return `${args.pattern ?? ''}${args.include ? ` (${args.include})` : ''}`;
   if (name === 'list_files' || name === 'list_dir') return String(args.directory ?? '.');
   if (name === 'web_fetch') return String(args.url ?? '');
+  if (name === 'web_search') return String(args.query ?? '');
   return JSON.stringify(args).slice(0, 120);
 }
 

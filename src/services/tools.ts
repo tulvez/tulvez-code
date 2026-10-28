@@ -150,6 +150,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     schema: z.object({ url: z.string().describe('Tam adres, https://… ile') }),
   },
   {
+    name: 'web_search',
+    description: 'Web\'de arar; başlık, adres ve kısa özet listesi döndürür. Güncel bilgi, hata iletisi, kütüphane belgesi ya da ' +
+      'sürüm gerekince kullan; ayrıntı için ilgili sonucu web_fetch ile aç. Sorguyu kısa ve anahtar kelimelerle yaz.',
+    requiresApproval: false,
+    readOnly: true,
+    schema: z.object({ query: z.string().describe('Arama sorgusu') }),
+  },
+  {
     name: 'todo_write',
     description: 'Çok adımlı işlerde yapılacaklar listesini yazar ve günceller; liste kullanıcıya canlı gösterilir. ' +
       'Her çağrıda listenin TAMAMINI gönder. Aynı anda yalnız bir madde in_progress olsun; biten maddeyi hemen completed yap. ' +
@@ -221,6 +229,79 @@ export function htmlToText(html: string): string {
 
 const FETCH_MAX_BYTES = 3 * 1024 * 1024;
 const FETCH_MAX_CHARS = 40_000;
+
+export interface SearchHit { title: string; url: string; snippet: string }
+
+const SEARCH_RESULTS = 8;
+
+/**
+ * Arama kaynağı: BRAVE_API_KEY ya da TAVILY_API_KEY varsa o, yoksa anahtarsız Tulvez Arama
+ * (tulvez.com/api/arama). `tulvez.webSearch` ayarı "off" ise araç kapalıdır.
+ */
+export function searchBackend(env: NodeJS.ProcessEnv = process.env): 'brave' | 'tavily' | 'tulvez' | 'off' {
+  const pref = String(host().setting('webSearch', 'auto'));
+  if (pref === 'off') return 'off';
+  if (pref === 'brave' || (pref === 'auto' && env.BRAVE_API_KEY)) return 'brave';
+  if (pref === 'tavily' || (pref === 'auto' && env.TAVILY_API_KEY)) return 'tavily';
+  return 'tulvez';
+}
+
+export function formatHits(query: string, source: string, hits: SearchHit[]): string {
+  if (!hits.length) return `"${query}" için sonuç yok (${source}). Sorguyu kısaltıp farklı anahtar kelimelerle dene.`;
+  const lines = hits.map((h, i) => `${i + 1}. ${h.title.replace(/\s+/g, ' ').trim()}\n   ${h.url}${h.snippet ? `\n   ${h.snippet.replace(/\s+/g, ' ').trim().slice(0, 300)}` : ''}`);
+  return `"${query}" için ${hits.length} sonuç (${source}):\n\n${lines.join('\n\n')}\n\nAyrıntı için ilgili adresi web_fetch ile aç.`;
+}
+
+async function webSearch(query: string, signal?: AbortSignal): Promise<string> {
+  const q = query.trim();
+  if (!q) return 'Hata: arama sorgusu boş.';
+  const backend = searchBackend();
+  if (backend === 'off') return 'Hata: web araması ayarlarda kapalı.';
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20_000);
+  const onAbort = () => ctrl.abort();
+  signal?.addEventListener('abort', onAbort, { once: true });
+  const ua = 'tulvez-code (+https://github.com/tulvez/tulvez-code)';
+  try {
+    let hits: SearchHit[] = [];
+    let source = '';
+    if (backend === 'brave') {
+      source = 'Brave Search';
+      const res = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(q)}&count=${SEARCH_RESULTS}`, {
+        signal: ctrl.signal, headers: { Accept: 'application/json', 'X-Subscription-Token': process.env.BRAVE_API_KEY ?? '', 'User-Agent': ua },
+      });
+      if (!res.ok) return `Hata: ${source} HTTP ${res.status}.`;
+      const data = await res.json() as { web?: { results?: { title?: string; url?: string; description?: string }[] } };
+      hits = (data.web?.results ?? []).map((r) => ({ title: r.title ?? '', url: r.url ?? '', snippet: htmlToText(r.description ?? '') }));
+    } else if (backend === 'tavily') {
+      source = 'Tavily';
+      const res = await fetch('https://api.tavily.com/search', {
+        method: 'POST', signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.TAVILY_API_KEY ?? ''}`, 'User-Agent': ua },
+        body: JSON.stringify({ query: q, max_results: SEARCH_RESULTS }),
+      });
+      if (!res.ok) return `Hata: ${source} HTTP ${res.status}.`;
+      const data = await res.json() as { results?: { title?: string; url?: string; content?: string }[] };
+      hits = (data.results ?? []).map((r) => ({ title: r.title ?? '', url: r.url ?? '', snippet: r.content ?? '' }));
+    } else {
+      source = 'Tulvez Arama';
+      const res = await fetch(`https://tulvez.com/api/arama?q=${encodeURIComponent(q)}&kategori=web&limit=${SEARCH_RESULTS}`, {
+        signal: ctrl.signal, headers: { Accept: 'application/json', 'User-Agent': ua },
+      });
+      if (!res.ok) return `Hata: ${source} HTTP ${res.status}.`;
+      const data = await res.json() as { web?: { baslik?: string; url?: string; ozet?: string }[] };
+      hits = (data.web ?? []).map((r) => ({ title: r.baslik ?? '', url: r.url ?? '', snippet: r.ozet ?? '' }));
+    }
+    return formatHits(q, source, hits.filter((h) => h.url).slice(0, SEARCH_RESULTS));
+  } catch (err) {
+    if (signal?.aborted) return 'Hata: kullanıcı durdurdu.';
+    if ((err as Error).name === 'AbortError') return 'Hata: arama 20 saniyede yanıt vermedi.';
+    return `Hata: arama yapılamadı: ${(err as Error).message}`;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
+  }
+}
 
 async function webFetch(url: string, signal?: AbortSignal): Promise<string> {
   let parsed: URL;
@@ -477,6 +558,8 @@ export async function executeTool(
       }
       case 'web_fetch':
         return await webFetch(String(args.url ?? ''), meta?.signal);
+      case 'web_search':
+        return await webSearch(String(args.query ?? ''), meta?.signal);
       case 'list_files': {
         const dir = resolvePath(String(args.directory ?? '.'));
         const entries = await fs.readdir(dir, { withFileTypes: true });

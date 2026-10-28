@@ -192,3 +192,17 @@ describe('web_fetch', () => {
     expect(await executeTool('web_fetch', { url: 'abc' }, false)).toMatch(/geçersiz adres/);
   });
 });
+
+describe('web araması', async () => {
+  const { formatHits, searchBackend } = await import('../services/tools');
+  it('kaynak: anahtar varsa Brave/Tavily, yoksa Tulvez Arama', () => {
+    expect(searchBackend({})).toBe('tulvez');
+    expect(searchBackend({ TAVILY_API_KEY: 'k' })).toBe('tavily');
+    expect(searchBackend({ BRAVE_API_KEY: 'k', TAVILY_API_KEY: 'k' })).toBe('brave');
+  });
+  it('sonuçlar numaralı, adresli; sonuç yoksa yol gösterir', () => {
+    const out = formatHits('q', 'Tulvez Arama', [{ title: 'Başlık\n a', url: 'https://x.dev', snippet: 'özet' }]);
+    expect(out).toContain('1. Başlık a\n   https://x.dev\n   özet');
+    expect(formatHits('q', 'X', [])).toContain('sonuç yok');
+  });
+});

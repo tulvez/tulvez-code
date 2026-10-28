@@ -89,6 +89,7 @@ const TOOL_GUIDE = [
   '- Bir şeyin nerede geçtiğini bulmak için önce grep_files kullan, yalnız eşleşen dosyaları oku. Aynı dosyayı aynı turda ikinci kez okuma.',
   '- Kullanıcı "dosyaları oku", "neler var", "projeyi incele" derse yalnız listeyi verip durma: önemli dosyaları (README, paket/proje dosyası, giriş noktası) oku ve projenin ne yaptığını özetle. Klasör ağacını ya da dosya listesini yanıta olduğu gibi kopyalama; kullanıcı onu zaten görüyor.',
   '- Büyük dosyaları bir kerede okuma: önce README ve paket dosyası gibi küçükleri oku, büyük kaynak dosyalarında önce grep_files ile ilgili yeri bul.',
+  '- Güncel bilgi, hata iletisi ya da kütüphane belgesi gerekince web_search ile ara, ilgili sonucu web_fetch ile aç.',
   '- Araç hata verirse iletiyi oku, yolu ya da argümanı düzeltip yeniden dene; aynı hatalı çağrıyı tekrarlama.',
   '- İş bitince ne yaptığını kısaca söyle; araç çağrısı yapıp sessizce bitirme.',
 ].join('\n');
