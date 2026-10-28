@@ -8,7 +8,7 @@ import { TOOL_DEFINITIONS, applyBudget, executeTool, formatTodos, normalizeTodos
 import { buildRepoMap } from './repomap';
 import { resolveModel } from './providers';
 import { getSkillsRoot, localSkills, skillsPromptBlock } from './orgSkills';
-import { compactConversation, withoutReasoning } from './conversation';
+import { compactConversation, fitToolResults, withoutReasoning } from './conversation';
 import { recordBefore } from './checkpoint';
 import type { McpTool } from './mcp';
 import { onRateLimitWait } from './rateLimit';
@@ -73,6 +73,20 @@ function contextWindow(model: string): number {
   if (model.includes('gemma') || model.includes('qwen')) return 32768;
   if (model.includes('mimo') || model.includes('ling') || model.includes('nemotron')) return 128000;
   return 128000;
+}
+
+/**
+ * Sağlayıcının istek başına token sınırı (ör. Groq ücretsiz plan: dakikada 8.000). İlk "istek çok
+ * büyük" hatasında iletiden öğrenilir; sonraki adımlarda araç çıktıları buna sığacak kadar kısaltılır.
+ */
+const requestLimits = new Map<string, number>();
+
+/** "Request too large … Limit 8000, Requested 13194" → 8000; sınır hatası değilse null, sayı yoksa 0. */
+export function requestLimitFrom(message: string): number | null {
+  const m = message.toLowerCase();
+  if (!/request too large|reduce your message size|context[_ ]length|maximum context length|prompt is too long|too many tokens/.test(m)) return null;
+  const limit = /limit\s*:?\s*(\d+)/i.exec(message) ?? /maximum context length is (\d+)/i.exec(message);
+  return limit ? Number(limit[1]) : 0;
 }
 
 function isTrivialRequest(text: string): boolean {
@@ -257,6 +271,17 @@ export async function runAgent(
     },
   };
 
+  // Model talimatı ve araç tanımları da sınıra sayılır (1 token ≈ 3 karakter, temkinli)
+  const fixedChars = system.length + JSON.stringify(allowed.map((t) => [t.description, t.schema])).length;
+  const fit = (msgs: ModelMessage[]): ModelMessage[] => {
+    const limit = requestLimits.get(resolved.id);
+    if (!limit) return msgs;
+    return fitToolResults(msgs, Math.max(3000, Math.floor(limit * 3 * 0.8) - fixedChars));
+  };
+  // Son adımın konuşması: sınır aşılınca tur baştan değil buradan sürer (araçlar yeniden çalışmaz)
+  const step: { last: ModelMessage[] | null } = { last: null };
+  let shrinkRetries = 0;
+
   const offRateLimit = onRateLimitWait((seconds) => callbacks.onRateLimitWait?.(seconds));
   try {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -266,7 +291,7 @@ export async function runAgent(
         const result = streamText({
           model: resolved.model,
           system,
-          messages,
+          messages: fit(messages),
           tools,
           stopWhen: stepCountIs(MAX_STEPS),
           abortSignal: signal,
@@ -279,7 +304,10 @@ export async function runAgent(
           // Bazı OpenAI-uyumlu uç noktalar (örn. gpt-oss-20b) önceki adımın
           // düşünme (reasoning) parçalarını geri kabul etmez. Düşünme hâlâ
           // üretilir ve arayüzde gösterilir; sadece isteğe geri eklenmez.
-          prepareStep: async ({ messages }) => ({ messages: withoutReasoning(messages) }),
+          prepareStep: async ({ messages: stepMessages }) => {
+            step.last = withoutReasoning(stepMessages);
+            return { messages: fit(step.last) };
+          },
         });
 
         let sawText = false;
@@ -334,6 +362,17 @@ export async function runAgent(
           return;
         }
         const raw = err instanceof Error ? err.message : String(err);
+        const limit = requestLimitFrom(raw);
+        if (limit !== null && shrinkRetries < 2) {
+          // İstek sağlayıcının sınırından büyük: sınırı öğren, araç çıktılarını kısaltıp kaldığı yerden sür
+          shrinkRetries++;
+          const known = requestLimits.get(resolved.id);
+          const next = limit || Math.floor((known ?? 16000) / 2);
+          requestLimits.set(resolved.id, known ? Math.min(known * 0.7, next) : next);
+          if (step.last) messages.splice(0, messages.length, ...step.last);
+          attempt--;
+          continue;
+        }
         if (!isRetryable(raw) || attempt >= maxAttempts || chunkSeen) {
           cb.onError(raw);
           return;

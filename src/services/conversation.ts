@@ -91,3 +91,41 @@ export function compactConversation(messages: ModelMessage[], budgetChars: numbe
   }
   return out;
 }
+
+const FIT_FLOOR = 800;
+
+/**
+ * Sağlayıcının istek başına token sınırına (ör. Groq ücretsiz planında dakikada 8.000) sığmak için
+ * araç çıktılarını, en büyüğünden başlayarak baştan ve sondan kısaltır. Bu turunkiler de dahil:
+ * sınır aşılırsa istek hiç gitmez. Mesaj sırası ve araç çağrısı/sonuç çiftleri bozulmaz.
+ */
+export function fitToolResults(messages: ModelMessage[], budgetChars: number): ModelMessage[] {
+  let total = messages.reduce((n, m) => n + sizeOf(m), 0);
+  if (total <= budgetChars) return messages;
+  const out = messages.map((m) => (m.role === 'tool' ? { ...m, content: m.content.slice() } : m));
+  for (let guard = 0; guard < 200 && total > budgetChars; guard++) {
+    // En büyük metin çıktısı
+    let best: { mi: number; pi: number; len: number } | null = null;
+    out.forEach((m, mi) => {
+      if (m.role !== 'tool') return;
+      m.content.forEach((p, pi) => {
+        if (p.type !== 'tool-result') return;
+        const o = p.output;
+        if ((o.type === 'text' || o.type === 'error-text') && o.value.length > FIT_FLOOR && (!best || o.value.length > best.len)) {
+          best = { mi, pi, len: o.value.length };
+        }
+      });
+    });
+    if (!best) break;
+    const { mi, pi, len } = best;
+    const msg = out[mi] as Extract<ModelMessage, { role: 'tool' }>;
+    const part = msg.content[pi] as Extract<(typeof msg.content)[number], { type: 'tool-result' }>;
+    const value = (part.output as { value: string }).value;
+    const keep = Math.max(FIT_FLOOR, Math.min(Math.floor(len / 2), len - (total - budgetChars)));
+    const head = Math.floor(keep * 0.7);
+    const shortened = `${value.slice(0, head)}\n… (${len - keep} karakter sağlayıcının istek sınırı yüzünden atlandı; gerekirse grep_files ile ilgili yeri ara) …\n${value.slice(len - (keep - head))}`;
+    msg.content[pi] = { ...part, output: { ...(part.output as { type: 'text' }), value: shortened } };
+    total -= len - shortened.length;
+  }
+  return out;
+}
